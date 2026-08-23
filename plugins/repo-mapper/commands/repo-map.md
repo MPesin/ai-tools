@@ -1,5 +1,5 @@
 ---
-description: Generate or refresh a token-lean repo index (AGENTS.md + .repo-map/) that any AI agent can use — the /init replacement
+description: Generate or refresh a repo-guide skill (.claude/skills/repo-guide/) indexing this repo for AI agents — the /init replacement
 argument-hint: "[refresh]"
 ---
 

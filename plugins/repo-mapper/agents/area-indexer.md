@@ -7,7 +7,7 @@ model: inherit
 
 You index ONE area of a repository. Your prompt gives you: area name, include
 globs, exclude globs, section budgets, and the staging file path
-(`.repo-map/.staging/<area>.md`). You read code inside your globs and write
+(`.claude/skills/repo-guide/.staging/<area>.md`). You read code inside your globs and write
 that one staging file. Bash is read-only (git/ls/grep/wc); Write is for your
 staging file ONLY.
 

@@ -17,27 +17,27 @@ AI tooling — skills and agents usable in any codebase, by anyone.
 
 `/init` writes one large `CLAUDE.md` that gets loaded into **every** prompt,
 mostly carrying information irrelevant to the task at hand. `repo-mapper`
-inverts that:
+inverts that: it generates a **project skill** at `.claude/skills/repo-guide/`
+— and touches no `CLAUDE.md`, `AGENTS.md`, or `GEMINI.md` at all.
 
-- **`AGENTS.md` is the index** — hard-capped at 100 lines, stamped with the
-  commit it was generated at. It holds the repo's purpose, stack, entry
-  points, top gotchas, and a routing table telling agents which reference
-  answers which question. Codex auto-loads it; `CLAUDE.md` and `GEMINI.md`
-  become one-line `@AGENTS.md` imports — so Claude Code, Codex, and Gemini
-  all see the same small index.
-- **Depth is loaded on demand** — `.repo-map/` holds self-contained
-  reference files (`architecture.md`, `modules.md`, `symbols.md`,
-  `conventions.md`, `commands.md`). A typical task needs the index plus one
-  or two of them, not all.
+- **A skill costs nothing until used** — until a task triggers it, the
+  repo-guide contributes only its one-line description. Its `SKILL.md` index
+  is hard-capped at 100 lines: repo purpose, stack, entry points, top
+  gotchas, and a routing table telling the agent which reference answers
+  which question.
+- **Depth is loaded on demand** — `references/` holds self-contained files
+  (`architecture.md`, `modules.md`, `symbols.md`, `conventions.md`,
+  `commands.md`). A typical task needs the index plus one or two of them.
+  The folder is plain markdown — any AI tool can consume it.
 - **Indexing is a verified pipeline, not one long prompt** — a scout agent
   surveys the repo and sizes a work plan (you approve the cost before
   fan-out), parallel area-indexer agents each deep-read one subsystem, and an
   auditor verifies citations against the code, resolves convention conflicts,
-  and assembles the final files. Symbols are indexed at *file* granularity —
+  and assembles the final skill. Symbols are indexed at *file* granularity —
   line numbers rot too fast to be trustworthy.
-- **Staleness is detected, never guessed** — `.repo-map/manifest.json`
-  records per-area commit stamps. A fail-silent SessionStart hook compares
-  them against merge-base and tells you exactly which areas drifted:
+- **Staleness is detected, never guessed** — `manifest.json` records per-area
+  commit stamps. A fail-silent SessionStart hook compares them against
+  merge-base and tells you exactly which areas drifted:
   `repo index is 12 commits stale (areas: api) — run /repo-map refresh`.
   Refresh re-indexes only stale areas, and falls back to full regeneration
   when history was rewritten.
@@ -57,8 +57,10 @@ YAGNI, steelmans a simpler alternative, and returns severity-ranked findings
 changes, or rethink. Read-only: it never edits or implements.
 
 It verifies claims against reality (reads files, runs read-only commands)
-instead of reasoning from the plan text alone. repo-mapper optionally uses it
-to review a freshly generated index against the actual code.
+instead of reasoning from the plan text alone, and when missing context would
+change the verdict it interviews the author — one batched round of questions
+probing intent, never facts it can look up itself. repo-mapper optionally uses
+it to review a freshly generated index against the actual code.
 
 This repository's own design was reviewed by it before being built.
 

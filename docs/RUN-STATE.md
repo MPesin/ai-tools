@@ -63,3 +63,12 @@ Task 1 housekeeping, then invoke superpowers:writing-skills before authoring SKI
   with only 1 verification grep — no grep crawl. Verified cmds: fmt/typecheck/lint exit 0.
   Generated files in CodeReviewUtil left uncommitted (user's call).
 - Output dir changed per user: docs/agents/ → .repo-map/ (plugin spec/agents/hook/README + migrated CodeReviewUtil output, checksum recomputed, hook re-verified silent)
+- Design change per user: generated output is now a PROJECT SKILL at
+  .claude/skills/repo-guide/ (SKILL.md + references/ + manifest.json); no
+  CLAUDE/AGENTS/GEMINI files created. Plugin spec/agents/hook/README updated
+  (v0.2.0). CodeReviewUtil migrated; checksums rebuilt (whole-file sha256, now
+  covering all generated files); hook re-verified silent. Second fresh-session
+  probe PASSED via skill route (3 reads to change-site, no grep crawl).
+- Verified via web: Copilot auto-discovers project skills in .claude/skills
+  (Agent Skills support since 2025-12); Codex CLI same SKILL.md format but
+  scans .codex/skills/ — symlink bridge proposed, not yet implemented.

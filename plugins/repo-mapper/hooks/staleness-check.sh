@@ -1,9 +1,9 @@
 #!/bin/bash
 # repo-mapper staleness check — SessionStart(startup) hook.
-# Reads ONLY .repo-map/manifest.json. Fail-silent on every error path.
+# Reads ONLY .claude/skills/repo-guide/manifest.json. Fail-silent on every error path.
 exec 2>/dev/null
 
-MANIFEST=".repo-map/manifest.json"
+MANIFEST=".claude/skills/repo-guide/manifest.json"
 [ -f "$MANIFEST" ] || exit 0
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 command -v python3 >/dev/null 2>&1 || exit 0

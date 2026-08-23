@@ -1,7 +1,7 @@
 {
   "name": "repo-mapper",
-  "version": "0.1.0",
-  "description": "Replace /init with a token-lean repo index: a stamped AGENTS.md (<=100 lines) auto-loaded by every AI agent, deep references in .repo-map/ loaded on demand, incremental refresh, and a staleness hook",
+  "version": "0.2.0",
+  "description": "Replace /init with a generated repo-guide skill: a small stamped SKILL.md index (<=100 lines) plus on-demand references/, built by a verified multi-agent pipeline, with incremental refresh and a staleness hook \u2014 no CLAUDE.md/AGENTS.md bloat",
   "author": {
     "name": "Michael Pesin"
   }

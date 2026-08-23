@@ -3,12 +3,12 @@
 ## Stamps
 
 - Whole index: `manifest.generated_commit` (full sha) + date; short sha in the
-  human-readable header of every generated file and in AGENTS.md line 2.
+  human-readable header of every generated file and in the SKILL.md freshness line.
 - Per area: `areas[].stamp` — the commit that area was last indexed at.
 
 ## Staleness detection (three consumers)
 
-1. **Any AI reading AGENTS.md** — the freshness line instructs: long
+1. **Any AI reading SKILL.md** — the freshness line instructs: long
    `git log <stamp>..HEAD` → verify before relying; suggest /repo-map refresh.
 2. **SessionStart hook (Claude, this plugin)** — `hooks/staleness-check.sh`.
    Reads ONLY manifest.json. Silent unless: in a git repo AND manifest exists
@@ -16,7 +16,7 @@
    AND changed files intersect indexed globs. Then injects one context line
    naming the stale areas. Fail-silent on every error path; must stay <100ms.
    Startup matcher only (not resume/compact) — one nag per session max.
-3. **Non-git or non-Claude** — the AGENTS.md line is the mechanism. No git
+3. **Non-git or non-Claude** — the SKILL.md freshness line is the mechanism. No git
    hooks are ever installed.
 
 ## Refresh algorithm
@@ -37,8 +37,8 @@
 
 ## Generated-region edit detection
 
-Before overwriting AGENTS.md/CLAUDE.md/GEMINI.md marker blocks, hash current
-block content and compare to manifest.checksums. Mismatch = user edited inside
+Before overwriting any generated file, hash its current content (whole-file
+sha256) and compare to manifest.checksums. Mismatch = user edited inside
 a generated region: show current vs proposed and ask; on approval fold their
 edit into the regenerated content (their edits usually encode a real gotcha —
 consider promoting it to the Gotchas section).

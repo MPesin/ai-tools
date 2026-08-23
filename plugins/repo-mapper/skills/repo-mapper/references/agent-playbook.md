@@ -23,7 +23,7 @@ Sanity-check the returned plan yourself before showing the user:
 
 Prompt template per area:
 - area name + globs + excludes (from the plan)
-- instruction: write findings to `.repo-map/.staging/<area>.md` using the
+- instruction: write findings to `.claude/skills/repo-guide/.staging/<area>.md` using the
   staging format below; final message = one-line summary only
 - the relevant section caps (symbols rows budget = 150 / N areas, min 10)
 
@@ -46,23 +46,27 @@ checksums state from preflight. Its job:
 - read all staging files; verify a sample (≥10 or all if fewer) of file
   citations exist; drop or fix false ones
 - resolve convention conflicts: majority rule + explicit exceptions note
-- write final .repo-map/* + AGENTS.md + pointer blocks per output-spec
+- write the final skill (SKILL.md + references/ + manifest.json) per output-spec
 - refresh mode: rewrite only stale areas' content, reconcile deletions,
   preserve fresh areas' sections verbatim
 - write manifest.json (new stamps, checksums), delete `.staging/`
-- final message: list of files written + line count of AGENTS.md + anything
+- final message: list of files written + line count of SKILL.md + anything
   it could not verify
 
 ## 4. design-critic (optional, offered after assembly)
 
-Prompt: "Review the generated AGENTS.md and .repo-map/ against the actual
-code. Flag: claims not supported by the code, missing load-bearing gotchas,
-navigation table entries that mislead. Severity-ranked findings only."
+Prompt: "Review the generated repo-guide skill (SKILL.md + references/) against the
+actual code. Flag: claims not supported by the code, missing load-bearing gotchas,
+navigation table entries that mislead, conventions stated as universal that the
+code contradicts. Sample-check symbol and path citations. Severity-ranked
+findings only. This is a pipeline run with no author to interview — resolve
+every question by reading the code, and report what the code cannot answer as
+a finding."
 
 ## Dispatch rules
 
 - All area-indexers in ONE message (true parallelism).
 - Never pass file contents between agents through your own context when a path
   suffices.
-- An indexer that fails/returns empty: note the gap in AGENTS.md ("area X
+- An indexer that fails/returns empty: note the gap in SKILL.md ("area X
   unindexed") rather than silently omitting — never fake coverage.
