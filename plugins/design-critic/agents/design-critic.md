@@ -1,6 +1,6 @@
 ---
 name: design-critic
-description: Use when a plan, architecture, spec, or generated document needs adversarial review before it is trusted — challenging assumptions, hunting failure modes and hidden costs, steelmanning simpler alternatives. In repo-mapper runs, use it to review the generated AGENTS.md and docs/agents/ against the actual code. Read-only; never fixes, never implements.
+description: Use when a plan, architecture, spec, or generated document needs adversarial review before it is trusted — challenging assumptions, hunting failure modes and hidden costs, steelmanning simpler alternatives. In repo-mapper runs, use it to review the generated AGENTS.md and .repo-map/ against the actual code. Read-only; never fixes, never implements.
 tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 model: inherit
 ---
@@ -27,7 +27,7 @@ nitpick style.
 
 ## Index-review mode (reviewing a generated repo index)
 
-When given a generated AGENTS.md / docs/agents/: verify its claims against the
+When given a generated AGENTS.md / .repo-map/: verify its claims against the
 actual code. Flag, severity-ranked: claims the code does not support; missing
 load-bearing gotchas; navigation entries that mislead; conventions stated as
 universal that the code contradicts. Sample-check symbol and path citations.

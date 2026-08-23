@@ -25,7 +25,7 @@ inverts that:
   answers which question. Codex auto-loads it; `CLAUDE.md` and `GEMINI.md`
   become one-line `@AGENTS.md` imports — so Claude Code, Codex, and Gemini
   all see the same small index.
-- **Depth is loaded on demand** — `docs/agents/` holds self-contained
+- **Depth is loaded on demand** — `.repo-map/` holds self-contained
   reference files (`architecture.md`, `modules.md`, `symbols.md`,
   `conventions.md`, `commands.md`). A typical task needs the index plus one
   or two of them, not all.
@@ -35,7 +35,7 @@ inverts that:
   auditor verifies citations against the code, resolves convention conflicts,
   and assembles the final files. Symbols are indexed at *file* granularity —
   line numbers rot too fast to be trustworthy.
-- **Staleness is detected, never guessed** — `docs/agents/manifest.json`
+- **Staleness is detected, never guessed** — `.repo-map/manifest.json`
   records per-area commit stamps. A fail-silent SessionStart hook compares
   them against merge-base and tells you exactly which areas drifted:
   `repo index is 12 commits stale (areas: api) — run /repo-map refresh`.

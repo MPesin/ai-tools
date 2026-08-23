@@ -15,11 +15,11 @@ Structure, in order:
 2. **Purpose** — max 3 sentences: what this codebase is and does.
 3. **Stack** — one line: languages, frameworks, package manager, runtime.
 4. **Navigation table** — the routing core. `| Question | Read |` rows, e.g.
-   "How is the code organized?" → `docs/agents/modules.md`;
-   "Where is symbol/feature X?" → `docs/agents/symbols.md`;
-   "How do I build/test/run?" → `docs/agents/commands.md`;
-   "What patterns must new code follow?" → `docs/agents/conventions.md`;
-   "How do subsystems interact?" → `docs/agents/architecture.md`.
+   "How is the code organized?" → `.repo-map/modules.md`;
+   "Where is symbol/feature X?" → `.repo-map/symbols.md`;
+   "How do I build/test/run?" → `.repo-map/commands.md`;
+   "What patterns must new code follow?" → `.repo-map/conventions.md`;
+   "How do subsystems interact?" → `.repo-map/architecture.md`.
    Plus explicit instruction: load these only when the task needs them.
 5. **Entry points** — up to 5: main/server/CLI entry files.
 6. **Gotchas** — 3-5 bullets: the non-obvious things that burn agents
@@ -38,11 +38,11 @@ Content (whole file if absent, marker block prepended if file exists):
 <!-- repo-mapper:end -->
 ```
 Never delete existing user content. If existing CLAUDE.md is large (>60 lines
-of instructions), PROPOSE migrating its content into docs/agents/conventions.md
+of instructions), PROPOSE migrating its content into .repo-map/conventions.md
 (current → proposed table) and wait for approval; on approval, migrated
 CLAUDE.md keeps user's genuinely-global rules + the import line.
 
-## docs/agents/manifest.json — machine-readable state (hook + refresh read ONLY this)
+## .repo-map/manifest.json — machine-readable state (hook + refresh read ONLY this)
 
 ```json
 {
@@ -67,7 +67,7 @@ Checksums cover only the marker-block content (or whole file when fully
 generated); used to detect user edits inside generated regions — a mismatch
 means ASK before overwriting, and preserve the user's version in the proposal.
 
-## docs/agents/ reference files
+## .repo-map/ reference files
 
 Each self-contained and task-scoped; a typical task needs AGENTS.md + 1-2 of
 these. No line numbers anywhere — file paths only (line numbers rot too fast).
@@ -93,4 +93,4 @@ these. No line numbers anywhere — file paths only (line numbers rot too fast).
 Root AGENTS.md routes to packages (table: package → path → one-liner) and
 holds only repo-wide content. Each significant package gets its own nested
 AGENTS.md (same structure, same 100-line cap) — Codex discovers nested
-AGENTS.md natively. docs/agents/ stays at root; manifest areas = packages.
+AGENTS.md natively. .repo-map/ stays at root; manifest areas = packages.

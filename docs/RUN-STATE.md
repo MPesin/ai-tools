@@ -62,3 +62,4 @@ Task 1 housekeeping, then invoke superpowers:writing-skills before authoring SKI
   a 3-part navigation question via CLAUDE.md → AGENTS.md → symbols.md/commands.md
   with only 1 verification grep — no grep crawl. Verified cmds: fmt/typecheck/lint exit 0.
   Generated files in CodeReviewUtil left uncommitted (user's call).
+- Output dir changed per user: docs/agents/ → .repo-map/ (plugin spec/agents/hook/README + migrated CodeReviewUtil output, checksum recomputed, hook re-verified silent)

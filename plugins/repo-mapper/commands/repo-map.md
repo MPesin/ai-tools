@@ -1,5 +1,5 @@
 ---
-description: Generate or refresh a token-lean repo index (AGENTS.md + docs/agents/) that any AI agent can use — the /init replacement
+description: Generate or refresh a token-lean repo index (AGENTS.md + .repo-map/) that any AI agent can use — the /init replacement
 argument-hint: "[refresh]"
 ---
 

@@ -23,7 +23,7 @@ Sanity-check the returned plan yourself before showing the user:
 
 Prompt template per area:
 - area name + globs + excludes (from the plan)
-- instruction: write findings to `docs/agents/.staging/<area>.md` using the
+- instruction: write findings to `.repo-map/.staging/<area>.md` using the
   staging format below; final message = one-line summary only
 - the relevant section caps (symbols rows budget = 150 / N areas, min 10)
 
@@ -46,7 +46,7 @@ checksums state from preflight. Its job:
 - read all staging files; verify a sample (≥10 or all if fewer) of file
   citations exist; drop or fix false ones
 - resolve convention conflicts: majority rule + explicit exceptions note
-- write final docs/agents/* + AGENTS.md + pointer blocks per output-spec
+- write final .repo-map/* + AGENTS.md + pointer blocks per output-spec
 - refresh mode: rewrite only stale areas' content, reconcile deletions,
   preserve fresh areas' sections verbatim
 - write manifest.json (new stamps, checksums), delete `.staging/`
@@ -55,7 +55,7 @@ checksums state from preflight. Its job:
 
 ## 4. design-critic (optional, offered after assembly)
 
-Prompt: "Review the generated AGENTS.md and docs/agents/ against the actual
+Prompt: "Review the generated AGENTS.md and .repo-map/ against the actual
 code. Flag: claims not supported by the code, missing load-bearing gotchas,
 navigation table entries that mislead. Severity-ranked findings only."
 
