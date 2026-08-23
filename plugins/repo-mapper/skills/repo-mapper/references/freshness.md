@@ -1,49 +1,35 @@
-# Freshness — stamps, staleness, refresh correctness
+# Freshness — git is the only state store
 
-## Stamps
+Principle: information retrievable from git is never stored by the generated
+skill. No manifest, no stamps, no checksums.
 
-- Whole index: `manifest.generated_commit` (full sha) + date; short sha in the
-  human-readable header of every generated file and in the SKILL.md freshness line.
-- Per area: `areas[].stamp` — the commit that area was last indexed at.
+## How each consumer derives freshness
 
-## Staleness detection (three consumers)
+1. **Any AI reading SKILL.md** — its freshness line instructs: compare
+   `git log -1 -- .claude/skills/repo-guide` (when the index last changed)
+   with recent repo history; if the repo has moved a lot since, verify
+   details against code before relying on them.
+2. **SessionStart hook (this plugin)** — pure bash: generation point =
+   `git log -1 --format=%H -- .claude/skills/repo-guide`; staleness =
+   `git rev-list --count <that>..HEAD`; one generic context line at ≥20
+   commits (override: REPO_MAPPER_STALE_THRESHOLD). Silent when: no skill,
+   no git, index never committed, or under threshold. Fail-silent, <100ms,
+   startup matcher only.
+3. **Non-git repos** — SKILL.md keeps its generated-on date comment; that is
+   the only freshness signal (degraded mode; no hook signal, no refresh).
 
-1. **Any AI reading SKILL.md** — the freshness line instructs: long
-   `git log <stamp>..HEAD` → verify before relying; suggest /repo-map refresh.
-2. **SessionStart hook (Claude, this plugin)** — `hooks/staleness-check.sh`.
-   Reads ONLY manifest.json. Silent unless: in a git repo AND manifest exists
-   AND stamp resolves AND commits-since-merge-base ≥ stale_threshold_commits
-   AND changed files intersect indexed globs. Then injects one context line
-   naming the stale areas. Fail-silent on every error path; must stay <100ms.
-   Startup matcher only (not resume/compact) — one nag per session max.
-3. **Non-git or non-Claude** — the SKILL.md freshness line is the mechanism. No git
-   hooks are ever installed.
+## Refresh = full regeneration
 
-## Refresh algorithm
+`/repo-map refresh` re-runs the whole pipeline (scout → fan-out → auditor)
+with the usual cost confirmation. No incremental machinery: the scout may read
+the existing SKILL.md as prior context, but every area is re-indexed. If
+partial refresh ever proves necessary on a huge repo, it can be reintroduced —
+the git history of this plugin contains the manifest-based implementation.
 
-1. Read manifest. `git cat-file -e <stamp>^{commit}` — unreachable (squash
-   merge, rebase, rewrite, shallow clone) → tell user and fall back to FULL
-   regeneration. Never diff against an unreachable stamp.
-2. Per area: `git diff --name-only <area.stamp>..HEAD` filtered by area globs.
-   Non-empty → stale.
-3. Reconcile structure BEFORE indexing: paths in manifest globs that no longer
-   exist → area is deleted/renamed; scout must re-derive that area's boundaries
-   from the current tree (and remove dead entries from all reference files —
-   stale-but-described-as-current is worse than unindexed).
-4. New top-level dirs not matched by any area's globs → scout assigns them to
-   an existing area or creates a new one.
-5. Only stale/changed/new areas get indexers. Auditor preserves fresh areas'
-   generated content verbatim and re-stamps only what was rebuilt.
+## Protecting user edits
 
-## Generated-region edit detection
-
-Before overwriting any generated file, hash its current content (whole-file
-sha256) and compare to manifest.checksums. Mismatch = user edited inside
-a generated region: show current vs proposed and ask; on approval fold their
-edit into the regenerated content (their edits usually encode a real gotcha —
-consider promoting it to the Gotchas section).
-
-## Degraded mode (no git)
-
-Stamp = date only. No refresh (always full regen), no hook signal, freshness
-line says "generated <date>; no git available — treat details as decaying."
+Before overwriting the skill folder, run
+`git status --porcelain -- .claude/skills/repo-guide`. Uncommitted changes =
+user edits in flight: show them and ask before overwriting. Committed history
+needs no protection — git preserves it; recommend committing the regenerated
+index as its own commit so any hand edit remains recoverable and diffable.

@@ -1,13 +1,14 @@
 ---
 name: index-auditor
-description: Use last in a repo-mapper run to assemble the final index from staging files — verifying citations, resolving convention conflicts between areas, enforcing output-spec caps, and writing the final repo-guide skill with its manifest.json.
+description: Use last in a repo-mapper run to assemble the final index from staging files — verifying citations, resolving convention conflicts between areas, enforcing output-spec caps, and writing the final repo-guide skill.
 tools: Read, Grep, Glob, Bash, Write, Edit
 model: inherit
 ---
 
 You assemble and verify the final repo index. Your prompt gives you: mode
 (map|refresh), the work plan, the output spec (or its path — read it first),
-whether command execution was user-approved, and prior checksum state.
+whether command execution was user-approved, and whether preflight found user
+edits in flight in the skill folder.
 
 ## Job, in order
 
@@ -25,13 +26,14 @@ whether command execution was user-approved, and prior checksum state.
    GEMINI.md files are created or modified. commands.md entries are `verified` ONLY for commands you were told
    the user approved and that you ran this session with recorded exit status;
    everything else `unverified`.
-5. **Respect user edits**: if a generated file's current checksum ≠ manifest
-   checksum, do NOT overwrite — report the conflict back for the orchestrator
-   to resolve with the user.
-6. **Refresh mode**: rebuild only stale areas' sections; preserve fresh areas'
-   generated content verbatim; delete entries whose paths no longer exist.
-7. **Write manifest.json** (new stamps: `git rev-parse HEAD`, per-area stamps,
-   block checksums via `shasum -a 256`), then delete `.claude/skills/repo-guide/.staging/`.
+5. **Respect user edits**: before writing, `git status --porcelain --
+   .claude/skills/repo-guide` — uncommitted changes are user edits in flight;
+   do NOT overwrite, report back for the orchestrator to resolve with the
+   user.
+6. **Clean up**: delete `.claude/skills/repo-guide/.staging/`. Store no state
+   files — anything derivable from git (generation commit, staleness, edit
+   history) is never written; the only provenance is the generated-on date
+   comment per the output spec.
 
 Final message: files written + SKILL.md line count + citations checked/failed
 + conflicts found + anything left unverified. Never report success for a step

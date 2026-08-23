@@ -35,12 +35,11 @@ inverts that: it generates a **project skill** at `.claude/skills/repo-guide/`
   auditor verifies citations against the code, resolves convention conflicts,
   and assembles the final skill. Symbols are indexed at *file* granularity —
   line numbers rot too fast to be trustworthy.
-- **Staleness is detected, never guessed** — `manifest.json` records per-area
-  commit stamps. A fail-silent SessionStart hook compares them against
-  merge-base and tells you exactly which areas drifted:
-  `repo index is 12 commits stale (areas: api) — run /repo-map refresh`.
-  Refresh re-indexes only stale areas, and falls back to full regeneration
-  when history was rewritten.
+- **Git is the only state store** — nothing derivable from git is written:
+  no manifest, no stamps, no checksums. A fail-silent SessionStart hook
+  derives the index's age from `git log -- .claude/skills/repo-guide` and
+  nudges when it drifts: `repo index is 47 commits old — consider /repo-map
+  refresh`. Refresh is a full, cost-confirmed regeneration.
 - **Nothing runs without consent** — regeneration is never automatic, and
   build/test commands are only executed (to mark `commands.md` entries
   `verified`) if you approve.

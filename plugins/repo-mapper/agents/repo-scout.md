@@ -1,6 +1,6 @@
 ---
 name: repo-scout
-description: Use first in a repo-mapper run to survey a repository and produce the indexing work plan — stack detection, exclusion rules, subsystem decomposition sized for parallel indexing, and (in refresh mode) the stale-area list derived from the manifest.
+description: Use first in a repo-mapper run to survey a repository and produce the indexing work plan — stack detection, exclusion rules, and subsystem decomposition sized for parallel indexing.
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---
@@ -25,10 +25,9 @@ commands only (git, ls, wc, find, head).
    Every non-excluded source file must fall under exactly one area's globs.
 4. **Propose verify commands**: the build/test/lint commands found in scripts/
    CI config — marked as PROPOSED; you never execute them.
-5. **Refresh mode** (a manifest was provided): per freshness rules given in
-   your prompt — check stamp reachability, diff per-area stamps, reconcile
-   deleted/renamed paths and new dirs. Plan covers ONLY stale/new/changed
-   areas, and lists dead entries to remove.
+5. **Refresh mode**: same full plan as map mode — every area re-planned from
+   the current tree. You may read the existing .claude/skills/repo-guide/
+   SKILL.md as prior context, but never trust it over what the tree shows.
 
 ## Output
 

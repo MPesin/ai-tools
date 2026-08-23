@@ -25,13 +25,13 @@ consent; never overwrite user-authored content without approval.
 ## Process
 
 1. **Preflight.** Detect: git repo? (no git → degraded mode, see freshness.md).
-   Existing `.claude/skills/repo-guide/` and whether its files are pristine
-   generated or user-edited (whole-file checksums in manifest). A large
-   existing CLAUDE.md? (migration offer only — never modified silently).
-   Monorepo markers (workspaces, multiple packages).
-2. **Mode.** Manifest exists and user asked for refresh → refresh (freshness.md
-   algorithm picks stale areas only). Otherwise full map. Unreachable stamp
-   commit → full map.
+   Existing `.claude/skills/repo-guide/` — if present, check
+   `git status --porcelain` on it for user edits in flight (ask before
+   overwriting). A large existing CLAUDE.md? (migration offer only — never
+   modified silently). Monorepo markers (workspaces, multiple packages).
+2. **Mode.** map and refresh are the same full pipeline (refresh = full
+   regeneration; the scout may read the existing SKILL.md as prior context
+   but every area is re-planned from the current tree).
 3. **Scout.** Dispatch `repo-scout` (agent-playbook.md). It returns a work plan:
    areas with globs, exclusions, size estimates, proposed verify commands.
 4. **Confirm.** Show the user the plan + rough cost (N areas → N parallel
@@ -40,8 +40,7 @@ consent; never overwrite user-authored content without approval.
 5. **Index.** Dispatch one `area-indexer` per area, all in a single message
    (parallel). Each writes `.claude/skills/repo-guide/.staging/<area>.md`.
 6. **Assemble.** Dispatch `index-auditor`: verifies citations, resolves
-   convention conflicts, writes final files per output-spec.md, writes
-   manifest.json, removes staging.
+   convention conflicts, writes final files per output-spec.md, removes staging.
 7. **Review (offer, don't assume).** Offer a `design-critic` pass over the
    generated SKILL.md to flag unproven or wrong claims.
 8. **Report.** List files written, SKILL.md size in lines, stamp commit. Offer to

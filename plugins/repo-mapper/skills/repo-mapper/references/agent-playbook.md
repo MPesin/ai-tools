@@ -11,13 +11,13 @@ auditor reads them. Keeps every context small.
 
 ## 1. repo-scout (one agent, first)
 
-Prompt must include: repo root path; mode (map|refresh); manifest content if it
-exists; any user-stated focus. Ask for its work-plan JSON as the final message.
+Prompt must include: repo root path; mode (map|refresh); whether an existing
+repo-guide skill is present; any user-stated focus. Ask for its work-plan JSON as the final message.
 
 Sanity-check the returned plan yourself before showing the user:
 - excludes cover lockfiles/vendored/generated dirs
 - no area estimated above its size cap (scout must split oversized areas)
-- refresh mode: areas limited to stale ones + deletions/renames reconciled
+- refresh mode: identical shape to map mode (full re-plan from current tree)
 
 ## 2. area-indexer (N agents, parallel — single message, one Task per area)
 
@@ -41,15 +41,13 @@ Staging file format (sections, all optional except MODULES):
 ## 3. index-auditor (one agent, last)
 
 Prompt must include: mode; work plan; output-spec.md content (or tell it to
-read the file); whether user consented to command execution; existing-file
-checksums state from preflight. Its job:
+read the file); whether user consented to command execution; whether preflight
+found user edits in flight in the skill folder. Its job:
 - read all staging files; verify a sample (≥10 or all if fewer) of file
   citations exist; drop or fix false ones
 - resolve convention conflicts: majority rule + explicit exceptions note
-- write the final skill (SKILL.md + references/ + manifest.json) per output-spec
-- refresh mode: rewrite only stale areas' content, reconcile deletions,
-  preserve fresh areas' sections verbatim
-- write manifest.json (new stamps, checksums), delete `.staging/`
+- write the final skill (SKILL.md + references/) per output-spec
+- delete `.staging/`; store no state files (git-derivable info is never written)
 - final message: list of files written + line count of SKILL.md + anything
   it could not verify
 

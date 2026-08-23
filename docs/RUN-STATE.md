@@ -72,3 +72,13 @@ Task 1 housekeeping, then invoke superpowers:writing-skills before authoring SKI
 - Verified via web: Copilot auto-discovers project skills in .claude/skills
   (Agent Skills support since 2025-12); Codex CLI same SKILL.md format but
   scans .codex/skills/ — symlink bridge proposed, not yet implemented.
+- Lean redesign per user principle "information retrievable from git shouldn't
+  be stored": manifest.json REMOVED entirely. Stamp/staleness/edit-detection all
+  derived from git (git log -1 -- skill dir; rev-list count; status --porcelain).
+  Hook rewritten in pure bash (no python), threshold 20 via REPO_MAPPER_STALE_THRESHOLD.
+  Refresh = full regeneration (incremental machinery preserved in git history if
+  ever needed). CodeReviewUtil migrated (manifest deleted, sha dropped from headers).
+  Hook re-tested: uncommitted/fresh/non-git silent, 25-commits→message, override works, 129ms.
+- OPEN: all caps/budgets/economics validated only on ONE SMALL repo (187 files).
+  Before trusting at scale: run on a large monorepo, check scout decomposition,
+  SKILL.md routing pressure, full-regen refresh cost. Spec now flags these as defaults.
