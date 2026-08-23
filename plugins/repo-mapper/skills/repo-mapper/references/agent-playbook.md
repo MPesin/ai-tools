@@ -2,7 +2,7 @@
 
 Agents (installed by this plugin): `repo-mapper:repo-scout`,
 `repo-mapper:area-indexer`, `repo-mapper:index-auditor`. The optional review
-step uses `critical-thinker:critical-thinker` (sibling plugin in the
+step uses `design-critic:design-critic` (sibling plugin in the
 michaelp-ai-tools marketplace); if it is not installed, dispatch a
 general-purpose agent with the same review instructions.
 
@@ -53,7 +53,7 @@ checksums state from preflight. Its job:
 - final message: list of files written + line count of AGENTS.md + anything
   it could not verify
 
-## 4. critical-thinker (optional, offered after assembly)
+## 4. design-critic (optional, offered after assembly)
 
 Prompt: "Review the generated AGENTS.md and docs/agents/ against the actual
 code. Flag: claims not supported by the code, missing load-bearing gotchas,

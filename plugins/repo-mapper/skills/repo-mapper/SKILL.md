@@ -42,7 +42,7 @@ consent; never overwrite user-authored content without approval.
 6. **Assemble.** Dispatch `index-auditor`: verifies citations, resolves
    convention conflicts, writes final files per output-spec.md, writes
    manifest.json, patches pointer files, removes staging.
-7. **Review (offer, don't assume).** Offer a `critical-thinker` pass over the
+7. **Review (offer, don't assume).** Offer a `design-critic` pass over the
    generated AGENTS.md to flag unproven or wrong claims.
 8. **Report.** List files written, index size in lines, stamp commit. Offer to
    commit. If an existing fat CLAUDE.md was found, propose the migration plan

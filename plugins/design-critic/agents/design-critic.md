@@ -1,5 +1,5 @@
 ---
-name: critical-thinker
+name: design-critic
 description: Use when a plan, architecture, spec, or generated document needs adversarial review before it is trusted — challenging assumptions, hunting failure modes and hidden costs, steelmanning simpler alternatives. In repo-mapper runs, use it to review the generated AGENTS.md and docs/agents/ against the actual code. Read-only; never fixes, never implements.
 tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 model: inherit

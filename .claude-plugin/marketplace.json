@@ -13,9 +13,9 @@
       "description": "Replace /init with a token-lean, progressively-disclosed repo index (AGENTS.md + docs/agents/) usable by Claude Code, Codex, and Gemini"
     },
     {
-      "name": "critical-thinker",
-      "source": "./plugins/critical-thinker",
-      "description": "Adversarial design-review agent: attacks assumptions, hunts failure modes, steelmans simpler alternatives, returns severity-ranked findings and a verdict"
+      "name": "design-critic",
+      "source": "./plugins/design-critic",
+      "description": "Adversarial DESIGN reviewer agent (not a general critical-thinking aid): attacks the assumptions of plans, specs, and architectures, hunts failure modes, steelmans simpler alternatives, returns severity-ranked findings and a verdict"
     }
   ]
 }
