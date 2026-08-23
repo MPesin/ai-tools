@@ -1,0 +1,16 @@
+{
+  "name": "ai-tools",
+  "owner": {
+    "name": "Michael Pesin"
+  },
+  "metadata": {
+    "description": "Personal AI tooling: plugins for working with codebases across AI agents"
+  },
+  "plugins": [
+    {
+      "name": "repo-mapper",
+      "source": "./plugins/repo-mapper",
+      "description": "Replace /init with a token-lean, progressively-disclosed repo index (AGENTS.md + docs/agents/) usable by Claude Code, Codex, and Gemini"
+    }
+  ]
+}

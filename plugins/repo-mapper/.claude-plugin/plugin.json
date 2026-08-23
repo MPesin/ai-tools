@@ -1,0 +1,8 @@
+{
+  "name": "repo-mapper",
+  "version": "0.1.0",
+  "description": "Replace /init with a token-lean repo index: a stamped AGENTS.md (<=100 lines) auto-loaded by every AI agent, deep references in docs/agents/ loaded on demand, incremental refresh, and a staleness hook",
+  "author": {
+    "name": "Michael Pesin"
+  }
+}
