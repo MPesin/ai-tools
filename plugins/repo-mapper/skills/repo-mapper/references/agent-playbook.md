@@ -1,8 +1,10 @@
 # Agent Playbook — dispatching the pipeline
 
 Agents (installed by this plugin): `repo-mapper:repo-scout`,
-`repo-mapper:area-indexer`, `repo-mapper:index-auditor`,
-`repo-mapper:critical-thinker`.
+`repo-mapper:area-indexer`, `repo-mapper:index-auditor`. The optional review
+step uses `critical-thinker:critical-thinker` (sibling plugin in the
+michaelp-ai-tools marketplace); if it is not installed, dispatch a
+general-purpose agent with the same review instructions.
 
 Data flows through files, not prompts: indexers write staging files; the
 auditor reads them. Keeps every context small.

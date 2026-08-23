@@ -1,0 +1,8 @@
+{
+  "name": "critical-thinker",
+  "version": "0.1.0",
+  "description": "Adversarial design reviewer agent: challenges assumptions, hunts failure modes and hidden costs, steelmans simpler alternatives, and delivers severity-ranked findings with a verdict. Read-only — reviews plans, specs, architectures, and generated docs before you trust them",
+  "author": {
+    "name": "Michael Pesin"
+  }
+}

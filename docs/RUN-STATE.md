@@ -51,3 +51,6 @@ Task 1 housekeeping, then invoke superpowers:writing-skills before authoring SKI
 - All files written; hook tested (fresh/stale/unreachable/non-git all correct, 133ms)
 - critical-thinker moved from .claude/agents/ into plugin (project copy removed)
 - Remaining: task 11 acceptance test on a real repo after user installs plugin
+- Restructure per user: marketplace renamed michaelp-ai-tools; critical-thinker
+  split into its own general plugin (plugins/critical-thinker/); repo-mapper
+  playbook references sibling plugin with general-agent fallback

@@ -1,16 +1,21 @@
 {
-  "name": "ai-tools",
+  "name": "michaelp-ai-tools",
   "owner": {
     "name": "Michael Pesin"
   },
   "metadata": {
-    "description": "Personal AI tooling: plugins for working with codebases across AI agents"
+    "description": "General-purpose AI tooling by Michael Pesin: skills and agents usable in any codebase, by anyone"
   },
   "plugins": [
     {
       "name": "repo-mapper",
       "source": "./plugins/repo-mapper",
       "description": "Replace /init with a token-lean, progressively-disclosed repo index (AGENTS.md + docs/agents/) usable by Claude Code, Codex, and Gemini"
+    },
+    {
+      "name": "critical-thinker",
+      "source": "./plugins/critical-thinker",
+      "description": "Adversarial design-review agent: attacks assumptions, hunts failure modes, steelmans simpler alternatives, returns severity-ranked findings and a verdict"
     }
   ]
 }
