@@ -55,3 +55,4 @@ Task 1 housekeeping, then invoke superpowers:writing-skills before authoring SKI
   split into its own general plugin (plugins/critical-thinker/); repo-mapper
   playbook references sibling plugin with general-agent fallback
 - Renamed critical-thinker plugin/agent to design-critic (design-review focus explicit in name); all references updated
+- Added README.md + MIT LICENSE; pushing to github.com/MPesin/ai-tools
