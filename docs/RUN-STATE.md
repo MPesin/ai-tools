@@ -32,7 +32,7 @@ SessionStart staleness hook.
 8. [x] agents: critical-thinker.md (move from .claude/agents/, keep charter, add generated-index review mode)
 9. [x] hooks/hooks.json + hooks/staleness-check.sh (startup only, manifest-driven, fail-silent)
 10. [x] Commit; give user install steps (/plugin marketplace add <path>, /plugin install repo-mapper@ai-tools)
-11. [ ] Acceptance: run /repo-map on a real repo, fresh session answers "where is X?" from index
+11. [x] Acceptance: run /repo-map on a real repo, fresh session answers "where is X?" from index
 
 ## Files touched so far
 - .claude/agents/critical-thinker.md (created; to be moved into plugin in task 8)
@@ -56,3 +56,9 @@ Task 1 housekeeping, then invoke superpowers:writing-skills before authoring SKI
   playbook references sibling plugin with general-agent fallback
 - Renamed critical-thinker plugin/agent to design-critic (design-review focus explicit in name); all references updated
 - Added README.md + MIT LICENSE; pushed to github.com/MPesin/ai-tools (public, HTTPS remote)
+- Acceptance test on CodeReviewUtil PASSED: full pipeline run (scout → 11 indexers
+  → auditor). Output: AGENTS.md 57 lines @ 4451a37, 5 refs + manifest, importers.
+  25/25 citations verified. Hook silent on fresh index. Fresh-session probe answered
+  a 3-part navigation question via CLAUDE.md → AGENTS.md → symbols.md/commands.md
+  with only 1 verification grep — no grep crawl. Verified cmds: fmt/typecheck/lint exit 0.
+  Generated files in CodeReviewUtil left uncommitted (user's call).
