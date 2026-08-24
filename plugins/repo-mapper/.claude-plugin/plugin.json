@@ -1,6 +1,6 @@
 {
   "name": "repo-mapper",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Replace /init with a generated repo-guide skill: a small SKILL.md index (<=100 lines) plus on-demand references/, built by a verified multi-agent pipeline. Git is the only state store \u2014 no manifest, stamps, or checksums; staleness is derived and refresh is a full, cost-confirmed regeneration",
   "author": {
     "name": "Michael Pesin"
