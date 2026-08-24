@@ -18,7 +18,8 @@ AI tooling — skills and agents usable in any codebase, by anyone.
 `/init` writes one large `CLAUDE.md` that gets loaded into **every** prompt,
 mostly carrying information irrelevant to the task at hand. `repo-mapper`
 inverts that: it generates a **project skill** at `.claude/skills/repo-guide/`
-— and touches no `CLAUDE.md`, `AGENTS.md`, or `GEMINI.md` at all.
+— and the mapping pipeline touches no `CLAUDE.md`, `AGENTS.md`, or
+`GEMINI.md` at all.
 
 - **A skill costs nothing until used** — until a task triggers it, the
   repo-guide contributes only its one-line description. Its `SKILL.md` index
@@ -44,7 +45,21 @@ inverts that: it generates a **project skill** at `.claude/skills/repo-guide/`
   build/test commands are only executed (to mark `commands.md` entries
   `verified`) if you approve.
 
-Usage: `/repo-map` for a full map, `/repo-map refresh` to update a stale index.
+- **A thin CLAUDE.md, only if you want one** — `/repo-mapper:init` works
+  like `/init` — harvests existing rule files (`.cursorrules`, Copilot,
+  Windsurf, Cline, `CONTRIBUTING.md`, an old fat `CLAUDE.md`), explores the
+  repo's meta files (CI, PR templates, toolchain files, `.env.example`,
+  README setup sections) with a subagent, and fills gaps with one round of
+  questions — but keeps only what a skill can't carry: rules an agent must
+  know *before its first tool call* (workflow and etiquette conventions,
+  hard constraints, environment quirks). Everything the repo-guide already
+  covers is dropped with a citation; repo facts it is missing become refresh
+  suggestions, never CLAUDE.md lines. You review one proposal before anything
+  is written; if nothing survives, no file is written. Requires a current
+  repo-guide (it offers to build one first).
+
+Usage: `/repo-map` for a full map, `/repo-map refresh` to update a stale
+index, `/repo-mapper:init` for the thin always-loaded `CLAUDE.md`.
 
 ### design-critic — an adversarial design reviewer
 
@@ -67,7 +82,7 @@ This repository's own design was reviewed by it before being built.
 
 ```
 .claude-plugin/marketplace.json    # the marketplace manifest
-plugins/repo-mapper/               # command, skill + references, 3 agents, hook
+plugins/repo-mapper/               # 2 commands, skill + references, 3 agents, hook
 plugins/design-critic/             # the reviewer agent
 ```
 

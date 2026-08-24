@@ -111,6 +111,47 @@ Tasks:
    1 leak risk (repo facts not categorically excluded) — all fixed: agent-rule
    file defined, step-5/step-7 composed, staleness command made executable,
    CATEGORICAL repo-fact exclusion added to Non-negotiables.
-6. [ ] Commit (awaiting user go-ahead)
+6. [x] README.md updated (init bullet, usage line, layout comment); plugin.json 0.4.0
+7. [ ] Commit README/RUN-STATE (pending; plugin files committed in 58c2352)
 
-Next action: commit on approval.
+## Feature: init v2 — /init-like exploration (2026-08-25)
+
+User wants init to behave like built-in /init (explore the codebase) but with
+zero duplicate work/instructions vs repo-guide. design-critic review (inline
+charter) returned WITH CHANGES; all adopted:
+- NO repo-guide patching (would reset the freshness signal keyed on
+  `git log -1 -- .claude/skills/repo-guide`; reverses "refresh = full regen").
+  Uncovered repo facts → report-only refresh suggestions. User decision.
+- NO six-category gap-check (can't find a missing convention without
+  re-deriving conventions → unverified partial re-index).
+- Explorer reads META FILES ONLY (CI, .github templates, CONTRIBUTING,
+  release/bootstrap scripts, CHANGELOG, toolchain files, .env.example,
+  devcontainer, README setup sections) — never source code.
+- git-log commit/branch style → interview pre-fill only, never a candidate.
+- Routing tie-breaker: if a repo-guide section's contract would hold the
+  fact, it is a repo-fact regardless of when an agent needs it.
+- Non-interactive → emit proposal, write nothing.
+- Stack-line interview pre-fill proposed, REJECTED by user ("no need").
+
+Tasks:
+1. [x] references/init-mode.md — rewrite steps 2–6 + explorer charter inline
+2. [x] README init bullet
+3. Verify: fixture dry-run PASSED — 12/12 pre-registered routes correct
+       (7 CLAUDE.md bullets, 7 dropped w/ citation, prefill discarded, proposal
+       emitted/nothing written). 14 ambiguities reported; fixed the real ones:
+       directive-vs-fact rule (prohibitions win over section tie-breaker),
+       branch/PR conventions are workflow not conventions.md, meta-file prose
+       is a valid source, compound statements split, nonexistent-ref rules
+       flagged, documented style needs no confirm, questions listed
+       non-interactively, empty-hash = never committed. CodeReviewUtil dry-run
+       (pre-fix doc) PASSED: "nothing to write", 24 candidates all dropped w/
+       correct citations, zero leaks; its extra silences fixed (partial
+       coverage split, contradictions → flagged refresh suggestion, ~10-entry
+       cap, parent spot-checks covered_by, build manifests = facts only, script
+       headers only). FINAL fixture re-run on revised doc PASSED: 12/12 routes,
+       7 specific landings correct; last tweaks: inline flag on proposal line
+       (stripped from file), directive keeps rationale, duplicate sources merge.
+3. [x] Verify — DONE (3 dry-runs total on v2)
+4. [ ] Commit
+
+Next action: task 1.
