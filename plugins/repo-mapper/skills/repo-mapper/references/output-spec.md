@@ -2,7 +2,10 @@
 
 The generated artifact is a PROJECT SKILL at `.claude/skills/repo-guide/`
 in the target repo. No CLAUDE.md, AGENTS.md, or GEMINI.md files are created
-or modified. Claude Code auto-discovers the skill; other tools supporting the
+or modified by the map/refresh pipeline. (The separate, explicitly invoked
+init mode — see init-mode.md — writes a thin CLAUDE.md of always-loaded
+rules, behind its own approval gate; it is the only mode that touches
+CLAUDE.md.) Claude Code auto-discovers the skill; other tools supporting the
 Agent Skills standard can consume the same folder; its content is plain
 markdown any agent can be pointed at.
 

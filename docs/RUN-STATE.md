@@ -82,3 +82,35 @@ Task 1 housekeeping, then invoke superpowers:writing-skills before authoring SKI
 - OPEN: all caps/budgets/economics validated only on ONE SMALL repo (187 files).
   Before trusting at scale: run on a large monorepo, check scout decomposition,
   SKILL.md routing pressure, full-regen refresh cost. Spec now flags these as defaults.
+
+## Feature: /repo-mapper:init (2026-08-25)
+
+Goal: new init mode — generate a THIN CLAUDE.md (target ≤30 lines) holding only
+the always-loaded behavioral layer NOT in the generated repo-guide: workflow
+rules, hard constraints, env quirks. Approved design (bounded path):
+- Output: thin CLAUDE.md only; NO repo-guide pointer (skill auto-discovery
+  makes it redundant — user decision 2026-08-25)
+- Prereq: reads existing repo-guide to know exclusions; if missing, offer to
+  run full repo-map pipeline first
+- Sources: harvest rule files (.cursor/rules, .cursorrules,
+  copilot-instructions.md, CONTRIBUTING.md, existing CLAUDE.md) + one
+  AskUserQuestion interview round; no history inference
+- output-spec "never writes CLAUDE.md" stays true for map/refresh; init is the
+  explicit user-approved exception
+
+Tasks:
+1. [x] commands/init.md (new) — /repo-mapper:init entry point, mode `init`
+2. [x] SKILL.md — add init mode fork + reference-table row + description trigger
+3. [x] references/init-mode.md (new) — full init procedure
+4. [x] references/output-spec.md — reconcile CLAUDE.md exception paragraph
+5. [x] Verify: TWO subagent dry-runs against CodeReviewUtil (has real repo-guide).
+   Run 1 found 9 gaps (empty-harvest unspecified, staleness undefined for init,
+   non-interactive deadlock, interview invites repo facts, dangling comment-format
+   xref, closed-vs-open harvest list, etc.) — all fixed. Run 2 reached correct
+   terminal outcome ("nothing to write", no file) and left 4 wording residues +
+   1 leak risk (repo facts not categorically excluded) — all fixed: agent-rule
+   file defined, step-5/step-7 composed, staleness command made executable,
+   CATEGORICAL repo-fact exclusion added to Non-negotiables.
+6. [ ] Commit (awaiting user go-ahead)
+
+Next action: commit on approval.

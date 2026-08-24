@@ -1,6 +1,6 @@
 ---
 name: repo-mapper
-description: Use when asked to map, index, or document a repository for AI agents, to generate or refresh a repo-guide skill, to replace or slim down a large CLAUDE.md, or when /repo-map is invoked. Also use instead of /init when initializing AI context for a codebase.
+description: Use when asked to map, index, or document a repository for AI agents, to generate or refresh a repo-guide skill, to replace or slim down a large CLAUDE.md, to generate a thin CLAUDE.md of always-loaded rules, or when /repo-map or /repo-mapper:init is invoked. Also use instead of /init when initializing AI context for a codebase.
 ---
 
 # Repo Mapper
@@ -21,6 +21,7 @@ consent; never overwrite user-authored content without approval.
 | `references/output-spec.md` | Before dispatching indexers — exact contract for every generated file |
 | `references/agent-playbook.md` | When dispatching the pipeline agents — prompts and rules |
 | `references/freshness.md` | Refresh mode, stamps, staleness edge cases |
+| `references/init-mode.md` | Init mode — thin CLAUDE.md of always-loaded rules |
 
 ## Process
 
@@ -31,7 +32,9 @@ consent; never overwrite user-authored content without approval.
    modified silently). Monorepo markers (workspaces, multiple packages).
 2. **Mode.** map and refresh are the same full pipeline (refresh = full
    regeneration; the scout may read the existing SKILL.md as prior context
-   but every area is re-planned from the current tree).
+   but every area is re-planned from the current tree). Mode `init` is a
+   different pipeline entirely: load `references/init-mode.md` and follow
+   it instead of steps 3-8 below.
 3. **Scout.** Dispatch `repo-scout` (agent-playbook.md). It returns a work plan:
    areas with globs, exclusions, size estimates, proposed verify commands.
 4. **Confirm.** Show the user the plan + rough cost (N areas → N parallel
