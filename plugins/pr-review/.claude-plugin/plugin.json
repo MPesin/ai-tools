@@ -1,0 +1,16 @@
+{
+  "name": "pr-review",
+  "version": "0.1.0",
+  "description": "PR review with memory: remembers its prior findings on a PR and converges instead of re-reporting, applies path-scoped REVIEW.md rules and records learnings, checks the diff against the PR's stated intent, and works the author side (address review comments with verification). Complements the built-in /code-review rather than replacing it",
+  "author": {
+    "name": "Michael Pesin"
+  },
+  "license": "MIT",
+  "keywords": [
+    "code-review",
+    "pull-request",
+    "github",
+    "review-memory"
+  ],
+  "commands": "./commands/"
+}

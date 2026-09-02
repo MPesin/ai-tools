@@ -1,0 +1,17 @@
+{
+  "name": "decision-log",
+  "version": "0.1.0",
+  "description": "Per-repo, git-committed memory of crucial decisions and their reasoning, organized by domain: generates a project skill (.claude/skills/decisions/) whose records carry the decision, the rejected alternatives and the consequences, capture with approval gates, query by topic or path, and lint for rot. The 'why' that code cannot tell you, for bug fixing and planning",
+  "author": {
+    "name": "Michael Pesin"
+  },
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "decisions",
+    "adr",
+    "architecture",
+    "project-skill"
+  ],
+  "commands": "./commands/"
+}

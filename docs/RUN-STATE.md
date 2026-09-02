@@ -155,3 +155,16 @@ Tasks:
 4. [ ] Commit
 
 Next action: task 1.
+
+## 2026-09-02 — marketplace expansion
+
+Run tracking for this repo moved to the worklog format it now ships:
+see docs/work/marketplace-expansion.md (plan, decisions, session log).
+Summary: surveyed PR review, decision memory, multi-session workflow, the
+skill landscape and Copilot/Codex compatibility (docs/RESEARCH.md); designed
+pr-review, decision-log and worklog; design-critic review adopted (pr-review
+scope cut to memory/learn/address on two agents; worklog stores no SHAs;
+decision-log uses paths: + propose-only capture); built and validated all
+three; added Codex-native marketplace and agent TOMLs via
+scripts/sync-crosstool.py. Push blocked on GitHub App access at time of
+writing.

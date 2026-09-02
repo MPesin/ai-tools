@@ -1,0 +1,11 @@
+{
+  "name": "root-cause",
+  "version": "0.1.0",
+  "description": "Systematic debugging: reproduce first, localize by bisection, one hypothesis at a time with a written prediction, a root-cause statement before any fix, a regression test that fails before and passes after, and a hard stop after three failed fixes. Feeds surprising root causes into decision-log and worklog",
+  "author": {
+    "name": "Michael Pesin"
+  },
+  "license": "MIT",
+  "keywords": ["debugging", "root-cause", "bisect", "hypothesis"],
+  "commands": "./commands/"
+}
