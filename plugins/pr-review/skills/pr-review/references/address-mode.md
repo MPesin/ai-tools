@@ -8,8 +8,17 @@ and silent scope changes are both failures.
 ## 1. Collect
 
 PR from the argument or `gh pr view --json number` on the current branch.
-Fetch unresolved threads with the GraphQL query in posting.md, including each
-thread's comments (author, body, path, line, `isOutdated`). Exclude threads
+Fetch unresolved threads:
+
+```
+gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){
+  repository(owner:$o,name:$r){ pullRequest(number:$n){
+    reviewThreads(first:100){ nodes{ id isResolved isOutdated path line
+      comments(first:50){ nodes{ databaseId author{login} body createdAt } } } } } } }' \
+  -f o={o} -f r={r} -F n={n}
+```
+
+Keep threads with `isResolved: false`. Exclude threads
 whose first comment carries this plugin's own marker unless the user asked
 to include them. Also read top-level review bodies for requests without a
 line. Stop if the branch is not checked out or has uncommitted changes —
@@ -22,8 +31,10 @@ acted on.
 ## 2. Triage — one table before any edit
 
 For each thread, read the code at the path/line (and the callers if the
-claim is about behavior), run the cheapest check that settles a factual
-claim (a single test, a grep) — read-only, no builds yet — and classify:
+claim is about behavior) and settle factual claims with read-only means
+only — Read, Grep, `git log`/`git blame`. Tests and builds wait for the
+consent gate in step 3; a claim that needs one to settle is triaged as
+`fix (pending check)` and the check is listed in the gate. Then classify:
 
 | Class | Meaning | Action |
 |-------|---------|--------|
@@ -33,7 +44,8 @@ claim (a single test, a grep) — read-only, no builds yet — and classify:
 | done | already addressed by a later commit | reply with the commit |
 
 Show the table: thread → class → one-line reason. Batch all `decide` items
-into one AskUserQuestion (max 5); further ones wait for the next round.
+into one AskUserQuestion (at most 4 questions); further ones wait for the
+next round.
 
 ## 3. Consent gate (once per round)
 

@@ -73,20 +73,26 @@ Evidence: PR #212, spike notes in docs/spikes/reporting-perf.md
 
 Rules:
 - One `###` block per record, in id order (append at the end). Id `D-<n>`,
-  global across domains, next = max existing + 1 (`grep -h '^### D-'
-  references/*.md`).
+  global across domains, next = max existing + 1 (`grep -ho '^### D-[0-9]*'
+  references/*.md | sort -t- -k2 -n | tail -1`, run from the skill dir).
 - Line 2 carries `date`, `status`, `paths` — `paths` is required and must
   match at least one tracked file at write time.
-- `Rejected:` is required: at least one alternative with its reason, or
-  `none considered because <reason>`.
+- `Rejected:` is required for an accepted record: at least one alternative
+  with its reason, or `none considered because <reason>`. A seeded record
+  may say `Rejected: unknown (seeded — fill in before accepting)` while its
+  status is `proposed`.
 - `Evidence:` is optional but expected: commit, PR, issue, test, or document.
-- Status values: `proposed` (from seeding or a single session, not yet
-  confirmed by the user), `accepted`, `deprecated` (no longer applies, no
-  replacement), `superseded-by D-nnn`.
+- Status values: `proposed` (seeded, or written without a confirming yes
+  from the user — a `decide` the user approved is `accepted` immediately),
+  `accepted`, `deprecated` (no longer applies, no replacement),
+  `superseded-by D-nnn`. The current status is the last `status:` line in
+  the block; readers and lint use that, not line 2.
 - Body immutability: once `accepted`, only new lines of the form
   `status: superseded-by D-021 (2026-09-14)` or `status: deprecated
   (2026-09-14) — <reason>` may be added, directly under line 2. The
-  superseding record's `Context` names what it replaces.
+  superseding record's `Context` names what it replaces. A `proposed`
+  record is not yet immutable: accepting it edits line 2's status and may
+  fill in `Rejected:`.
 - File cap ~250 lines; `lint` proposes a split (e.g. `billing.md` →
   `billing-invoicing.md`) with the table updated.
 

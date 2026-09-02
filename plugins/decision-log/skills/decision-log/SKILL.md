@@ -2,7 +2,7 @@
 name: decision-log
 description: Use when a decision with non-obvious reasoning was just made or rejected (during a bug fix, a plan, or a review) and should be recorded for the repo; when the user asks why something is built the way it is or whether an approach was already tried; or when /decision-log:init, /decide, /why, or /decision-log:lint is invoked. Maintains the per-repo decisions project skill at .claude/skills/decisions/.
 when_to_use: Trigger phrases - why do we, why is this, have we tried, did we already decide, we decided to, instead of X because, record this decision, no use X because - and after a root cause turned out to be surprising.
-argument-hint: "[init | decide [text] | why [topic] | lint]"
+argument-hint: "[init | decide [text] | decide accept D-nnn | why [topic] | lint]"
 ---
 
 # Decision Log
@@ -27,9 +27,11 @@ and task progress (worklog).
 | `lint` — health check, report first | `references/lint.md` |
 
 **Non-negotiables**
-- Never write a record without showing it and getting a yes. Never write one
-  that lacks a rejected alternative (or an explicit "none considered
-  because …") — a record without a *why not* restates the code.
+- Never write a record without showing it, rendered exactly as it will be
+  written, and getting a yes. Never *accept* one that lacks a rejected
+  alternative (or an explicit "none considered because …") — a record
+  without a *why not* restates the code. Seeded records may carry `Rejected:
+  unknown` only while `proposed`.
 - Accepted record bodies are immutable. Changing course means a new record
   that supersedes the old one; the old one gets a status line, not an edit.
 - Not derivable from code, not personal, paths named. A candidate that fails
@@ -53,4 +55,7 @@ and task progress (worklog).
   decision just made in the conversation → `decide`; no skill present →
   offer `init` first.
 - All modes start by reading `.claude/skills/decisions/SKILL.md` if present
-  (the domain table is the source of truth for domains and paths).
+  (the domain table is the source of truth for domains and paths). Shell
+  commands in the references run from `.claude/skills/decisions/`.
+- A record's current status is its **last** `status:` line (supersede and
+  deprecate append lines; they never rewrite line 2).

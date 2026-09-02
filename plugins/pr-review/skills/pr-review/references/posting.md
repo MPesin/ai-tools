@@ -34,21 +34,23 @@ gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){
 ```
 
 Build `prior.json` entries `{fingerprint, path, anchor, claim (the comment's
-first paragraph), comment_id, thread_id, resolved, round}` — only from
-comments carrying the marker; comments by humans or other bots are not
-findings (address mode reads those). Round = highest `pr-review:round` seen,
-else 0.
+first paragraph), comment_id, thread_id, resolved}` — only from comments
+carrying the marker; comments by humans or other bots are not findings
+(address mode reads those). The round number is global: highest
+`pr-review:round` seen, else 0.
 
 ## Posting a round
 
 Preconditions, in order:
 1. The user saw the exact list (path:line, severity, first sentence of each
-   comment, and which go to the body) and said yes.
-2. `gh api repos/{o}/{r}/pulls/{n}/reviews --jq '.[] | select(.state=="PENDING")'`
+   comment, which go to the body, and which prior threads will get a
+   "fixed" reply and be resolved) and said yes.
+2. `gh api --paginate repos/{o}/{r}/pulls/{n}/reviews --jq '.[] | select(.state=="PENDING")'`
    is empty for the current user. A pending review blocks a new one with 422;
    offer to delete it (`DELETE …/reviews/{id}`) or stop.
 3. Inline targets are lines present in the head-side diff. Parse hunk headers
-   in `diff.patch` (`@@ -a,b +c,d @@`: head lines `c..c+d-1`); a finding whose
+   in `diff.patch` (`@@ -a[,b] +c[,d] @@`; a missing count means 1, so head
+   lines are `c..c+d-1`); a finding whose
    line is outside every hunk of its file, or flagged `off_diff`, goes into
    the body list instead. GitHub rejects the entire review otherwise.
 

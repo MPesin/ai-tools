@@ -23,7 +23,11 @@ Shared by the reviewer (writes `findings.json`), the verifier (writes
   "suggestion": null,
   "rule": null,
   "sources": ["reviewer"],
-  "prior_status": null
+  "off_diff": false,
+  "prior_status": null,
+  "comment_id": null,
+  "thread_id": null,
+  "resolved": null
 }
 ```
 
@@ -34,8 +38,14 @@ Shared by the reviewer (writes `findings.json`), the verifier (writes
   fixes the finding completely and is ≤6 lines; otherwise `null`.
 - `rule`: verbatim quote of the REVIEW.md/CLAUDE.md rule for `category:
   rule`, with its source file.
-- `prior_status`: verifier-only; `fixed | open | regressed` for entries that
-  came from `prior.json`.
+- `confidence` and `severity`: the reviewer sets its own estimate with the
+  rubric below; the verifier overrides both.
+- `sources`: the independent finders that raised it — `reviewer`,
+  `reviewer-r2`, `prior`. The verifier is never a source; its confirmation
+  is the confidence score.
+- `prior_status`, `comment_id`, `thread_id`, `resolved`: carried over from
+  `prior.json` for entries that came from it; `prior_status` is
+  verifier-only, `fixed | open | regressed`.
 
 ## Fingerprint
 
@@ -87,4 +97,5 @@ Do not report:
 - Same fingerprint → one finding, union of `sources`.
 - Same path and `subject`, lines within 3 of each other → one finding, the
   higher severity, union of `sources`.
-- Agreement of two independent sources raises confidence one step (max 100).
+- Agreement of two independent sources (`sources` has two entries) raises
+  confidence one step (max 100).

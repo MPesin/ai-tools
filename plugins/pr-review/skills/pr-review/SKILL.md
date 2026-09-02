@@ -45,19 +45,22 @@ mechanics, re-review memory). Load only what the mode needs.
    whose path scope covers a touched file, plus CLAUDE.md files on the touched
    paths, quoted verbatim), and — PR only — `prior.json`: this plugin's earlier
    findings recovered from marker comments (posting.md).
-3. **Review.** Dispatch one `pr-review:reviewer` with those paths. It writes
-   `findings.json`. Tiny tier: it is told to spend at most 10 tool calls.
+3. **Review.** Dispatch one `pr-review:reviewer` with those paths, the head
+   sha, and the absolute path of `references/findings.md` (this skill's
+   directory). It writes `findings.json`. Tiny tier: at most 15 tool calls.
 4. **Verify.** Dispatch `pr-review:verifier` over `findings.json` + `prior.json`
-   (two in parallel when >15 findings, split by file). It writes
-   `verified.json`: confidence per finding, duplicates merged, `<75` dropped,
-   each prior finding marked fixed / open / regressed.
+   (two in parallel when >15 findings, split by file, each writing its own
+   `verified-<n>.json`; you concatenate them into `verified.json`). Result:
+   confidence per finding, duplicates merged, `<75` dropped, each prior
+   finding marked fixed / open / regressed.
 5. **Report** in the terminal: intent + coherence line, walkthrough table
    (file → change → risk), then findings grouped important / nit, pre-existing
    as a count only, prior-round status, and the injection note if any. Local
    range: add "no PR — memory is REVIEW.md only".
-6. **Post** only with `--post` or when asked, only for PR targets: show the exact
-   comment list → yes → one `COMMENT` review per posting.md. Fixed prior
-   findings get a reply and their thread resolved (only threads this plugin
+6. **Post** only with `--post` or when asked, only for PR targets: show the
+   exact list — new comments, body items, and the replies and thread
+   resolutions for fixed prior findings — → yes → one `COMMENT` review per
+   posting.md, then the replies and resolutions (only threads this plugin
    created).
 7. **Offer learn** for any finding the user dismisses ("that's intentional")
    or confirms as a standing rule.

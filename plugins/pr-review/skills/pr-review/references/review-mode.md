@@ -4,7 +4,7 @@
 
 | Argument | Target | Needs |
 |----------|--------|-------|
-| none | current branch vs its merge-base with the default branch; uncommitted changes included | git |
+| none | `git diff $(git merge-base <default> HEAD)` — merge-base to the working tree, so uncommitted changes are included | git |
 | `123` or a PR URL | that PR's head vs base via `gh pr view 123 --json number,title,body,baseRefName,headRefName,headRefOid,url` and `gh pr diff 123` | gh, PR checked out or fetchable |
 | `branch` | `git merge-base <default> branch`...branch | git |
 | `base...head` | as given | git |
@@ -13,14 +13,21 @@ Default branch: `git symbolic-ref refs/remotes/origin/HEAD` → fallback `main`.
 When a PR exists for the current branch (`gh pr view --json number` succeeds)
 and no argument was given, treat it as a PR target so memory works.
 
-Slug for the scratch dir: PR number (`pr-123`) or the branch name with `/`
-replaced by `-`.
+Slug for the scratch dir: PR number (`pr-123`), the branch name, or
+`<base>...<head>` — with every character outside `[A-Za-z0-9._-]` replaced
+by `-`.
+
+Head: the sha being reviewed (`headRefOid`, the branch tip, or `HEAD`).
+When head ≠ the checked-out `HEAD`, agents read files with `git show
+<head>:<path>`, never from the working tree.
 
 ## 2. Build the context files
 
 Write into `${TMPDIR:-/tmp}/pr-review/<slug>/` after `rm -rf` of that dir:
 
-- `diff.patch` — `git diff base...head` (or `gh pr diff`). Skip lockfiles,
+- `diff.patch` — `git diff base...head` for explicit ranges and branches,
+  the merge-base form above for the no-argument case, `gh pr diff` for
+  PRs. Skip lockfiles,
   generated and vendored paths, and binary files; list what was skipped in
   the report.
 - `intent.md` — PR title, body, linked issues (`gh issue view` for `#N` refs
@@ -40,22 +47,26 @@ Write into `${TMPDIR:-/tmp}/pr-review/<slug>/` after `rm -rf` of that dir:
 
 | Tier | Condition | Behavior |
 |------|-----------|----------|
-| tiny | <50 changed lines and ≤3 files | reviewer told: ≤10 tool calls, no caller tracing; verifier still runs |
+| tiny | <50 changed lines and ≤3 files | reviewer told: ≤15 tool calls, no caller tracing; verifier still runs |
 | normal | otherwise, up to 800 lines / 40 files | full procedure |
 | large | >800 lines or >40 files | ask: narrow to a path, or run the procedure once per top-level directory and merge the reports |
 
 ## 4. Dispatch
 
 Reviewer prompt must contain: scratch dir path, tier, target description
-(base/head or PR number), the instruction to read `diff.patch`, `intent.md`,
-`rules.md`, `prior.json` (if present) and write `findings.json` per
-findings.md, and the sentence "final message: one line with the number of
-findings". Never paste file contents into the prompt when a path suffices.
+(base/head or PR number), the head sha and whether it is checked out, the
+absolute path of this skill's `references/findings.md`, the instruction to
+read `diff.patch`, `intent.md`, `rules.md`, `prior.json` (if present) and
+write `findings.json` per that schema, and the sentence "final message: one
+line with the number of findings". Never paste file contents into the
+prompt when a path suffices.
 
-Verifier prompt: scratch dir, path to `findings.json` and `prior.json`, the
-instruction to write `verified.json`, and the tier. When `findings.json` has
-more than 15 entries, split the file by path into two halves and run two
-verifiers in one message; merge their outputs.
+Verifier prompt: scratch dir, the same head sha and schema path, the paths
+of `findings.json` and `prior.json`, the output file name, and the tier.
+When `findings.json` has more than 15 entries, split it by path into
+`findings-1.json` and `findings-2.json`, run two verifiers in one message
+writing `verified-1.json` and `verified-2.json`, then concatenate the arrays
+into `verified.json` (prior entries go to the first verifier only).
 
 ## 5. Second and later rounds (PR targets)
 
@@ -65,8 +76,9 @@ prior finding's status by reading the current code at the anchor:
 
 - **fixed** — the described problem no longer exists at the anchor.
 - **open** — still present; not reposted.
-- **regressed** — was fixed in an earlier round, present again → reported as
-  important with "regression" in the text.
+- **regressed** — its thread is `resolved` (this plugin resolves a thread
+  only after verifying a fix) and the problem is present again → reported
+  as important with "regression" in the text.
 
 From round 2 on, new `nit` findings are suppressed in the posted review (kept
 in the terminal report under "suppressed nits") so the PR converges instead
@@ -84,7 +96,7 @@ Prior round: 3 fixed · 1 open · 0 regressed
 | src/Api/Orders.cs | new endpoint + validation | medium: no test for 4xx path |
 
 Important (2)
-1. src/Api/Orders.cs:57 — <what is wrong, one sentence>. <why, with the evidence line>. Fix: <one line or suggestion block>. [conf 100 · sources: reviewer, verifier]
+1. src/Api/Orders.cs:57 — <what is wrong, one sentence>. <why, with the evidence line>. Fix: <one line or suggestion block>. [conf 100 · sources: reviewer]
 Nit (1) ...
 Pre-existing: 2 (not reported; run /code-review for whole-file issues)
 Skipped: package-lock.json (lockfile)
