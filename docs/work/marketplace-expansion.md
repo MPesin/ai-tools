@@ -1,6 +1,6 @@
 # Marketplace expansion: pr-review, decision-log, worklog, cross-tool install
 Status: active · Branch: claude/marketplace-tools-research-mcxg6w · Started: 2026-09-02
-Next action: T08 — push the branch once GitHub access is granted (blocked: 403); then T09
+Next action: T09 — acceptance: install the three plugins from this branch in a real repo and run /pr-review on an open PR, /decision-log:init, /work start (human-verify)
 
 ## Goal
 Add three plugins the author asked for (PR review, per-repo domain-based
@@ -20,7 +20,7 @@ review were session-local; their verdicts are summarized under Decisions.
 - [x] T05 Build worklog incl. hook (verify: validate → passed; hook fixture: empty/uncommitted/fresh/3 commits/55 commits/two items/non-git all valid JSON, 16 ms)
 - [x] T06 Cross-tool: Codex marketplace + agent TOMLs via scripts/sync-crosstool.py, explicit commands path, portable hook var (verify: sync --check → in sync; tomllib parses all 7 files)
 - [x] T07 Register plugins in marketplace.json; README; RESEARCH.md Copilot/Codex section (verify: claude plugin validate . --strict → passed)
-- [~] T08 Push the branch — git push is 403 (session credential lacks the repo); replayed through the GitHub API instead
+- [x] T08 Push the branch — git push was 403 (session credential lacks the repo); replayed through the GitHub API (verify: git fetch + git diff HEAD origin/branch → only two exec-bit mode changes)
 - [ ] T09 Checkpoint: acceptance on a real repo (human-verify)
 - [x] T11 Fixture dry-run of the three skills by a fresh agent; fix every ambiguity and silent failure it found (verify: claude plugin validate --strict on all plugins → passed; hook fixture with control chars → valid JSON)
 - [ ] T10 Dogfood: use /work log and /decide from this file in the next session
@@ -39,6 +39,11 @@ review were session-local; their verdicts are summarized under Decisions.
 - Does Copilot scan `commands/` without the explicit `commands` field? (field added regardless)
 
 ## Log
+### 2026-09-02-3
+- done: T08 — seven API commits replayed onto the remote branch; local branch reset to match
+- surprises: the GitHub connector (OAuth as the user) could write while the session's git credential could not; the API drops executable bits, hence T08's bash-invoked hooks
+- next: T09 acceptance; restore exec bits with `git update-index --chmod=+x` on the two scripts when pushing from a machine with git access
+
 ### 2026-09-02-2
 - done: T11 — dry-run found 30+ issues; fixed: verifier output collision, no-arg diff excluding the working tree, schema path never given to agents, tests run before consent in address mode, duplicate-id grep comparing whole headings, seeded records vs the Rejected rule, resume mis-reporting fresh on an uncommitted file, `--grep` matching bodies
 - surprises: the four earlier commits on this branch carry no task ids (the rule was written after they were made); from T11 on, commit subjects start with the id
