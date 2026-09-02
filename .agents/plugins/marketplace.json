@@ -58,6 +58,17 @@
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
       }
+    },
+    {
+      "name": "root-cause",
+      "source": "./plugins/root-cause",
+      "description": "Systematic debugging: reproduce first, localize by bisection, one hypothesis at a time with a written prediction, a root-cause statement before any fix, a regression test that fails before and passes after, and a hard stop after three failed fixes. Feeds surprising root causes into decision-log and worklog",
+      "version": "0.1.0",
+      "category": "Developer Tools",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      }
     }
   ]
 }

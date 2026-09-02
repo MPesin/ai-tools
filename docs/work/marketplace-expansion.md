@@ -24,6 +24,7 @@ review were session-local; their verdicts are summarized under Decisions.
 - [ ] T09 Checkpoint: acceptance on a real repo (human-verify)
 - [x] T11 Fixture dry-run of the three skills by a fresh agent; fix every ambiguity and silent failure it found (verify: claude plugin validate --strict on all plugins → passed; hook fixture with control chars → valid JSON)
 - [ ] T10 Dogfood: use /work log and /decide from this file in the next session
+- [x] T12 Add root-cause plugin (systematic debugging) and a Recommended companions section with install commands (verify: claude plugin validate plugins/root-cause --strict → passed)
 
 ## Decisions
 - Ruling: pr-review builds the memory/learn/address layer on two agents, not a five-lens hunter pipeline — the built-in /code-review already is the hunter — cost if wrong: lower catch rate on first-round bugs, recoverable by running /code-review alongside.
@@ -39,6 +40,10 @@ review were session-local; their verdicts are summarized under Decisions.
 - Does Copilot scan `commands/` without the explicit `commands` field? (field added regardless)
 
 ## Log
+### 2026-09-02-4
+- done: T12 — root-cause plugin (skill + ledger + techniques), README companions list; user asked why no other skills were added
+- next: T09 acceptance
+
 ### 2026-09-02-3
 - done: T08 — seven API commits replayed onto the remote branch; local branch reset to match
 - surprises: the GitHub connector (OAuth as the user) could write while the session's git credential could not; the API drops executable bits, hence T08's bash-invoked hooks

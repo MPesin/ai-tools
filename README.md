@@ -24,6 +24,7 @@ Three principles run through every plugin:
 /plugin install pr-review@michaelp-ai-tools
 /plugin install decision-log@michaelp-ai-tools
 /plugin install worklog@michaelp-ai-tools
+/plugin install root-cause@michaelp-ai-tools
 ```
 
 Commands are namespaced (`/repo-mapper:repo-map`, `/decision-log:decide`);
@@ -183,6 +184,43 @@ repo.
 Usage: `/work start <slug or description>`, `/work resume [slug]`,
 `/work log`, `/work done`, `/work list`.
 
+### root-cause — debugging that refuses to guess
+
+A method skill for bugs, failing tests and "the fix didn't help": capture
+the symptom verbatim, **reproduce before touching code** (a flake gets a
+rate, not a shrug), localize by bisection or differential runs, then test
+**one hypothesis at a time against a prediction written first** in a
+ledger. The root cause must be stated as a mechanism, never a location; the
+fix is minimal and comes with a regression test that failed before it.
+After three failed fixes it stops and questions the model of the system
+instead of patching a fourth time. Non-obvious root causes are handed to
+`/decide`; surprises land in the active worklog item. `references/` hold
+the ledger format and per-ecosystem localization moves (.NET, Node, Python,
+Go, JVM, SQL).
+
+Usage: `/root-cause [symptom]`, or just describe the failure.
+
+## Recommended companions
+
+Maintained upstream and better installed than re-implemented. Chosen from
+the survey in `docs/RESEARCH.md`; none duplicates what this marketplace
+ships.
+
+```
+/plugin marketplace add obra/superpowers          # TDD, verification-before-done, writing-skills
+/plugin marketplace add dotnet/skills             # official .NET: nuget, upgrade, test, msbuild, diag
+/plugin marketplace add trailofbits/skills        # differential-review, static analysis, second-opinion
+/plugin install security-guidance@claude-plugins-official   # per-edit, per-turn and on-commit security review
+/plugin install csharp-lsp@claude-plugins-official          # C# diagnostics and navigation
+```
+
+Also worth knowing: `nizos/tdd-guard` (the only hook that blocks untested
+code; .NET reporter in progress), `mattpocock/skills` (`diagnosing-bugs`,
+`codebase-design`, `handoff`), `Aaronontheweb/dotnet-skills` (opinionated
+C# standards), and the built-ins `/verify`, `/simplify`, `/security-review`
+and `/goal`, which cover verification gates, cleanup, security passes and
+autonomous loops without any plugin.
+
 ## Other tools
 
 Copilot CLI and Codex CLI read this repository's Claude manifests directly;
@@ -223,6 +261,7 @@ plugins/design-critic/             # the reviewer agent
 plugins/pr-review/                 # skill + 5 references, 2 agents, 2 commands
 plugins/decision-log/              # skill + 3 references, 1 agent, 4 commands
 plugins/worklog/                   # skill + 2 references, 1 command, hook
+plugins/root-cause/                # skill + 2 references, 1 command
 docs/RESEARCH.md                   # the survey behind the three newer plugins
 docs/work/                         # this repo's own worklog files
 ```
