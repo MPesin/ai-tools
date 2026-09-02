@@ -6,5 +6,11 @@
     "name": "Michael Pesin"
   },
   "license": "MIT",
-  "keywords": ["code-review", "pull-request", "github", "review-memory"]
+  "keywords": [
+    "code-review",
+    "pull-request",
+    "github",
+    "review-memory"
+  ],
+  "commands": "./commands/"
 }

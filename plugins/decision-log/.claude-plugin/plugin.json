@@ -6,5 +6,12 @@
     "name": "Michael Pesin"
   },
   "license": "MIT",
-  "keywords": ["memory", "decisions", "adr", "architecture", "project-skill"]
+  "keywords": [
+    "memory",
+    "decisions",
+    "adr",
+    "architecture",
+    "project-skill"
+  ],
+  "commands": "./commands/"
 }

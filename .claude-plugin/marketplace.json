@@ -10,12 +10,32 @@
     {
       "name": "repo-mapper",
       "source": "./plugins/repo-mapper",
-      "description": "Replace /init with a token-lean, progressively-disclosed repo index (AGENTS.md + docs/agents/) usable by Claude Code, Codex, and Gemini"
+      "description": "Replace /init with a generated repo-guide skill: a small SKILL.md index (<=100 lines) plus on-demand references/, built by a verified multi-agent pipeline. Git is the only state store — no manifest, stamps, or checksums; staleness is derived and refresh is a full, cost-confirmed regeneration",
+      "version": "0.5.0"
     },
     {
       "name": "design-critic",
       "source": "./plugins/design-critic",
-      "description": "Adversarial DESIGN reviewer agent (not a general critical-thinking aid): attacks the assumptions of plans, specs, and architectures, hunts failure modes, steelmans simpler alternatives, returns severity-ranked findings and a verdict"
+      "description": "Adversarial DESIGN reviewer agent (not a general critical-thinking aid): attacks the assumptions of plans, specs, and architectures, hunts failure modes, steelmans simpler alternatives, returns severity-ranked findings and a verdict",
+      "version": "0.1.0"
+    },
+    {
+      "name": "pr-review",
+      "source": "./plugins/pr-review",
+      "version": "0.1.0",
+      "description": "PR review with memory: remembers its prior findings on a PR and converges instead of re-reporting, applies path-scoped REVIEW.md rules and records learnings, checks the diff against the PR's stated intent, and works the author side (address review comments with verification). Complements the built-in /code-review"
+    },
+    {
+      "name": "decision-log",
+      "source": "./plugins/decision-log",
+      "version": "0.1.0",
+      "description": "Per-repo, git-committed memory of crucial decisions and their reasoning, organized by domain: generates a project skill (.claude/skills/decisions/) with records that carry the decision, the rejected alternatives and the consequences; capture with approval gates, query by topic or path, lint for rot"
+    },
+    {
+      "name": "worklog",
+      "source": "./plugins/worklog",
+      "version": "0.1.0",
+      "description": "Carry development work across sessions: one committed markdown file per work item (goal, immutable task list, decisions, append-only session log, next action) that a fresh session resumes ledger-first; commits found by task id in git, nothing derived from git is stored"
     }
   ]
 }

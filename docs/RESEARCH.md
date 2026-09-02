@@ -105,6 +105,56 @@ Also noted: `oraios/serena` and the LSP plugins for symbol-level navigation,
 `mksglu/context-mode` for tool-output compression (Elastic license),
 `OthmanAdi/planning-with-files` for a heavier plan/findings/progress trio.
 
+## Copilot and Codex compatibility
+
+Verified from the tools' own sources (the `github/docs` content that renders
+docs.github.com, the `openai/codex` Rust source, the Copilot CLI changelog).
+
+- **Copilot CLI** reads `.claude-plugin/marketplace.json` and
+  `.claude-plugin/plugin.json` directly (`copilot plugin marketplace add
+  OWNER/REPO`, then `copilot plugin install <plugin>@<marketplace>`). Skills
+  load natively with `name`, `description`, `argument-hint`, `allowed-tools`,
+  `user-invocable` and `disable-model-invocation` honored. Claude-format
+  agents load with a tool-name alias table; Claude-only agent keys are
+  ignored. Hooks in Claude's nested format with PascalCase events are
+  accepted and `CLAUDE_PLUGIN_ROOT` is set. `commands/` has no default path
+  in Copilot's manifest, so each plugin manifest now names it explicitly.
+  `gh skill install OWNER/REPO <skill> --agent <tool>` already understands the
+  `plugins/<name>/skills/<skill>/SKILL.md` layout.
+- **Codex CLI** looks for `.agents/plugins/marketplace.json` first and falls
+  back to `.claude-plugin/marketplace.json` (`codex plugin marketplace add
+  owner/repo`, then `codex plugin add <plugin>@<marketplace>`). It reads
+  `.claude-plugin/plugin.json`, loads `skills/` (only `name` and
+  `description` from frontmatter), migrates `commands/*.md` into skills at
+  install when they carry a `description`, and uses the same `hooks.json`
+  schema as Claude with `PLUGIN_ROOT` instead of `CLAUDE_PLUGIN_ROOT` (the
+  hooks here reference `${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}`). Plugins cannot
+  bundle agents ([openai/codex#18988](https://github.com/openai/codex/issues/18988));
+  Codex agents are TOML files in `~/.codex/agents/`. The `{"source":
+  "github"}` object form is unsupported, so sources stay `./` paths.
+- **`npx skills add`** (Vercel) reads the Claude marketplace and finds
+  `plugins/*/skills` on its own.
+
+Consequences implemented: a generated Codex marketplace at
+`.agents/plugins/marketplace.json`, generated Codex agent TOMLs under
+`codex/agents/`, `scripts/sync-crosstool.py --check` to catch drift, and
+explicit `commands` paths in the plugin manifests. Multi-agent pipelines
+degrade in Codex to the orchestrating skill plus manually installed agents.
+
+Sources: [Copilot CLI plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference),
+[Copilot agent skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills),
+[Copilot custom agents](https://docs.github.com/en/copilot/reference/custom-agents-configuration),
+[Copilot hooks](https://docs.github.com/en/copilot/reference/hooks-reference),
+[Copilot CLI changelog](https://github.com/github/copilot-cli/blob/main/changelog.md),
+[gh skill](https://github.com/cli/cli/blob/trunk/skills/gh-skill/SKILL.md),
+[openai/codex core-plugins](https://github.com/openai/codex/tree/main/codex-rs/core-plugins/src),
+[openai/codex#21396](https://github.com/openai/codex/pull/21396),
+[openai/codex#24320](https://github.com/openai/codex/pull/24320),
+[openai/skills](https://github.com/openai/skills),
+[vercel-labs/skills](https://github.com/vercel-labs/skills),
+[Agent Skills spec](https://github.com/agentskills/agentskills/blob/main/docs/specification.mdx),
+[Agent Plugins spec](https://github.com/agentplugins/agent-plugins-spec/blob/main/spec/1.0.0.md).
+
 ## Sources
 
 Anthropic: [code-review plugin](https://github.com/anthropics/claude-code/tree/main/plugins/code-review),
