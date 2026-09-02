@@ -1,0 +1,17 @@
+{
+  "name": "worklog",
+  "version": "0.1.0",
+  "description": "Carry a piece of development work across many sessions: one committed markdown file per work item (goal, immutable task list, decisions, append-only session log, next action) that a fresh session resumes from ledger-first, with commits derived from task ids in git rather than stored. Leans on plan mode for planning and on git for state",
+  "author": {
+    "name": "Michael Pesin"
+  },
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "sessions",
+    "progress",
+    "handoff",
+    "plan"
+  ],
+  "commands": "./commands/"
+}
