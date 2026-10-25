@@ -9,6 +9,8 @@ AI tooling — skills and agents usable in any codebase, by anyone.
 /plugin marketplace add MPesin/ai-tools
 /plugin install repo-mapper@michaelp-ai-tools
 /plugin install design-critic@michaelp-ai-tools
+/plugin install dev-flow@michaelp-ai-tools
+/plugin install dev-flow-panel@michaelp-ai-tools
 ```
 
 ## Plugins
@@ -78,12 +80,51 @@ it to review a freshly generated index against the actual code.
 
 This repository's own design was reviewed by it before being built.
 
+### dev-flow — plan, implement, review and QA-impact, run by subagents
+
+Three skills for any project, in any language, on Linux, macOS and Windows
+(Git Bash):
+
+- `/dev-flow:dev-plan` writes a plan (interactively with you, or drafted by
+  a planner subagent) in a fixed format with verified facts, acceptance
+  criteria and steps grouped into **work packages** with disjoint file
+  ownership, reviewed by a plan critic before you approve it.
+- `/dev-flow:dev-implement <plan>` runs the plan: independent packages in
+  parallel implementer subagents wave by wave, then a review/fix loop where
+  every round gets a brand-new reviewer that has seen nothing but the
+  requirement and the code, a stop at your review, fixes for your PR
+  comments, and finally the QA note. State is files in the task folder, so a
+  run resumes after a restart.
+- `/dev-flow:dev-qa-impact` writes a fixed-template note for QA engineers who
+  do not read code: what changed for users, which regression tests to run,
+  and what was built differently from the requirements.
+
+While a flow is active, **hooks enforce what the prompts promise**: no
+`git commit/push/checkout/stash/clean`, no posting to PRs or work items
+(`gh`, `glab`, `az`, MCP tools), no publishing; read-only agents may write
+only their one output file and any other change to the working tree is
+detected and reported; implementers may edit only their package's files;
+every build/test command an implementer runs is recorded with its output as
+evidence; desktop notifications at the human gates. The guards cover Bash,
+PowerShell and MCP tools, run on bash 3.2+ without `jq`, and ship with 134
+assertion tests (`bash plugins/dev-flow/hooks/test-hooks.sh`).
+
+### dev-flow-panel — a pane for the flow
+
+A companion plugin (a hooks module) that opens a pane beside the chat with
+buttons for the three skills and a colour-coded view of the current stage
+read from the task folder: planning, approved, implementing, Claude review,
+your review, QA impact, done, blocked — plus the status line and warnings
+when findings wait for your decision. `/dev-flow-panel` opens it.
+
 ## Repository layout
 
 ```
 .claude-plugin/marketplace.json    # the marketplace manifest
 plugins/repo-mapper/               # 2 commands, skill + references, 3 agents, hook
 plugins/design-critic/             # the reviewer agent
+plugins/dev-flow/                  # 3 skills, 7 agents, 6 bash hooks + tests
+plugins/dev-flow-panel/            # the pane (hooks module)
 ```
 
 ## License

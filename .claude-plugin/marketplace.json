@@ -16,6 +16,16 @@
       "name": "design-critic",
       "source": "./plugins/design-critic",
       "description": "Adversarial DESIGN reviewer agent (not a general critical-thinking aid): attacks the assumptions of plans, specs, and architectures, hunts failure modes, steelmans simpler alternatives, returns severity-ranked findings and a verdict"
+    },
+    {
+      "name": "dev-flow",
+      "source": "./plugins/dev-flow",
+      "description": "Plan, implement, review and QA-impact flow run by subagents (/dev-flow:dev-plan, /dev-flow:dev-implement, /dev-flow:dev-qa-impact) and guarded by cross-platform hooks: no commit/push/discard/posting/publishing, per-agent and per-package write limits, recorded build/test evidence, working-tree change detection, gate notifications"
+    },
+    {
+      "name": "dev-flow-panel",
+      "source": "./plugins/dev-flow-panel",
+      "description": "Companion pane for dev-flow: buttons that start each skill and a colour-coded view of the current stage (planning, implementing, Claude review, your review, QA impact, done, blocked)"
     }
   ]
 }
