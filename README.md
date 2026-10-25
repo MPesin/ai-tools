@@ -120,6 +120,8 @@ or the band's `more` expands it with the stage list, the hint and the flags.
 No pane, so it never takes the height of the terminal; the status line
 shows the stage too.
 
+![The dev-flow-panel band expanded above the prompt: stage row, progress track, hint and the Plan, Implement and QA impact buttons](docs/images/dev-flow-panel.png)
+
 ## Repository layout
 
 ```
