@@ -3,6 +3,10 @@
 
 export type FlowPointer = 'none' | 'current' | 'planning'
 
+/** How much of the band is drawn: `auto` is two rows while a task is active
+ *  and nothing otherwise; `full` adds the stage list, flags and hint, task or not. */
+export type PanelView = 'auto' | 'full'
+
 export type FlowState = {
   pointer: FlowPointer
   taskFolder?: string
@@ -20,6 +24,6 @@ export type FlowState = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'dev-flow-panel': { flow: Shaped<FlowState> }
+    'dev-flow-panel': { flow: Shaped<FlowState>; view: PanelView }
   }
 }

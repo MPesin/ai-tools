@@ -1,18 +1,4 @@
-import { expect, test } from 'claude-code/testing'
-
-const PANE = {
-  plugin: 'dev-flow-panel',
-  component: 'Pane',
-  requestId: 'dev-flow',
-  props: {
-    title: 'dev-flow',
-    isFocused: false,
-    bodyColumns: 38,
-    placement: 'dock',
-    scroll: { offset: 0, bodyRows: 24 },
-    view: {},
-  },
-} as const
+import { expect, mock, test } from 'claude-code/testing'
 
 const BAND = {
   plugin: 'dev-flow-panel',
@@ -33,10 +19,9 @@ const FILES: Record<string, string> = {
   '/p/.claude/plans/t/plan.md': PLAN,
 }
 
-test('without an active task the pane offers Plan, Implement and QA impact, and the band yields', async ($, on) => {
+test('without an active task the band yields to the engine until /dev-flow-panel expands it', async ($, on) => {
   // Nothing sits beneath the plugin: each hook here stands for the engine.
   on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.status', () => ({ value: undefined }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.root', () => ({ value: '/p' }))
@@ -51,23 +36,26 @@ test('without an active task the pane offers Plan, Implement and QA impact, and 
 
   await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
 
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const ui = await $.ui.mount({ ...PANE, surface })
-    expect(await ui.find({ type: 'Text', text: /No active task/ })).toBeDefined()
-    expect(await ui.findAll({ type: 'Button' })).toHaveLength(4)
-    await ui.unmount()
-  }
+  const quiet = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await quiet.find({ type: 'Text' }))?.text).toBe('engine')
+  expect(await quiet.findAll({ type: 'Button' })).toHaveLength(0)
+  await quiet.unmount()
 
-  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect((await band.find({ type: 'Text' }))?.text).toBe('engine')
-  expect(await band.findAll({ type: 'Button' })).toHaveLength(0)
-  await band.unmount()
+  const ran = await $.command.run({ command: 'dev-flow-panel', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  expect(ran.text).toMatch(/expanded/)
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const band = await $.ui.mount({ ...BAND, surface })
+    expect(await band.find({ type: 'Text', text: /No active task/ })).toBeDefined()
+    expect(await band.find({ type: 'Text', text: /○ Planning/ })).toBeDefined()
+    expect(await band.findAll({ type: 'Button' })).toHaveLength(5)
+    await band.unmount()
+  }
 })
 
-test('an active task shows its stage in the pane and Implement resumes that plan', async ($, on) => {
+test('an active task draws two rows, and the buttons run the skills on that task', async ($, on) => {
   const ran: string[] = []
   on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.status', () => ({ value: undefined }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.root', () => ({ value: '/p' }))
@@ -86,26 +74,21 @@ test('an active task shows its stage in the pane and Implement resumes that plan
 
   await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
 
-  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /Your review/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /login fix/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /needs-decision/ })).toBeDefined()
-  // The steps behind the current one are ticked, the ones ahead are hollow.
-  expect(await ui.find({ type: 'Text', text: /✓ Planning/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /○ Done/ })).toBeDefined()
-  await ui.press({ key: 'implement' })
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ type: 'Text', text: /Your review/ })).toBeDefined()
+  expect(await band.find({ type: 'Text', text: /login fix/ })).toBeDefined()
+  expect(await band.find({ type: 'Text', text: /needs decision/ })).toBeDefined()
+  // Compact: the stage list is not drawn.
+  expect(await band.find({ type: 'Text', text: /✓ Planning/ })).toBeUndefined()
+  await band.press({ key: 'implement' })
   expect(ran).toEqual(['/dev-flow:dev-implement /p/.claude/plans/t/plan.md'])
-  await ui.unmount()
+  await band.press({ key: 'qa' })
+  expect(ran[1]).toBe('/dev-flow:dev-qa-impact /p/.claude/plans/t')
+  await band.unmount()
 })
 
-test('an active task draws the band above the prompt, with the buttons and a way to the pane', async ($, on) => {
-  const opened: unknown[] = []
-  const ran: string[] = []
+test('more expands the band to the stage list, the hint and the flags; less folds it', async ($, on) => {
   on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
-  on('ui.open', (_, e) => {
-    opened.push(e)
-    return { value: { isPlaced: true } }
-  })
   on('ui.status', () => ({ value: undefined }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.root', () => ({ value: '/p' }))
@@ -116,28 +99,64 @@ test('an active task draws the band above the prompt, with the buttons and a way
   on('fs.stat', (_, e) => ({
     value: { kind: 'file', size: e.path.endsWith('needs-decision.md') ? 12 : 0, mtimeMs: 0, isLink: false },
   }))
-  on('command.run', (_, e) => {
-    ran.push(`/${e.command} ${e.args}`.trim())
-    return { text: 'ran' }
-  })
 
   await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
-  // Nothing opens by itself any more: the band carries the stage.
-  expect(opened).toHaveLength(0)
 
-  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await band.find({ type: 'Text', text: /Your review/ })).toBeDefined()
-  expect(await band.find({ type: 'Text', text: /login fix/ })).toBeDefined()
-  expect(await band.find({ type: 'Text', text: /needs decision/ })).toBeDefined()
-  expect(await band.findAll({ type: 'Button' })).toHaveLength(5)
+  // A press writes the view; the surface redraws its readers after, so each
+  // state is read from a fresh drawing.
+  const compact = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await compact.press({ key: 'view' })
+  await compact.unmount()
 
-  await band.press({ key: 'qa' })
-  expect(ran).toEqual(['/dev-flow:dev-qa-impact /p/.claude/plans/t'])
+  const full = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await full.find({ type: 'Text', text: /✓ Planning/ })).toBeDefined()
+  expect(await full.find({ type: 'Text', text: /◉ Your review/ })).toBeDefined()
+  expect(await full.find({ type: 'Text', text: /○ Done/ })).toBeDefined()
+  expect(await full.find({ type: 'Text', text: /needs-decision\.md/ })).toBeDefined()
+  expect(await full.find({ type: 'Text', text: /Waiting for you/ })).toBeDefined()
+  expect((await full.find({ type: 'Button', key: 'view' }))?.text).toMatch(/less/)
+  await full.press({ key: 'view' })
+  await full.unmount()
 
-  // `panel` opens the pane narrow in the dock and sized to its rows inline.
-  await band.press({ key: 'panel' })
-  expect(opened).toHaveLength(1)
-  expect(opened[0]).toMatchObject({ id: 'dev-flow', columns: 40 })
-  expect(typeof (opened[0] as { rows?: unknown }).rows).toBe('number')
-  await band.unmount()
+  const folded = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await folded.find({ type: 'Text', text: /✓ Planning/ })).toBeUndefined()
+  expect((await folded.find({ type: 'Button', key: 'view' }))?.text).toMatch(/more/)
+  await folded.unmount()
+})
+
+test('the poll picks up a stage change in plan.md and a pointer at the git root above the session', async ($, on) => {
+  // The session starts in a subfolder; the pointer sits at the repository root.
+  const files: Record<string, string> = {
+    '/repo/.claude/flow/planning': '/repo/.claude/plans/t\n',
+    '/repo/.claude/plans/t/plan.md': '---\ntask: login fix\nstatus: draft\n---\n',
+  }
+  let invalidated = 0
+  const clock = mock.clock(on)
+  on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
+  on('ui.status', () => ({ value: undefined }))
+  on('ui.invalidate', () => { invalidated += 1; return { value: undefined } })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.root', () => ({ value: '/repo/apps/web' }))
+  on('fs.exists', (_, e) => ({ value: e.path in files }))
+  on('fs.read', (_, e) => ({ value: files[e.path] ?? '' }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false } }))
+
+  await $.session.start({ cwd: '/repo/apps/web', surface: 'desktop', isInteractive: true })
+
+  const planning = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await planning.find({ type: 'Text', text: /Planning/ })).toBeDefined()
+  await planning.unmount()
+
+  // The plan is approved and the planning pointer gives way to current.
+  delete files['/repo/.claude/flow/planning']
+  files['/repo/.claude/flow/current'] = '/repo/.claude/plans/t\n'
+  files['/repo/.claude/plans/t/plan.md'] = '---\ntask: login fix\nstatus: approved\nmode: lite\n---\n'
+  // One poll period passes; the refresh it runs settles with the advance.
+  await clock.advance(4000)
+
+  const approved = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await approved.find({ type: 'Text', text: /Approved/ })).toBeDefined()
+  expect(await approved.find({ type: 'Text', text: /lite/ })).toBeDefined()
+  expect(invalidated).toBeGreaterThan(0)
+  await approved.unmount()
 })
