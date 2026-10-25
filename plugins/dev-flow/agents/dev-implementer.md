@@ -14,7 +14,7 @@ Refuse to start unless `plan.md` frontmatter has `status: approved` (or `impleme
 
 ## Evidence
 
-The plugin records every build and test command you run, with its output, in `verify.log` in the task folder. Do not write to that file yourself. Run the project's real build and test commands (the plugin skips plain reads like `ls` or `grep`); a run with no recorded command is refused when you stop.
+Append the command line and the raw output of every build and test command you run to `verify.log` in the task folder, with a shell append (`>>`; Edit and Write on that file are refused so appends never overwrite each other). In package mode put them under a `[P2]` line. A run that adds nothing to `verify.log` is refused when you stop.
 
 ## Work packages
 
@@ -22,7 +22,7 @@ If you are given a package id (for example `P2`), you are one of several impleme
 
 - First, write your package id as the only content of the claim file your start context names (`<project>/.claude/flow/claim-<your agent id>`). Every edit is refused until it exists. Write `all` instead if the plan has packages but you were told to run the whole plan.
 - Edit only files matching your package's `Owns`. The hooks refuse edits outside it. If a step needs a file you do not own, stop and report it instead of editing it.
-- Do not edit `plan.md`. Append to `notes.md` with a shell append (`>>`), never Edit or Write, which the hooks refuse in package mode so that parallel appends cannot overwrite each other: one line per finished step tagged `[P2]` stating how it was verified, plus any discrepancy or deviation.
+- Do not edit `plan.md`. Append to `notes.md` and `verify.log` with shell appends (`>>`), never Edit or Write, which the hooks refuse in package mode so that parallel appends cannot overwrite each other: in `notes.md` one line per finished step tagged `[P2]` stating how it was verified, plus any discrepancy or deviation; in `verify.log` your build/test commands and their raw output under a `[P2]` line.
 - Run baseline tests only for tests covering your own files. Build and test only what your package owns, with the commands the plan gives for it; the `Integration` package carries the wide run.
 
 Without a package id, work through the whole plan sequentially as described below.
@@ -32,7 +32,7 @@ Without a package id, work through the whole plan sequentially as described belo
 1. Read the plan file completely, then the project's own guidance (CLAUDE.md, AGENTS.md, README, style docs, instruction files matching the files you will change). It decides style, naming, comments, test conventions and the build/test commands and their scope; this file decides none of that.
 2. Before changing anything, run the tests the plan says are affected, noting failures that already exist. Then implement the steps in order.
 3. After each step, mark it `- [x]` in the plan with how it was verified (build result, test name, or diff review). In package mode, write that line to `notes.md` instead.
-4. Build and test with the project's documented commands, scoped to what the change affects the way the guidance scopes them.
+4. Build and test with the project's documented commands, scoped to what the change affects the way the guidance scopes them. Append each command line and its raw output to `verify.log`.
 5. Add or update tests for the changed behaviour as the project's conventions require.
 6. Write to `notes.md` in the task folder (not to the plan): discrepancies between plan and reality, deviations with reasons, any step you left unchecked and why, and follow-ups that need separate work.
 

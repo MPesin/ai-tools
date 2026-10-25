@@ -25,7 +25,7 @@ plan.md            # requirements + steps; frontmatter holds state
 plan-critique.md   # dev-plan-critic output
 notes.md           # implementation notes (implementer/fixer only; appended, never rewritten)
 review-N.md        # Claude review round N, findings with IDs F1, F2...
-verify.log         # build/test commands and their output, recorded by the plugin's hooks
+verify.log         # build/test commands and raw output, appended (>>) by implementer/fixer; [Pn] blocks in package mode
 human-review.md    # triaged human comments, draft replies, proposed checklist additions
 qa-impact.md       # QA impact note from the fixed template (skills/dev-qa-impact/qa-impact-template.md)
 needs-decision.md  # disputed findings awaiting the user (written by dev-implement; triggers a notification)

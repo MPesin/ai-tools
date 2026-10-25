@@ -104,10 +104,10 @@ While a flow is active, **hooks enforce what the prompts promise**: no
 (`gh`, `glab`, `az`, MCP tools), no publishing; read-only agents may write
 only their one output file and any other change to the working tree is
 detected and reported; implementers may edit only their package's files;
-every build/test command an implementer runs is recorded with its output as
-evidence; desktop notifications at the human gates. The guards cover Bash,
-PowerShell and MCP tools, run on bash 3.2+ without `jq`, and ship with 134
-assertion tests (`bash plugins/dev-flow/hooks/test-hooks.sh`).
+implementers must leave their build/test output in `verify.log` before they
+may finish; desktop notifications at the human gates. The guards cover Bash,
+PowerShell and MCP tools, run on bash 3.2+ without `jq`, and ship with an
+assertion test suite (`bash plugins/dev-flow/hooks/test-hooks.sh`).
 
 ### dev-flow-panel — a pane for the flow
 
@@ -123,7 +123,7 @@ when findings wait for your decision. `/dev-flow-panel` opens it.
 .claude-plugin/marketplace.json    # the marketplace manifest
 plugins/repo-mapper/               # 2 commands, skill + references, 3 agents, hook
 plugins/design-critic/             # the reviewer agent
-plugins/dev-flow/                  # 3 skills, 7 agents, 6 bash hooks + tests
+plugins/dev-flow/                  # 3 skills, 7 agents, 5 bash hooks + tests
 plugins/dev-flow-panel/            # the pane (hooks module)
 ```
 

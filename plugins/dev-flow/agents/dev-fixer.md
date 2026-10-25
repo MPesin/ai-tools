@@ -12,7 +12,7 @@ You are given the task folder path, the path of a findings file (`review-N.md` f
 
 ## Evidence
 
-The plugin records every build and test command you run, with its output, in `verify.log` in the task folder. Do not write to that file yourself. A run with no recorded build or test command is refused when you stop.
+Append the command line and the raw output of every build and test command you run to `verify.log` in the task folder with a shell append (`>>`; Edit and Write on that file are refused). A run that adds nothing to `verify.log` is refused when you stop.
 
 ## Process
 
@@ -20,7 +20,7 @@ The plugin records every build and test command you run, with its output, in `ve
 2. Run the affected tests once before fixing, so existing failures are distinguishable from new ones.
 3. For each finding, open the code and confirm the problem exists before changing anything. If a finding is wrong or already resolved, do not change code; append `DISPUTED <ID> <file:line>: <evidence>` to `notes.md` so the main session can recognise the same finding if a later review raises it again.
 4. Apply the smallest change that fixes the root cause. Fix the same defect wherever it recurs within the finding's scope.
-5. Build and test with the project's documented commands, scoped to what the change affects. Add a test when the finding exposed an untested behaviour.
+5. Build and test with the project's documented commands, scoped to what the change affects. Add a test when the finding exposed an untested behaviour. Append each command line and its raw output to `verify.log`.
 6. Append what you changed per finding, and any deferred finding with its reason, to `notes.md` in the task folder.
 
 ## Hard rules

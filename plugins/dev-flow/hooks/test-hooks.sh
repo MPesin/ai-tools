@@ -46,9 +46,6 @@ write_json() { # AGENT_TYPE PATH [TOOL] [AGENT_ID]
 mcp_json() { printf '{"cwd":"%s","tool_name":"%s","tool_input":{"x":1}}' "$CW" "$1"; }
 start_json() { printf '{"cwd":"%s","hook_event_name":"SubagentStart","agent_id":"%s","agent_type":"%s"}' "$CW" "$1" "$2"; }
 stop_json()  { printf '{"cwd":"%s","hook_event_name":"SubagentStop","agent_id":"%s","agent_type":"%s","stop_hook_active":%s}' "$CW" "$1" "$2" "${3:-false}"; }
-post_json()  { # AGENT_ID COMMAND STDOUT
-  printf '{"cwd":"%s","agent_type":"dev-flow:dev-implementer","agent_id":"%s","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"%s"},"tool_response":{"stdout":"%s","stderr":"","interrupted":false,"isImage":false}}' "$CW" "$1" "$2" "$3"
-}
 main_stop_json() { printf '{"cwd":"%s","hook_event_name":"Stop","stop_hook_active":false}' "$CW"; }
 session_json()   { printf '{"cwd":"%s","hook_event_name":"SessionStart","source":"%s"}' "$CW" "$1"; }
 
@@ -183,29 +180,29 @@ assert ".git/info/exclude has .claude/flow/" 'grep -q -x -F ".claude/flow/" .git
 expect_out  "reviewer start says read-only"  flow-context.sh "$(start_json r1 dev-flow:dev-reviewer)" "read-only"
 expect_pass "Explore start is silent"        flow-context.sh "$(start_json e1 Explore)"
 
-echo "== PostToolUse recorder"
-expect_pass "recorder: main session is ignored" flow-record.sh "$(printf '{"cwd":"%s","tool_name":"Bash","tool_input":{"command":"make build"},"tool_response":{"stdout":"ok","stderr":""}}' "$CW")"
-expect_pass "recorder: plain reads skipped"     flow-record.sh "$(post_json i1 'cd src && ls -la' 'A.cs')"
-assert "verify.log still absent after reads" '[ ! -f task/verify.log ]'
-printf 'P1\n' > .claude/flow/claim-i1
-expect_pass "recorder: make test recorded"    flow-record.sh "$(post_json i1 'cd src && make test' 'Passed!  - Failed: 0, Passed: 12\nline2')"
-assert "verify.log has header with package and agent id" 'grep -q "=== dev-flow \[P1\] agent i1 " task/verify.log'
-assert "verify.log has the command and decoded output"   'grep -q "^[$] cd src && make test" task/verify.log && grep -q "Passed: 12" task/verify.log && grep -q "^line2" task/verify.log'
-
 echo "== SubagentStop: evidence and bookkeeping"
 plan implementing 1
 printf 'P2\n' > .claude/flow/claim-i2
-expect_block "P2 stops with no recorded build (P1's record does not count)" flow-verify-stop.sh "$(stop_json i2 dev-flow:dev-implementer)"
-run flow-record.sh "$(post_json i2 'make -C src/bar build' 'Build succeeded.')"
+run flow-context.sh "$(start_json i2 dev-flow:dev-implementer)"
+printf '[P1] $ make -C src/foo build\nok\n' >> task/verify.log
+expect_block "P2 stops with no [P2] block in verify.log (P1's does not count)" flow-verify-stop.sh "$(stop_json i2 dev-flow:dev-implementer)"
+printf '[P2] $ make -C src/bar build\nBuild succeeded.\n' >> task/verify.log
 expect_block "P2 stops with no [P2] notes"      flow-verify-stop.sh "$(stop_json i2 dev-flow:dev-implementer)"
 printf '[P2] step two: make build ok\n' >> task/notes.md
 expect_pass  "P2 stops cleanly"                 flow-verify-stop.sh "$(stop_json i2 dev-flow:dev-implementer)"
-assert "markers cleaned for i2" '[ ! -f .claude/flow/claim-i2 ]'
+assert "markers cleaned for i2" '[ ! -f .claude/flow/claim-i2 ] && [ ! -f .claude/flow/start-i2 ]'
 plan implementing
 rm -f task/notes.md .claude/flow/claim-i1
+run flow-context.sh "$(start_json i1 dev-flow:dev-implementer)"; sleep 1.1
+expect_block "single implementer: verify.log not updated this run" flow-verify-stop.sh "$(stop_json i1 dev-flow:dev-implementer)"
+printf '$ make test\nok\n' >> task/verify.log
 expect_block "single implementer: unchecked steps, no notes" flow-verify-stop.sh "$(stop_json i1 dev-flow:dev-implementer)"
 printf 'step one skipped: reason\n' > task/notes.md
 expect_pass  "single implementer: explained in notes"      flow-verify-stop.sh "$(stop_json i1 dev-flow:dev-implementer)"
+run flow-context.sh "$(start_json f1 dev-flow:dev-fixer)"; sleep 1.1
+expect_block "fixer: stale verify.log"   flow-verify-stop.sh "$(stop_json f1 dev-flow:dev-fixer)"
+printf '$ make test\nok\n' >> task/verify.log
+expect_pass  "fixer: fresh verify.log"   flow-verify-stop.sh "$(stop_json f1 dev-flow:dev-fixer)"
 expect_pass  "stop_hook_active: never blocks"              flow-verify-stop.sh "$(stop_json i9 dev-flow:dev-fixer true)"
 
 echo "== SubagentStop: working-tree violations"
@@ -226,7 +223,7 @@ run flow-context.sh "$(start_json i4 dev-flow:dev-implementer)"
 printf 'p1 edit\n' >> src/foo/alpha.txt            # own package
 printf 'p2 edit\n' >> src/bar/beta.txt            # a parallel implementer's package: not a violation
 printf 'stray\n' > src/stray.txt               # outside every package: violation
-run flow-record.sh "$(post_json i4 'make -C src/foo build' 'ok')"
+printf '[P1] $ make -C src/foo build\nok\n' >> task/verify.log
 printf '[P1] done\n' >> task/notes.md
 expect_block "implementer: file outside every Owns is reported" flow-verify-stop.sh "$(stop_json i4 dev-flow:dev-implementer)"
 assert "only the stray file is named" 'case $out in *src/stray.txt*) case $out in *src/bar/beta.txt*) false;; *) true;; esac;; *) false;; esac'
@@ -285,7 +282,6 @@ expect_deny  "git commit while planning"               flow-guard.sh "$(bash_jso
 expect_deny  "critic writes src while planning"        flow-guard.sh "$(write_json dev-flow:dev-plan-critic "$T/src/foo/alpha.txt")"
 expect_out   "planner start gets context"              flow-context.sh "$(start_json p1 dev-flow:dev-planner)" "status: draft"
 expect_pass  "verify-stop: planner with no changes passes" flow-verify-stop.sh "$(stop_json p1 dev-flow:dev-planner)"
-expect_pass  "recorder ignores the planning pointer"   flow-record.sh "$(post_json p1 'make build' 'x')"
 
 echo
 printf '%d passed, %d failed\n' "$pass" "$fail"

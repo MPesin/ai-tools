@@ -6,12 +6,6 @@
         "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/flow-guard.sh\"" }]
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "Bash|PowerShell",
-        "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/flow-record.sh\"" }]
-      }
-    ],
     "SubagentStart": [
       {
         "matcher": "(^|:)dev-(planner|plan-critic|implementer|reviewer|fixer|review-triager|qa-impact)$",

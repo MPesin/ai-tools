@@ -2,7 +2,8 @@
 # SubagentStop for dev-* agents.
 #   read-only agents : any file changed since SubagentStart is a violation
 #   implementer (package mode): changed files outside every package's Owns are violations
-#   implementer/fixer: at least one recorded build/test command; notes.md/plan.md bookkeeping
+#   implementer/fixer: verify.log gained this run's build/test output (a [Pn] block in
+#                      package mode); notes.md/plan.md bookkeeping
 # A violation or missing evidence blocks the stop once (the agent gets the reason and
 # reports); it is also appended to <task folder>/violations.md for the user.
 HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
@@ -44,8 +45,14 @@ if [ -n "$violation" ]; then
 fi
 
 if is_writing_agent "$AGENT_TYPE"; then
-  if ! grep -q -F "agent $AGENT_ID " "$TASK_FOLDER/verify.log" 2>/dev/null; then
-    problems+=("no build or test command was recorded for this run; run the project's build and test commands (the plugin records them in $TASK_FOLDER/verify.log)")
+  verify_log="$TASK_FOLDER/verify.log"
+  if [ "$AGENT_TYPE" = dev-implementer ] && plan_has_packages && [ -n "$claim" ] && [ "$claim" != all ]; then
+    grep -q -F "[$claim]" "$verify_log" 2>/dev/null \
+      || problems+=("verify.log has no [$claim] block; append the command line and raw output of every build/test command you ran under a [$claim] line (shell append, >>)")
+  elif [ ! -s "$verify_log" ]; then
+    problems+=("verify.log is missing or empty; append the command line and raw output of every build/test command you ran to $verify_log")
+  elif [ -f "$marker" ] && [ ! "$verify_log" -nt "$marker" ]; then
+    problems+=("verify.log was not updated during this run; append the build/test output of this run to $verify_log")
   fi
   if [ "$AGENT_TYPE" = dev-implementer ]; then
     if plan_has_packages && [ -n "$claim" ] && [ "$claim" != all ]; then

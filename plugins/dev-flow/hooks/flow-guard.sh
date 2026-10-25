@@ -40,7 +40,7 @@ deny_flow_outputs() {
   in_task || return 0
   case $base in
     verify.log|review-*.md|plan-critique.md|qa-impact.md|human-review.md|needs-decision.md|violations.md)
-      deny "$AGENT_TYPE may not edit $base (it belongs to another stage; verify.log is written by the plugin)." ;;
+      deny "$AGENT_TYPE may not edit $base with Edit/Write (append to verify.log with a shell command, >>; the other files belong to another stage)." ;;
   esac
 }
 

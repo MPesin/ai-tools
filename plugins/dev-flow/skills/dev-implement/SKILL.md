@@ -18,7 +18,7 @@ State between stages is files in the task folder, never chat summaries. Plan str
 - Do not advance past a human gate without an explicit user reply.
 - Never run subagents with `isolation: "worktree"`: a subagent worktree starts from the default branch without the uncommitted changes of earlier waves, and nothing merges it back. All work happens in the one working tree.
 - After every subagent returns, check `violations.md` in the task folder. If it gained lines, show them to the user and stop; the user decides whether to keep or revert those changes.
-- The hooks: while `<project>/.claude/flow/current` exists, the plugin blocks commit/push/discard, posting and publishing (Bash, PowerShell and MCP tools), limits what each agent may write, records every build/test command an implementer or fixer runs in `verify.log`, compares the working tree before and after each read-only agent, and notifies the user at the gates. If a guard blocks the main session wrongly, the user can delete the pointer file.
+- The hooks: while `<project>/.claude/flow/current` exists, the plugin blocks commit/push/discard, posting and publishing (Bash, PowerShell and MCP tools), limits what each agent may write, refuses to let an implementer or fixer finish without this run's build/test output in `verify.log`, compares the working tree before and after each read-only agent, and notifies the user at the gates. If a guard blocks the main session wrongly, the user can delete the pointer file.
 
 ## Stages
 
@@ -41,7 +41,7 @@ If the plan has work packages, run them in waves: all packages whose dependencie
 
 Plans without packages run as one implementer whose prompt contains only the task folder path, project root and plan path. It ticks `plan.md` itself.
 
-The implementer takes a test baseline first, implements, runs the project's build and test commands (the plugin records them with their output in `verify.log`), and writes discrepancies to `notes.md`.
+The implementer takes a test baseline first, implements, runs the project's build and test commands and appends them with their raw output to `verify.log`, and writes discrepancies to `notes.md`.
 
 ### 3. Review/fix loop (`dev-reviewer`, `dev-fixer`)
 
