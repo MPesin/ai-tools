@@ -117,23 +117,23 @@ async function refresh($: EngineInterface) {
   $.ui.status(statusLine(next))
 }
 
-// The rows the pane's tree takes, so the inline frame opens that tall rather
-// than a third of the screen: header, stage list, hint and buttons, with the
-// blank rows between them. The engine still caps it at what the layout spares.
+// The rows the pane's tree takes inline, so the frame opens that tall rather
+// than a third of the screen: header, stage list, flags, hint and buttons, with
+// the blank rows between them. The engine still caps it at what the layout spares.
 const paneRows = (f: FlowState) => {
-  const header = 2 + (f.needsDecision ? 1 : 0) + (f.violations ? 1 : 0)
+  const flags = (f.needsDecision ? 2 : 0) + (f.violations ? 2 : 0)
   const hint = Math.ceil(stageOf(f.status).hint.length / 60) || 1
-  return header + 1 + STAGES.length + 1 + hint + 1 + 1
+  return 2 + 1 + STAGES.length + 1 + (flags ? flags + 1 : 0) + hint + 1 + 2
 }
 
 const paneArgs = (f: FlowState) => ({ id: PANE, title: 'dev-flow', columns: PANE_COLUMNS, rows: paneRows(f) })
 
-// What the bullets, the meta and the controls say, shared by the band and the pane.
 const metaOf = (f: FlowState) =>
-  [f.reviewRound ? `round ${f.reviewRound}` : '', f.mode ?? ''].filter(Boolean).join(' · ')
+  [f.reviewRound ? `round ${f.reviewRound}` : '', f.mode ?? '', f.base ? `base ${f.base}` : ''].filter(Boolean).join(' · ')
 
-const whereOf = (f: FlowState) =>
-  f.task ?? (f.pointer === 'none' ? 'no pointer in .claude/flow' : f.taskFolder ?? '')
+// What the task is called: plan.md's `task`, else the task folder's name.
+const titleOf = (f: FlowState) =>
+  f.task ?? (f.taskFolder ? f.taskFolder.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? '' : '')
 
 const IN_PROGRESS = ['implementing', 'reviewing', 'qa-impact', 'blocked']
 
@@ -164,15 +164,28 @@ const skillButtons = ($: EngineInterface, { Button }: Controls, f: FlowState) =>
     </Button>,
   ]
 }
+// Cells the three buttons take as the terminal draws them (`[ label ]`), with
+// the gaps: what the band's hint has to fit beside.
+const skillButtonsWidth = (f: FlowState) => 8 + 1 + (IN_PROGRESS.includes(f.status) ? 10 : 13) + 1 + 13
 
-// The stage header: a coloured bullet and label, then the round and mode dim.
-const headline = ({ Text }: Controls, f: FlowState) => {
+// The stage as a chip: the label on a block of the stage's colour.
+const chip = ({ Text }: Controls, stage: Stage) => (
+  <Text bold inverse color={stage.color}>{' '}{stage.label}{' '}</Text>
+)
+
+// The seven stages as a track: the steps behind filled, the current one ringed
+// in the stage's colour, the ones ahead hollow.
+const track = ({ Text }: Controls, f: FlowState) => {
+  const at = STAGES.findIndex(s => s.status === f.status)
   const stage = stageOf(f.status)
-  const meta = metaOf(f)
   return (
-    <Text bold color={stage.color} wrap="truncate-end">
-      {'●'} {stage.label}
-      {meta ? <Text dimColor>{'  '}{meta}</Text> : null}
+    <Text>
+      {STAGES.map((s, i) => (
+        <Text>
+          {i > 0 ? <Text dimColor>{'─'}</Text> : null}
+          {i === at ? <Text bold color={stage.color}>{'◉'}</Text> : i < at ? <Text color="success">{'●'}</Text> : <Text dimColor>{'○'}</Text>}
+        </Text>
+      ))}
     </Text>
   )
 }
@@ -214,8 +227,10 @@ export const register: Register = on => {
   })
 
   // The band: two rows above the prompt while a task is active, nothing otherwise.
-  //   ● Your review  round 2 · full  ·  login fix  ·  ○○○○●○○      needs decision
-  //   [ Plan ] [ Implement ] [ QA impact ]  refresh  panel   Waiting for you: review…
+  //   ▎ Your review  ⚠ needs decision  login fix · round 2 · full       ●─●─●─●─◉─○─○
+  //   ▎ [ Plan ] [ Implement ] [ QA impact ]  ↻ refresh  panel ↗   Waiting for you: review…
+  // An accent bar in the stage's colour ties the two rows; the track at the
+  // right end is what gives way first when the column is narrow.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const f = await read($, flow)
     if (e.props.hasSurvey || f.pointer === 'none') return next(e)
@@ -223,77 +238,101 @@ export const register: Register = on => {
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
     const stage = stageOf(f.status)
-    const at = STAGES.findIndex(s => s.status === f.status)
-    const track = STAGES.map((s, i) => (i === at ? '●' : i < at ? '•' : '○')).join('')
+    const meta = metaOf(f)
+    const hintRoom = e.props.bodyColumns - (2 + skillButtonsWidth(f) + 3 + 9 + 3 + 7 + 3)
 
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
-        <Box justifyContent="space-between" gap={2}>
+        <Box justifyContent="space-between" columnGap={2}>
           <Text wrap="truncate-end">
-            <Text bold color={stage.color}>{'●'} {stage.label}</Text>
-            {metaOf(f) ? <Text dimColor>{'  '}{metaOf(f)}</Text> : null}
-            <Text dimColor>{'  ·  '}{whereOf(f)}</Text>
-            <Text color={stage.color}>{'  ·  '}{track}</Text>
+            <Text color={stage.color}>{'▎'}</Text>
+            {chip(els, stage)}
+            {f.needsDecision ? <Text color="warning">{'  ⚠ needs decision'}</Text> : null}
+            {f.violations ? <Text color="error">{'  ✗ violations'}</Text> : null}
+            <Text>{'  '}{titleOf(f)}</Text>
+            {meta ? <Text dimColor>{' · '}{meta}</Text> : null}
           </Text>
-          {f.needsDecision || f.violations ? (
-            <Text wrap="truncate-end">
-              {f.needsDecision ? <Text color="warning">needs decision</Text> : null}
-              {f.needsDecision && f.violations ? <Text dimColor>{' · '}</Text> : null}
-              {f.violations ? <Text color="error">violations</Text> : null}
-            </Text>
-          ) : null}
+          <Box flexShrink={0}>{track(els, f)}</Box>
         </Box>
-        <Box gap={2}>
-          <Box flexShrink={0} gap={1}>
-            {skillButtons($, els, f)}
-            <Button key="refresh" hotkey="r" plain dimColor onPress={() => { void refresh($) }}>
-              refresh
+        <Box columnGap={2}>
+          <Box flexShrink={0} columnGap={3}>
+            <Box columnGap={1}>
+              <Text color={stage.color}>{'▎'}</Text>
+              {skillButtons($, els, f)}
+            </Box>
+            <Button key="refresh" plain dimColor onPress={() => { void refresh($) }}>
+              ↻ refresh
             </Button>
-            <Button key="panel" hotkey="d" plain dimColor onPress={() => { void $.ui.open(paneArgs(f)) }}>
-              panel
+            <Button key="panel" plain dimColor onPress={() => { void $.ui.open(paneArgs(f)) }}>
+              panel ↗
             </Button>
           </Box>
-          <Box flexShrink={1}>
-            <Text dimColor wrap="truncate-end">{stage.hint}</Text>
-          </Box>
+          {hintRoom >= 24 ? (
+            <Box flexShrink={1}>
+              <Text dimColor wrap="truncate-end">{stage.hint}</Text>
+            </Box>
+          ) : null}
         </Box>
       </Box>
     )
   })
 
-  // The pane: the headline, the task, the flags, the stage list with the
-  // steps behind us ticked, the hint for this stage, and the buttons.
+  // The pane: the stage chip and the task in a header (framed in the stage's
+  // colour in the dock, which has the rows to spare), the stage list with the
+  // steps behind ticked, the flags, the hint for this stage, and the buttons.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
     const f = await read($, flow)
     const stage = stageOf(f.status)
     const at = STAGES.findIndex(s => s.status === f.status)
+    const meta = metaOf(f)
+    const framed = e.props.placement === 'dock'
+    const header = (
+      <Box flexDirection="column" paddingX={1} {...(framed ? { borderStyle: 'round', borderColor: stage.color } : {})}>
+        <Text wrap="truncate-end">
+          {framed ? null : <Text color={stage.color}>{'▎'}</Text>}
+          {chip(els, stage)}
+          {titleOf(f) ? <Text bold>{'  '}{titleOf(f)}</Text> : null}
+        </Text>
+        <Text dimColor wrap="truncate-end">{framed ? '' : ' '}{f.pointer === 'none' ? 'no pointer in .claude/flow' : meta}</Text>
+      </Box>
+    )
 
     return (
-      <Box flexDirection="column" gap={1} paddingX={1}>
-        <Box flexDirection="column">
-          {headline(els, f)}
-          <Text dimColor wrap="truncate-middle">{whereOf(f)}</Text>
-          {f.needsDecision ? <Text color="warning" wrap="truncate-end">{'!'} needs-decision.md waits for your decision</Text> : null}
-          {f.violations ? <Text color="error" wrap="truncate-end">{'!'} violations.md: files changed outside an allowance</Text> : null}
-        </Box>
-        <Box flexDirection="column">
+      <Box flexDirection="column" gap={1} paddingX={framed ? 0 : 1}>
+        {header}
+        <Box flexDirection="column" paddingX={1}>
           {STAGES.map((s, i) =>
             i === at ? (
-              <Text bold color={s.color}>{'●'} {s.label}</Text>
+              <Box flexDirection="column">
+                <Text bold color={s.color}>{'◉'} {s.label}</Text>
+                <Box paddingLeft={2}><Text dimColor>{s.hint}</Text></Box>
+              </Box>
             ) : i < at ? (
-              <Text dimColor>{'✓'} {s.label}</Text>
+              <Text><Text color="success">{'✓'}</Text><Text dimColor> {s.label}</Text></Text>
             ) : (
               <Text dimColor>{'○'} {s.label}</Text>
             ),
           )}
         </Box>
-        <Text dimColor>{stage.hint}</Text>
-        <Box flexWrap="wrap" gap={1}>
-          {skillButtons($, els, f)}
-          <Button key="refresh" hotkey="r" plain dimColor onPress={() => { void refresh($) }}>
-            refresh
+        {f.needsDecision || f.violations ? (
+          <Box flexDirection="column" paddingX={1}>
+            {f.needsDecision ? <Text color="warning">{'⚠ needs-decision.md'}</Text> : null}
+            {f.needsDecision ? <Text dimColor>{'  findings wait for your decision'}</Text> : null}
+            {f.violations ? <Text color="error">{'✗ violations.md'}</Text> : null}
+            {f.violations ? <Text dimColor>{'  files changed outside an allowance'}</Text> : null}
+          </Box>
+        ) : null}
+        {at < 0 ? (
+          <Box paddingX={1}>
+            <Text dimColor>{stage.hint}</Text>
+          </Box>
+        ) : null}
+        <Box flexDirection="column" paddingX={1}>
+          <Box flexWrap="wrap" columnGap={1}>{skillButtons($, els, f)}</Box>
+          <Button key="refresh" plain dimColor onPress={() => { void refresh($) }}>
+            ↻ refresh
           </Button>
         </Box>
       </Box>
