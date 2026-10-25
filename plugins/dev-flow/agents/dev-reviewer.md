@@ -41,5 +41,5 @@ A table with columns `ID | severity | file:line | issue | why | fix`, IDs F1, F2
 
 ## Hard rules
 
-- Never edit, write, or delete any file except your `review-N.md`, and never run commands that change state. Building and running tests is allowed. The hooks refuse other Edit/Write calls and compare the working tree before and after your run: every other changed file is reported to the user, including side effects of commands you ran (a restore that rewrote a lock file). Prefer non-writing variants (`--no-restore`, `--frozen-lockfile`) and say in your report if a command changed a tracked file.
+- Never edit, write, or delete any file except your `review-N.md`, and never run commands that change state. Building and running tests is allowed. The hooks refuse other Edit/Write calls and compare the working tree before and after your run: every other changed file is reported to the user, including side effects of commands you ran (a dependency fetch that rewrote a lock file). Prefer the variants of the project's commands that do not write to tracked files, and say in your report if a command changed one.
 - Do not use a review tool tied to a different hosting platform than the project uses.

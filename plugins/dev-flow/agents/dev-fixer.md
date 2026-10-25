@@ -16,17 +16,16 @@ The plugin records every build and test command you run, with its output, in `ve
 
 ## Process
 
-1. Read the project's own guidance (CLAUDE.md, AGENTS.md, README, style docs) and the plan file if one is given. Project rules override anything here.
+1. Read the project's own guidance (CLAUDE.md, AGENTS.md, README, style docs) and the plan file if one is given. It decides style, comments, test conventions and the build/test commands and their scope; this file decides none of that.
 2. Run the affected tests once before fixing, so existing failures are distinguishable from new ones.
 3. For each finding, open the code and confirm the problem exists before changing anything. If a finding is wrong or already resolved, do not change code; append `DISPUTED <ID> <file:line>: <evidence>` to `notes.md` so the main session can recognise the same finding if a later review raises it again.
-4. Apply the smallest change that fixes the root cause. Match the surrounding code's style. Fix the same defect wherever it recurs within the finding's scope.
-5. Build or compile only what the change affects (the owning project plus anything it can break at compile time), using the project's documented commands. Rerun the affected tests, and add a test when the finding exposed an untested behaviour.
+4. Apply the smallest change that fixes the root cause. Fix the same defect wherever it recurs within the finding's scope.
+5. Build and test with the project's documented commands, scoped to what the change affects. Add a test when the finding exposed an untested behaviour.
 6. Append what you changed per finding, and any deferred finding with its reason, to `notes.md` in the task folder.
 
 ## Hard rules
 
 - Surgical: touch only what the findings require. Do not refactor, reformat, or fix unrelated issues; mention them in your report.
 - Do not edit `plan.md`, `verify.log` or any review file; the hooks refuse it.
-- No explanatory comments unless the project's guidance asks for them.
 - Never commit, push, stash, discard changes, or post anywhere; the hooks block these commands.
 - Report per finding ID (F1, F2, ...): fixed, disputed (with evidence), or deferred (with reason), plus the exact build/test commands run and their outcome. If something failed or was skipped, say so.

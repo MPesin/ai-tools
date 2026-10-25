@@ -10,8 +10,8 @@ T=$(mktemp -d) || exit 1
 trap 'cd /; rm -rf "$T"' EXIT
 cd "$T" || exit 1
 git init -q . && git config user.email t@t && git config user.name t
-mkdir -p .claude/flow task/specs src/Foo src/Bar tests
-printf 'base\n' > src/Foo/A.cs; printf 'base\n' > src/Bar/B.cs; printf 'base\n' > src/Shared.cs
+mkdir -p .claude/flow task/specs src/foo src/bar tests
+printf 'base\n' > src/foo/alpha.txt; printf 'base\n' > src/bar/beta.txt; printf 'base\n' > src/shared.txt
 git add -A && git commit -q -m base
 
 # What Claude Code sends as a path on this OS.
@@ -54,7 +54,7 @@ session_json()   { printf '{"cwd":"%s","hook_event_name":"SessionStart","source"
 
 plan() { # STATUS [PACKAGES=0|1]
   if [ "${2:-0}" = 1 ]; then
-    printf -- '---\ntask: t\nsource: manual\nmode: full\nstatus: %s\nreview_round: 0\nbase: main\n---\n## Steps\n### P0 - Shared\nOwns: src/Shared.cs\nDepends on: none\n- [ ] zero\n### P1 - Foo\nOwns: src/Foo/**, tests/Foo*\nDepends on: P0\n- [ ] one\n### P2 - Bar\nOwns: `src/Bar/**`\nDepends on: P0\n- [ ] two\n' "$1" > task/plan.md
+    printf -- '---\ntask: t\nsource: manual\nmode: full\nstatus: %s\nreview_round: 0\nbase: main\n---\n## Steps\n### P0 - Shared\nOwns: src/shared.txt\nDepends on: none\n- [ ] zero\n### P1 - Foo\nOwns: src/foo/**, tests/foo*\nDepends on: P0\n- [ ] one\n### P2 - Bar\nOwns: `src/bar/**`\nDepends on: P0\n- [ ] two\n' "$1" > task/plan.md
   else
     printf -- '---\ntask: t\nsource: manual\nmode: full\nstatus: %s\nreview_round: 0\nbase: main\n---\n## Steps\n- [ ] one\n' "$1" > task/plan.md
   fi
@@ -100,7 +100,7 @@ expect_deny  "PowerShell tool: git push"        flow-guard.sh "$(bash_json '' '&
 expect_deny  "PowerShell: Git Commit (case)"    flow-guard.sh "$(bash_json '' 'Git Commit -m x' '' PowerShell)"
 expect_allow "git status && git diff"           flow-guard.sh "$(bash_json '' 'git status && git diff')"
 expect_allow "git stash list"                   flow-guard.sh "$(bash_json '' 'git stash list')"
-expect_allow "git reset (unstage)"              flow-guard.sh "$(bash_json '' 'git reset src/Foo/A.cs')"
+expect_allow "git reset (unstage)"              flow-guard.sh "$(bash_json '' 'git reset src/foo/alpha.txt')"
 expect_allow "git branch (list)"                flow-guard.sh "$(bash_json '' 'git branch -a')"
 expect_allow "git log, description says push"  flow-guard.sh "$(bash_json '' 'git log --oneline -5' 'check whether git push already happened')"
 expect_allow "grep \"git commit\" docs/"        flow-guard.sh "$(bash_json '' 'grep -rn \"git commit\" docs/')"
@@ -135,7 +135,7 @@ expect_allow "mcp azure-devops wit_get_work_item" flow-guard.sh "$(mcp_json mcp_
 expect_allow "mcp search_code"                    flow-guard.sh "$(mcp_json mcp__github__search_code)"
 
 echo "== guard: write allowances"
-expect_deny  "reviewer writes src/Foo/A.cs"              flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/src/Foo/A.cs")"
+expect_deny  "reviewer writes src/foo/alpha.txt"              flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/src/foo/alpha.txt")"
 expect_deny  "reviewer writes review-notes.md in src"    flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/src/review-notes.md")"
 expect_deny  "reviewer edits notebook"                   flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/src/x.ipynb" NotebookEdit)"
 expect_allow "reviewer writes task/review-1.md"          flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/task/review-1.md")"
@@ -144,36 +144,36 @@ expect_deny  "critic writes plan.md"                     flow-guard.sh "$(write_
 expect_allow "critic writes plan-critique.md"            flow-guard.sh "$(write_json dev-flow:dev-plan-critic "$T/task/plan-critique.md")"
 expect_deny  "qa-impact writes qa-impact.md elsewhere"   flow-guard.sh "$(write_json dev-flow:dev-qa-impact "$T/other/qa-impact.md")"
 expect_allow "qa-impact writes task/qa-impact.md"        flow-guard.sh "$(write_json dev-flow:dev-qa-impact "$T/task/qa-impact.md")"
-expect_deny  "triager writes src"                        flow-guard.sh "$(write_json dev-flow:dev-review-triager "$T/src/Foo/A.cs")"
+expect_deny  "triager writes src"                        flow-guard.sh "$(write_json dev-flow:dev-review-triager "$T/src/foo/alpha.txt")"
 expect_allow "triager writes human-review.md"            flow-guard.sh "$(write_json dev-flow:dev-review-triager "$T/task/human-review.md")"
-expect_deny  "planner writes src"                        flow-guard.sh "$(write_json dev-flow:dev-planner "$T/src/Foo/A.cs")"
+expect_deny  "planner writes src"                        flow-guard.sh "$(write_json dev-flow:dev-planner "$T/src/foo/alpha.txt")"
 expect_allow "planner writes task/specs/prd.md"          flow-guard.sh "$(write_json dev-flow:dev-planner "$T/task/specs/prd.md")"
 expect_allow "bare agent name (user-level copy) still matched" flow-guard.sh "$(write_json dev-planner "$T/task/plan.md")"
 expect_deny  "fixer edits plan.md"                       flow-guard.sh "$(write_json dev-flow:dev-fixer "$T/task/plan.md")"
 expect_deny  "fixer edits verify.log"                    flow-guard.sh "$(write_json dev-flow:dev-fixer "$T/task/verify.log")"
-expect_allow "fixer edits src"                           flow-guard.sh "$(write_json dev-flow:dev-fixer "$T/src/Foo/A.cs")"
+expect_allow "fixer edits src"                           flow-guard.sh "$(write_json dev-flow:dev-fixer "$T/src/foo/alpha.txt")"
 expect_allow "fixer writes notes.md"                     flow-guard.sh "$(write_json dev-flow:dev-fixer "$T/task/notes.md")"
-expect_allow "implementer (no packages) edits src"       flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/Foo/A.cs")"
+expect_allow "implementer (no packages) edits src"       flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/foo/alpha.txt")"
 expect_allow "implementer (no packages) edits plan.md"   flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/task/plan.md")"
 expect_deny  "implementer edits verify.log"              flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/task/verify.log")"
-expect_allow "main session edits src during dev-implement" flow-guard.sh "$(write_json '' "$T/src/Foo/A.cs")"
-expect_allow "Explore agent untouched"                   flow-guard.sh "$(write_json Explore "$T/src/Foo/A.cs")"
+expect_allow "main session edits src during dev-implement" flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+expect_allow "Explore agent untouched"                   flow-guard.sh "$(write_json Explore "$T/src/foo/alpha.txt")"
 
 echo "== guard: work packages (Owns)"
 plan implementing 1
-expect_deny  "implementer without claim is refused"      flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/Foo/A.cs" Write p1)"
+expect_deny  "implementer without claim is refused"      flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/foo/alpha.txt" Write p1)"
 printf 'P1\n' > .claude/flow/claim-p1
-expect_allow "P1 edits src/Foo/A.cs"                     flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/Foo/A.cs" Write p1)"
-expect_allow "P1 edits tests/FooTests.cs (glob)"         flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/tests/FooTests.cs" Write p1)"
-expect_deny  "P1 edits src/Bar/B.cs (P2 owns)"           flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/Bar/B.cs" Write p1)"
-expect_deny  "P1 edits src/Shared.cs (P0 owns)"          flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/Shared.cs" Write p1)"
+expect_allow "P1 edits src/foo/alpha.txt"                     flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/foo/alpha.txt" Write p1)"
+expect_allow "P1 edits tests/foo-tests.txt (glob)"         flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/tests/foo-tests.txt" Write p1)"
+expect_deny  "P1 edits src/bar/beta.txt (P2 owns)"           flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/bar/beta.txt" Write p1)"
+expect_deny  "P1 edits src/shared.txt (P0 owns)"          flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/shared.txt" Write p1)"
 expect_deny  "P1 edits plan.md"                          flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/task/plan.md" Edit p1)"
 expect_deny  "P1 edits notes.md with Edit (must append)" flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/task/notes.md" Edit p1)"
 expect_allow "P1 writes its claim file"                  flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/.claude/flow/claim-p1" Write p1)"
 printf 'P2\n' > .claude/flow/claim-p2
-expect_allow "P2 edits src/Bar/B.cs (backticked Owns)"   flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/Bar/B.cs" Write p2)"
+expect_allow "P2 edits src/bar/beta.txt (backticked Owns)"   flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/bar/beta.txt" Write p2)"
 printf 'all\n' > .claude/flow/claim-p3
-expect_allow "claim all edits anything"                  flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/Shared.cs" Write p3)"
+expect_allow "claim all edits anything"                  flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/shared.txt" Write p3)"
 rm -f .claude/flow/claim-*
 
 echo "== SubagentStart"
@@ -184,21 +184,21 @@ expect_out  "reviewer start says read-only"  flow-context.sh "$(start_json r1 de
 expect_pass "Explore start is silent"        flow-context.sh "$(start_json e1 Explore)"
 
 echo "== PostToolUse recorder"
-expect_pass "recorder: main session is ignored" flow-record.sh "$(printf '{"cwd":"%s","tool_name":"Bash","tool_input":{"command":"dotnet build"},"tool_response":{"stdout":"ok","stderr":""}}' "$CW")"
+expect_pass "recorder: main session is ignored" flow-record.sh "$(printf '{"cwd":"%s","tool_name":"Bash","tool_input":{"command":"make build"},"tool_response":{"stdout":"ok","stderr":""}}' "$CW")"
 expect_pass "recorder: plain reads skipped"     flow-record.sh "$(post_json i1 'cd src && ls -la' 'A.cs')"
 assert "verify.log still absent after reads" '[ ! -f task/verify.log ]'
 printf 'P1\n' > .claude/flow/claim-i1
-expect_pass "recorder: dotnet test recorded"    flow-record.sh "$(post_json i1 'cd src && dotnet test Foo.Tests' 'Passed!  - Failed: 0, Passed: 12\nline2')"
+expect_pass "recorder: make test recorded"    flow-record.sh "$(post_json i1 'cd src && make test' 'Passed!  - Failed: 0, Passed: 12\nline2')"
 assert "verify.log has header with package and agent id" 'grep -q "=== dev-flow \[P1\] agent i1 " task/verify.log'
-assert "verify.log has the command and decoded output"   'grep -q "^[$] cd src && dotnet test Foo.Tests" task/verify.log && grep -q "Passed: 12" task/verify.log && grep -q "^line2" task/verify.log'
+assert "verify.log has the command and decoded output"   'grep -q "^[$] cd src && make test" task/verify.log && grep -q "Passed: 12" task/verify.log && grep -q "^line2" task/verify.log'
 
 echo "== SubagentStop: evidence and bookkeeping"
 plan implementing 1
 printf 'P2\n' > .claude/flow/claim-i2
 expect_block "P2 stops with no recorded build (P1's record does not count)" flow-verify-stop.sh "$(stop_json i2 dev-flow:dev-implementer)"
-run flow-record.sh "$(post_json i2 'dotnet build src/Bar --no-dependencies' 'Build succeeded.')"
+run flow-record.sh "$(post_json i2 'make -C src/bar build' 'Build succeeded.')"
 expect_block "P2 stops with no [P2] notes"      flow-verify-stop.sh "$(stop_json i2 dev-flow:dev-implementer)"
-printf '[P2] step two: dotnet build ok\n' >> task/notes.md
+printf '[P2] step two: make build ok\n' >> task/notes.md
 expect_pass  "P2 stops cleanly"                 flow-verify-stop.sh "$(stop_json i2 dev-flow:dev-implementer)"
 assert "markers cleaned for i2" '[ ! -f .claude/flow/claim-i2 ]'
 plan implementing
@@ -210,11 +210,11 @@ expect_pass  "stop_hook_active: never blocks"              flow-verify-stop.sh "
 
 echo "== SubagentStop: working-tree violations"
 run flow-context.sh "$(start_json r2 dev-flow:dev-reviewer)"
-printf 'reviewer edit\n' >> src/Foo/A.cs
+printf 'reviewer edit\n' >> src/foo/alpha.txt
 expect_block "reviewer changed a source file (via any means)" flow-verify-stop.sh "$(stop_json r2 dev-flow:dev-reviewer)"
-assert "violation logged" 'grep -q "dev-reviewer (r2): changed outside its allowance: src/Foo/A.cs" task/violations.md'
-assert "block names the file" 'case $out in *src/Foo/A.cs*) true;; *) false;; esac'
-git checkout -q -- src/Foo/A.cs; rm -f task/violations.md
+assert "violation logged" 'grep -q "dev-reviewer (r2): changed outside its allowance: src/foo/alpha.txt" task/violations.md'
+assert "block names the file" 'case $out in *src/foo/alpha.txt*) true;; *) false;; esac'
+git checkout -q -- src/foo/alpha.txt; rm -f task/violations.md
 run flow-context.sh "$(start_json r3 dev-flow:dev-reviewer)"
 printf '| F1 | Low | x | y | z | w |\n' > task/review-1.md
 printf 'obj\n' > .claude/flow/scratch
@@ -223,14 +223,14 @@ rm -f .claude/flow/scratch task/review-1.md
 plan implementing 1
 printf 'P1\n' > .claude/flow/claim-i4
 run flow-context.sh "$(start_json i4 dev-flow:dev-implementer)"
-printf 'p1 edit\n' >> src/Foo/A.cs            # own package
-printf 'p2 edit\n' >> src/Bar/B.cs            # a parallel implementer's package: not a violation
-printf 'stray\n' > src/Stray.cs               # outside every package: violation
-run flow-record.sh "$(post_json i4 'dotnet build src/Foo --no-dependencies' 'ok')"
+printf 'p1 edit\n' >> src/foo/alpha.txt            # own package
+printf 'p2 edit\n' >> src/bar/beta.txt            # a parallel implementer's package: not a violation
+printf 'stray\n' > src/stray.txt               # outside every package: violation
+run flow-record.sh "$(post_json i4 'make -C src/foo build' 'ok')"
 printf '[P1] done\n' >> task/notes.md
 expect_block "implementer: file outside every Owns is reported" flow-verify-stop.sh "$(stop_json i4 dev-flow:dev-implementer)"
-assert "only the stray file is named" 'case $out in *src/Stray.cs*) case $out in *src/Bar/B.cs*) false;; *) true;; esac;; *) false;; esac'
-git checkout -q -- src; rm -f src/Stray.cs task/violations.md task/notes.md
+assert "only the stray file is named" 'case $out in *src/stray.txt*) case $out in *src/bar/beta.txt*) false;; *) true;; esac;; *) false;; esac'
+git checkout -q -- src; rm -f src/stray.txt task/violations.md task/notes.md
 
 echo "== Stop: notifications"
 cat > "$T/fake-notify.sh" <<NEOF
@@ -278,14 +278,14 @@ expect_pass "no pointer: silent"                           flow-session.sh "$(se
 echo "== planning pointer"
 hp "$T/task" > .claude/flow/planning
 plan draft
-expect_deny  "main session edits src while planning"   flow-guard.sh "$(write_json '' "$T/src/Foo/A.cs")"
+expect_deny  "main session edits src while planning"   flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
 expect_allow "main session writes plan.md while planning" flow-guard.sh "$(write_json '' "$T/task/plan.md")"
 expect_allow "main session writes .claude/flow/planning"  flow-guard.sh "$(write_json '' "$T/.claude/flow/planning")"
 expect_deny  "git commit while planning"               flow-guard.sh "$(bash_json '' 'git commit -m x')"
-expect_deny  "critic writes src while planning"        flow-guard.sh "$(write_json dev-flow:dev-plan-critic "$T/src/Foo/A.cs")"
+expect_deny  "critic writes src while planning"        flow-guard.sh "$(write_json dev-flow:dev-plan-critic "$T/src/foo/alpha.txt")"
 expect_out   "planner start gets context"              flow-context.sh "$(start_json p1 dev-flow:dev-planner)" "status: draft"
 expect_pass  "verify-stop: planner with no changes passes" flow-verify-stop.sh "$(stop_json p1 dev-flow:dev-planner)"
-expect_pass  "recorder ignores the planning pointer"   flow-record.sh "$(post_json p1 'dotnet build' 'x')"
+expect_pass  "recorder ignores the planning pointer"   flow-record.sh "$(post_json p1 'make build' 'x')"
 
 echo
 printf '%d passed, %d failed\n' "$pass" "$fail"

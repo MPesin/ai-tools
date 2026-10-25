@@ -17,7 +17,7 @@ Produce a plan that satisfies `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-f
 ## Start
 
 1. Create the task folder and write its absolute path as the only line of `<project>/.claude/flow/planning` (create the directory).
-2. Ask once: "Paste the relevant PRD/HLD sections, or give an Azure DevOps work item ID (or say none)." Save them per **Specs intake** in `plan-format.md` and list them in `specs:`. The user can add specs at any point; append them the same way.
+2. Ask once: "Paste the relevant PRD/HLD sections, or give a work item / ticket reference (or say none)." Save them per **Specs intake** in `plan-format.md` and list them in `specs:`. The user can add specs at any point; append them the same way.
 3. Choose the mode.
 
 ## Choosing the mode

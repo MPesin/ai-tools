@@ -20,7 +20,28 @@ The companion plugin `dev-flow-panel` (same marketplace) adds a pane with button
 
 ## Agents
 
-`dev-planner`, `dev-plan-critic`, `dev-implementer`, `dev-reviewer`, `dev-fixer`, `dev-review-triager`, `dev-qa-impact`. They carry the hard rules; skills pass only task data and paths.
+`dev-planner`, `dev-plan-critic`, `dev-implementer`, `dev-reviewer`, `dev-fixer`, `dev-review-triager`, `dev-qa-impact`. They carry the flow's hard rules; skills pass only task data and paths.
+
+## What your project's rules file provides
+
+The plugin knows no language, framework, build tool, tracker or hosting platform. Everything project-specific comes from the project's own guidance (CLAUDE.md, AGENTS.md or whatever the project uses), which every agent reads first. A project that wants the most out of the flow states there:
+
+```markdown
+## Build and test
+- Build: <command>; test: <command>; scope a run to a change by <how>.
+- Safe to run side by side (parallel work packages): <commands or "none">.
+
+## Conventions
+- Style, naming, comments and test conventions: <rules or a link>.
+- Plans location: <path> (default .claude/plans/). Review checklist: <path>.
+
+## Integrations
+- Hosting platform: <name>; read-only tool for PR comments: <MCP tool or CLI>.
+- Work-item tracker: <name>; read-only tool for fetching an item: <MCP tool or CLI>.
+- QA documents are written in <language>.
+```
+
+Where the rules file is silent, the agents ask or say so; they do not fall back on defaults of their own.
 
 ## Hooks
 
