@@ -36,7 +36,7 @@ The stage list runs across, wrapping onto a second row in a narrow column, with 
 | Button | Runs |
 |---|---|
 | Plan | `/dev-flow:dev-plan` |
-| Implement / Resume | `/dev-flow:dev-implement <plan.md of the active task>` |
+| Implement / Resume | `/dev-flow:dev-implement <plan.md of the active task>`. Dim while the plan is still a draft (the `planning` pointer exists): a press then shows why instead of running the skill, since the plan has to be approved in chat first. |
 | QA impact | `/dev-flow:dev-qa-impact <task folder>` |
 | ↻ refresh | re-reads the task folder now |
 | more ▾ / less ▴ | expands or folds the band |

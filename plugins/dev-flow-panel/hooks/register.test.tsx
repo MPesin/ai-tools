@@ -124,6 +124,51 @@ test('more expands the band to the stage list, the hint and the flags; less fold
   await folded.unmount()
 })
 
+test('while the plan is a draft, Implement is dim and a press explains instead of running the skill', async ($, on) => {
+  const files: Record<string, string> = {
+    '/p/.claude/flow/planning': '/p/.claude/plans/t\n',
+    '/p/.claude/plans/t/plan.md': '---\ntask: login fix\nstatus: draft\n---\n',
+  }
+  const ran: string[] = []
+  const toasts: string[] = []
+  const clock = mock.clock(on)
+  on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
+  on('ui.status', () => ({ value: undefined }))
+  on('ui.invalidate', () => ({ value: undefined }))
+  on('ui.toast', (_, e) => { toasts.push(e.text); return { value: undefined } })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.root', () => ({ value: '/p' }))
+  on('fs.exists', (_, e) => ({ value: e.path in files }))
+  on('fs.read', (_, e) => ({ value: files[e.path] ?? '' }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false } }))
+  on('command.run', (_, e) => {
+    ran.push(`/${e.command} ${e.args}`.trim())
+    return { text: 'ran' }
+  })
+
+  await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const band = await $.ui.mount({ ...BAND, surface })
+    expect(await band.find({ type: 'Text', text: /Planning/ })).toBeDefined()
+    await band.press({ key: 'implement' })
+    expect(ran).toEqual([])
+    expect(toasts.at(-1)).toMatch(/approve/)
+    await band.unmount()
+  }
+
+  // Approved in chat: the planning pointer gives way to current and the button runs the skill.
+  delete files['/p/.claude/flow/planning']
+  files['/p/.claude/flow/current'] = '/p/.claude/plans/t\n'
+  files['/p/.claude/plans/t/plan.md'] = '---\ntask: login fix\nstatus: approved\nmode: full\n---\n'
+  await clock.advance(4000)
+
+  const approved = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await approved.press({ key: 'implement' })
+  expect(ran).toEqual(['/dev-flow:dev-implement /p/.claude/plans/t/plan.md'])
+  await approved.unmount()
+})
+
 test('the poll picks up a stage change in plan.md and a pointer at the git root above the session', async ($, on) => {
   // The session starts in a subfolder; the pointer sits at the repository root.
   const files: Record<string, string> = {

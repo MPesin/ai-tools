@@ -48,6 +48,17 @@ Main session only; no planner subagent.
 
 Unless the plan qualifies as lite (or the user forced lite), spawn a fresh `dev-flow:dev-plan-critic` with only the plan path, the project root, and `specs:`. Show the user the counts from `plan-critique.md` and its Blocking items. The user decides what to change; re-run the critic only if they ask.
 
+## Approval and implementation in one reply
+
+A reply such as "fix the critique and start implementing" approves the plan as it will be after the fixes. Handle it in this order, all in the same turn:
+
+1. Apply the requested changes to `plan.md` (yourself, or via the planner in draft mode). If a change needs a decision the user has not made (an open question, a Blocking item with alternatives), ask that first instead of deciding for them.
+2. Show the changes in a few lines.
+3. Run **On explicit approval** below in full: `status: approved`, `mode`, delete the `planning` pointer.
+4. Invoke the `dev-flow:dev-implement` skill with the plan path. Its Intake writes `.claude/flow/current` and its Implement stage sets `status: implementing` before spawning anything.
+
+Never spawn `dev-implementer` or edit source from this skill. The hooks refuse to spawn a stage agent while the `planning` pointer exists, while no pointer exists, or while `status` is not that stage's own, so skipping steps 3 and 4 fails loudly instead of leaving the status panel on "Planning".
+
 ## On explicit approval
 
 1. Set `status: approved` and `mode` (lite criteria are in `plan-format.md`; the user can force either).

@@ -150,9 +150,11 @@ load_task_folder() {
   SESSION_ID=$(json_field session_id)
 }
 
+# Value of a frontmatter key; CR, trailing spaces and surrounding quotes removed.
 frontmatter_value() {
   sed -n '/^---/,/^---/p' "$TASK_FOLDER/plan.md" 2>/dev/null | tr -d '\r' \
-    | sed -n "s/^$1:[[:space:]]*//p" | head -n 1 | sed 's/[[:space:]]*$//'
+    | sed -n "s/^$1:[[:space:]]*//p" | head -n 1 | sed 's/[[:space:]]*$//' \
+    | sed "s/^\"\(.*\)\"\$/\1/; s/^'\(.*\)'\$/\1/"
 }
 
 plan_has_packages() {

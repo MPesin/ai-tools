@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|PowerShell|Edit|Write|NotebookEdit|^mcp__",
+        "matcher": "Bash|PowerShell|Edit|Write|NotebookEdit|^mcp__|^Agent$|^Task$",
         "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/flow-guard.sh\"" }]
       }
     ],

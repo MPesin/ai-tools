@@ -3,18 +3,59 @@
 #   Bash, PowerShell  -> no commit/push/discard, no posting, no publishing (commands.sh)
 #   mcp__*            -> no MCP tools that write to external systems
 #   Edit/Write/NotebookEdit -> per-agent write allowances (table below)
+#   Agent (Task)      -> a stage agent is spawned only at its own plan status (stage_gate);
+#                        checked even without a pointer, since a missing pointer is the finding
 HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
 [ -f "$HERE/lib.sh" ] || HERE="${CLAUDE_PLUGIN_ROOT}/hooks"
 source "$HERE/lib.sh"
 source "$HERE/commands.sh"
-load_task_folder
 
 deny() {
   echo "dev-flow guard: $1" >&2
   exit 2
 }
 
+# stage_gate SUBAGENT_TYPE: the main session may spawn a dev-implement stage agent only
+# when plan.md's status names that stage. This is what keeps status (which the hooks
+# and the status panel read) in step with what is actually running: the skill text
+# alone was skipped when planning and implementing were asked for in one reply.
+stage_gate() {
+  local agent=${1##*:} want pointer folder status
+  case $agent in
+    dev-implementer)    want=implementing ;;
+    dev-reviewer)       want=reviewing ;;
+    dev-fixer)          want='reviewing|human-review' ;;
+    dev-review-triager) want=human-review ;;
+    # Not gated: dev-planner and dev-plan-critic run under the planning pointer or
+    # before Intake (harden mode); dev-qa-impact also runs standalone, with no plan
+    # or with another task's pointer in place, and is read-only (write guard above).
+    *) return 0 ;;
+  esac
+  POINTER_NAMES="current planning"
+  pointer=$(find_flow_pointer) \
+    || deny "$agent runs inside /dev-flow:dev-implement, whose Intake writes <project>/.claude/flow/current and whose stages set status in plan.md before spawning. Run /dev-flow:dev-implement <plan path> instead of spawning $agent directly."
+  # planning is checked by name: find_flow_pointer prefers current when both exist.
+  [ -f "${pointer%/*}/planning" ] \
+    && deny "the plan is still being planned (.claude/flow/planning exists). Finish /dev-flow:dev-plan first: apply the requested plan changes, get the user's explicit approval, set status: approved, delete the planning pointer, then invoke /dev-flow:dev-implement <plan path>. Never implement from dev-plan."
+  # A pointer whose folder is gone switches every other guard off silently
+  # (load_task_folder exits 0); here that is the finding.
+  folder=$(normalize_path "$(head -n 1 "$pointer" | tr -d '\r')")
+  [ -n "$folder" ] && [ -d "$folder" ] \
+    || deny "$pointer names '${folder:-nothing}', which is not a folder, so the flow's guards are off. Write the absolute task folder path as its only line, or delete it and run /dev-flow:dev-implement <plan path> again."
+  [ -f "$folder/plan.md" ] \
+    || deny "$folder has no plan.md; $agent needs the task's plan with status $want. Point $pointer at the task folder, or run /dev-flow:dev-implement <plan path>."
+  load_task_folder
+  status=$(frontmatter_value status)
+  case "|$want|" in *"|$status|"*) exit 0 ;; esac
+  deny "plan.md has status: ${status:-<none>}, but $agent runs at status $want. Set status in $TASK_FOLDER/plan.md frontmatter to the stage you are starting (the hooks and the status panel read it), then spawn again."
+}
+
 tool=$(json_field tool_name)
+case $tool in
+  Agent|Task) stage_gate "$(tool_input_field subagent_type)"; exit 0 ;;
+esac
+load_task_folder
+
 case $tool in
   Bash|PowerShell) check_command "$(tool_input_field command)" 0; exit 0 ;;
   mcp__*)          check_mcp_tool "$tool"; exit 0 ;;
