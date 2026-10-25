@@ -1,6 +1,6 @@
 ---
 name: dev-implement
-description: Use when the user wants to implement an approved plan and take it through review in any project — Implement, Claude code review, fix findings, human code review, fix human findings, QA impact — with each Claude stage run by a subagent. Starts from an approved plan path produced by /dev-flow:dev-plan or /dev-flow:dev-debug, or written by hand. Trigger on "/dev-implement", "implement this plan", "run the dev flow", "implement and review this plan".
+description: Use when the user wants to implement an approved plan and take it through review in any project — Implement, Claude code review, fix findings, human code review, fix human findings, QA impact — with each Claude stage run by a subagent. Starts from an approved plan path produced by /dev-flow:dev-plan or by the dev-debug plugin's /dev-debug:dev-debug, or written by hand. Trigger on "/dev-implement", "implement this plan", "run the dev flow", "implement and review this plan".
 ---
 
 # Dev Implement

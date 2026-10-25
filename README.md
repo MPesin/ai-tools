@@ -10,6 +10,7 @@ AI tooling — skills and agents usable in any codebase, by anyone.
 /plugin install repo-mapper@michaelp-ai-tools
 /plugin install design-critic@michaelp-ai-tools
 /plugin install dev-flow@michaelp-ai-tools
+/plugin install dev-debug@michaelp-ai-tools
 /plugin install dev-flow-panel@michaelp-ai-tools
 ```
 
@@ -80,23 +81,15 @@ it to review a freshly generated index against the actual code.
 
 This repository's own design was reviewed by it before being built.
 
-### dev-flow — plan, debug, implement, review and QA-impact, run by subagents
+### dev-flow — plan, implement, review and QA-impact, run by subagents
 
-Four skills for any project, in any language, on Linux, macOS and Windows
+Three skills for any project, in any language, on Linux, macOS and Windows
 (Git Bash):
 
 - `/dev-flow:dev-plan` writes a plan (interactively with you, or drafted by
   a planner subagent) in a fixed format with verified facts, acceptance
   criteria and steps grouped into **work packages** with disjoint file
   ownership, reviewed by a plan critic before you approve it.
-- `/dev-flow:dev-debug` finds the cause of a bug before anyone changes code:
-  a clean-slate debugger subagent reproduces it, tests hypotheses against the
-  code and git history (read-only; it cannot edit source even to add a print
-  statement), and writes a diagnosis with evidence, blast radius and
-  confidence. You confirm the root cause, or ask for an independent second
-  diagnosis; the confirmed diagnosis becomes a fix plan whose first step is a
-  failing regression test, and `dev-implement` takes it from there. Features
-  use the planning agents; a bug adds this one agent in front of them.
 - `/dev-flow:dev-implement <plan>` runs the plan: independent packages in
   parallel implementer subagents wave by wave, then a review/fix loop where
   every round gets a brand-new reviewer that has seen nothing but the
@@ -117,13 +110,29 @@ may finish; desktop notifications at the human gates. The guards cover Bash,
 PowerShell and MCP tools, run on bash 3.2+ without `jq`, and ship with an
 assertion test suite (`bash plugins/dev-flow/hooks/test-hooks.sh`).
 
+### dev-debug — find the cause before anyone changes code
+
+Features are planned; bugs are diagnosed. `/dev-debug:dev-debug` runs a
+clean-slate, read-only debugger subagent that reproduces the bug with the
+project's own commands, tests hypotheses against the code and git history (it
+cannot edit source, not even to add a print statement), and writes
+`diagnosis.md`: confidence, reproduction, root cause with evidence, hypotheses
+ruled out, blast radius, fix steps and the regression test. You confirm the
+root cause, add facts, or ask for an independent second diagnosis that knows
+nothing of the first. On `fix` the diagnosis becomes an approved plan whose
+first step is the failing regression test, in the same task folder layout
+`dev-flow` uses, and `/dev-flow:dev-implement` takes it through implement,
+review, your review and the QA note. Works on its own for a diagnosis without
+a fix; with `dev-flow` installed, its hooks guard the debugger and the gate.
+
 ### dev-flow-panel — the flow above the prompt
 
 A companion plugin (a hooks module). While a task is active it draws a
 two-row band above the prompt: the colour-coded stage read from the task
 folder (planning or diagnosing, approved, implementing, Claude review, your
 review, QA impact, done, blocked), the task, a progress track, warnings when
-findings wait for your decision, and buttons for the four skills. `/dev-flow-panel`
+findings wait for your decision, and buttons for the dev-flow and dev-debug
+skills. `/dev-flow-panel`
 or the band's `more` expands it with the stage list, the hint and the flags.
 No pane, so it never takes the height of the terminal; the status line
 shows the stage too.

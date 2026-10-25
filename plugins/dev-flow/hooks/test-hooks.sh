@@ -76,7 +76,7 @@ expect_deny  "no pointer: spawning dev-reviewer"                    flow-guard.s
 assert "deny names dev-implement"  'case $err in *"/dev-flow:dev-implement"*) true;; *) false;; esac'
 expect_allow "no pointer: dev-qa-impact runs standalone"            flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
 expect_allow "no pointer: dev-planner (harden before Intake)"       flow-guard.sh "$(agent_json dev-flow:dev-planner)"
-expect_allow "no pointer: dev-debugger (diagnosis without a fix)"  flow-guard.sh "$(agent_json dev-flow:dev-debugger)"
+expect_allow "no pointer: dev-debugger (diagnosis without a fix)"  flow-guard.sh "$(agent_json dev-debug:dev-debugger)"
 expect_allow "no pointer: general-purpose agent"                    flow-guard.sh "$(agent_json general-purpose)"
 expect_allow "no pointer: Agent call without subagent_type"         flow-guard.sh "$(agent_json_untyped)"
 
@@ -191,7 +191,7 @@ expect_deny  "blocked: spawn dev-reviewer"                      flow-guard.sh "$
 assert "deny at blocked names reviewing" 'case $err in *"status: blocked"*reviewing*) true;; *) false;; esac'
 expect_allow "any status: dev-planner"                          flow-guard.sh "$(agent_json dev-flow:dev-planner)"
 expect_allow "any status: dev-plan-critic"                      flow-guard.sh "$(agent_json dev-flow:dev-plan-critic)"
-expect_allow "any status: dev-debugger"                         flow-guard.sh "$(agent_json dev-flow:dev-debugger)"
+expect_allow "any status: dev-debugger"                         flow-guard.sh "$(agent_json dev-debug:dev-debugger)"
 expect_allow "any status: Explore"                              flow-guard.sh "$(agent_json Explore)"
 plan implementing
 
@@ -209,15 +209,15 @@ expect_deny  "triager writes src"                        flow-guard.sh "$(write_
 expect_allow "triager writes human-review.md"            flow-guard.sh "$(write_json dev-flow:dev-review-triager "$T/task/human-review.md")"
 expect_deny  "planner writes src"                        flow-guard.sh "$(write_json dev-flow:dev-planner "$T/src/foo/alpha.txt")"
 expect_allow "planner writes task/specs/prd.md"          flow-guard.sh "$(write_json dev-flow:dev-planner "$T/task/specs/prd.md")"
-expect_allow "debugger writes task/diagnosis.md"         flow-guard.sh "$(write_json dev-flow:dev-debugger "$T/task/diagnosis.md")"
-expect_allow "debugger writes task/diagnosis-2.md"       flow-guard.sh "$(write_json dev-flow:dev-debugger "$T/task/diagnosis-2.md")"
-expect_allow "debugger writes task/debug/repro.sh"       flow-guard.sh "$(write_json dev-flow:dev-debugger "$T/task/debug/repro.sh")"
-expect_deny  "debugger writes src (no instrumentation)"  flow-guard.sh "$(write_json dev-flow:dev-debugger "$T/src/foo/alpha.txt")"
+expect_allow "debugger writes task/diagnosis.md"         flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task/diagnosis.md")"
+expect_allow "debugger writes task/diagnosis-2.md"       flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task/diagnosis-2.md")"
+expect_allow "debugger writes task/debug/repro.sh"       flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task/debug/repro.sh")"
+expect_deny  "debugger writes src (no instrumentation)"  flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/src/foo/alpha.txt")"
 assert "deny says never instrument" 'case $err in *instrument*) true;; *) false;; esac'
-expect_deny  "debugger writes src/debug/x.sh"            flow-guard.sh "$(write_json dev-flow:dev-debugger "$T/src/debug/x.sh")"
-expect_deny  "debugger writes plan.md"                   flow-guard.sh "$(write_json dev-flow:dev-debugger "$T/task/plan.md")"
-expect_deny  "debugger writes notes.md"                  flow-guard.sh "$(write_json dev-flow:dev-debugger "$T/task/notes.md")"
-expect_deny  "debugger writes diagnosis.md elsewhere"    flow-guard.sh "$(write_json dev-flow:dev-debugger "$T/src/diagnosis.md")"
+expect_deny  "debugger writes src/debug/x.sh"            flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/src/debug/x.sh")"
+expect_deny  "debugger writes plan.md"                   flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task/plan.md")"
+expect_deny  "debugger writes notes.md"                  flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task/notes.md")"
+expect_deny  "debugger writes diagnosis.md elsewhere"    flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/src/diagnosis.md")"
 expect_allow "bare agent name (user-level copy) still matched" flow-guard.sh "$(write_json dev-planner "$T/task/plan.md")"
 expect_deny  "fixer edits plan.md"                       flow-guard.sh "$(write_json dev-flow:dev-fixer "$T/task/plan.md")"
 expect_deny  "fixer edits verify.log"                    flow-guard.sh "$(write_json dev-flow:dev-fixer "$T/task/verify.log")"
@@ -251,7 +251,7 @@ expect_out  "implementer start injects context + claim instruction" flow-context
 assert "start marker and snapshot written"  '[ -f .claude/flow/start-i1 ] && [ -f .claude/flow/snap-i1 ]'
 assert ".git/info/exclude has .claude/flow/" 'grep -q -x -F ".claude/flow/" .git/info/exclude'
 expect_out  "reviewer start says read-only"  flow-context.sh "$(start_json r1 dev-flow:dev-reviewer)" "read-only"
-expect_out  "debugger start names debug/"    flow-context.sh "$(start_json d1 dev-flow:dev-debugger)" "task/debug/"
+expect_out  "debugger start names debug/"    flow-context.sh "$(start_json d1 dev-debug:dev-debugger)" "task/debug/"
 assert "debugger snapshot written"            '[ -f .claude/flow/snap-d1 ]'
 expect_pass "Explore start is silent"        flow-context.sh "$(start_json e1 Explore)"
 
@@ -292,14 +292,14 @@ printf '| F1 | Low | x | y | z | w |\n' > task/review-1.md
 printf 'obj\n' > .claude/flow/scratch
 expect_pass "reviewer wrote only review-1.md and flow files" flow-verify-stop.sh "$(stop_json r3 dev-flow:dev-reviewer)"
 rm -f .claude/flow/scratch task/review-1.md
-run flow-context.sh "$(start_json d2 dev-flow:dev-debugger)"
+run flow-context.sh "$(start_json d2 dev-debug:dev-debugger)"
 printf 'print(x)\n' >> src/foo/alpha.txt
-expect_block "debugger instrumented a source file" flow-verify-stop.sh "$(stop_json d2 dev-flow:dev-debugger)"
+expect_block "debugger instrumented a source file" flow-verify-stop.sh "$(stop_json d2 dev-debug:dev-debugger)"
 assert "debugger violation logged" 'grep -q "dev-debugger (d2): changed outside its allowance: src/foo/alpha.txt" task/violations.md'
 git checkout -q -- src/foo/alpha.txt; rm -f task/violations.md
-run flow-context.sh "$(start_json d3 dev-flow:dev-debugger)"
+run flow-context.sh "$(start_json d3 dev-debug:dev-debugger)"
 mkdir -p task/debug; printf 'Confidence: High\n' > task/diagnosis.md; printf 'out\n' > task/debug/repro.out
-expect_pass "debugger wrote only diagnosis.md and debug/" flow-verify-stop.sh "$(stop_json d3 dev-flow:dev-debugger)"
+expect_pass "debugger wrote only diagnosis.md and debug/" flow-verify-stop.sh "$(stop_json d3 dev-debug:dev-debugger)"
 rm -rf task/debug task/diagnosis.md
 plan implementing 1
 printf 'P1\n' > .claude/flow/claim-i4
@@ -357,7 +357,7 @@ expect_out "resume re-injects the task folder and status" flow-session.sh "$(ses
 expect_out "startup names the pointer to delete"          flow-session.sh "$(session_json startup)" "delete"
 mv .claude/flow/current .claude/flow/planning
 printf -- '---\ntask: t\nsource: dev-debug\nstatus: diagnosing\n---\n' > task/plan.md
-expect_out "planning pointer with source dev-debug resumes dev-debug" flow-session.sh "$(session_json resume)" "/dev-flow:dev-debug"
+expect_out "planning pointer with source dev-debug resumes dev-debug" flow-session.sh "$(session_json resume)" "/dev-debug:dev-debug"
 plan draft
 expect_out "planning pointer otherwise resumes dev-plan"          flow-session.sh "$(session_json resume)" "/dev-flow:dev-plan,"
 mv .claude/flow/planning .claude/flow/current
@@ -377,7 +377,7 @@ assert "deny says to finish dev-plan and run dev-implement" 'case $err in *dev-p
 expect_deny  "spawn dev-fixer while planning"          flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
 expect_allow "spawn dev-plan-critic while planning"    flow-guard.sh "$(agent_json dev-flow:dev-plan-critic)"
 expect_allow "spawn dev-planner while planning"        flow-guard.sh "$(agent_json dev-flow:dev-planner)"
-expect_allow "spawn dev-debugger while planning"       flow-guard.sh "$(agent_json dev-flow:dev-debugger)"
+expect_allow "spawn dev-debugger while planning"       flow-guard.sh "$(agent_json dev-debug:dev-debugger)"
 expect_allow "spawn dev-qa-impact while planning"      flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
 # planning written while a current task is parked: current wins the lookup, planning still gates.
 plan human-review; hp "$T/task" > .claude/flow/current

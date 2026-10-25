@@ -9,7 +9,7 @@ load_task_folder "current planning"
 
 status=$(frontmatter_value status)
 if [ "$POINTER_NAME" = planning ] && [ "$(frontmatter_value source)" = dev-debug ]; then
-  next="Debugging is in progress: continue with /dev-flow:dev-debug $TASK_FOLDER (it shows the diagnosis gate again when diagnosis.md exists), or delete $POINTER to abandon it."
+  next="Debugging is in progress: continue with /dev-debug:dev-debug $TASK_FOLDER (it shows the diagnosis gate again when diagnosis.md exists), or delete $POINTER to abandon it."
 elif [ "$POINTER_NAME" = planning ]; then
   next="Planning is in progress: continue with /dev-flow:dev-plan, or delete $POINTER to abandon it."
 else

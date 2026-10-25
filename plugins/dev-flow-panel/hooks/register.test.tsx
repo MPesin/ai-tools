@@ -201,7 +201,7 @@ test('while the debugger works, the band shows Diagnosing in the first slot, Deb
   expect(ran).toEqual([])
   expect(toasts.at(-1)).toMatch(/diagnosis/)
   await compact.press({ key: 'debug' })
-  expect(ran).toEqual(['/dev-flow:dev-debug /p/.claude/plans/b'])
+  expect(ran).toEqual(['/dev-debug:dev-debug /p/.claude/plans/b'])
   await compact.press({ key: 'view' })
   await compact.unmount()
 

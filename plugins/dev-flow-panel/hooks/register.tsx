@@ -1,4 +1,4 @@
-// dev-flow-panel: a band above the prompt for the dev-flow plugin. Two rows
+// dev-flow-panel: a band above the prompt for the dev-flow and dev-debug plugins. Two rows
 // while a task is active (the stage, the task, a track, the skill buttons);
 // `/dev-flow-panel` or the band's `more` adds the stage list, the flags and
 // the hint. No pane: a docked pane runs the full height of the terminal, and
@@ -32,7 +32,7 @@ const STAGES: readonly Stage[] = [
   { status: 'done', label: 'Done', color: 'success', hint: 'Finished: plan, reviews and the QA note are in the task folder.' },
 ]
 const BLOCKED: Stage = { status: 'blocked', label: 'Blocked', color: 'error', hint: 'Stopped: open findings or a blocked step need your decision.' }
-// Debugging (/dev-flow:dev-debug) replaces planning as the first step: the
+// Debugging (/dev-debug:dev-debug, the dev-debug plugin) replaces planning as the first step: the
 // debugger writes diagnosis.md, you confirm the cause, and the fix plan is
 // approved like any plan. It shares Planning's slot in the track and the list.
 const DIAGNOSING: Stage = { status: 'diagnosing', label: 'Diagnosing', color: 'subtle', hint: 'The debugger is reproducing the bug and finding its cause; confirm the diagnosis in chat, then the fix plan runs.' }
@@ -174,7 +174,7 @@ type Controls = Pick<Elements['terminal'], 'Box' | 'Text' | 'Button'>
 // person typed it (a prompt beginning with / is refused by $.prompt.submit).
 const starter = ($: EngineInterface) => (command: string, args?: string) => () => {
   $.command.run(args ? { command, args } : { command }).catch((err: unknown) => {
-    $.ui.toast(`/${command} did not run (is the dev-flow plugin installed?): ${String(err)}`)
+    $.ui.toast(`/${command} did not run (is the ${command.split(':')[0]} plugin installed?): ${String(err)}`)
   })
 }
 
@@ -188,7 +188,7 @@ const skillButtons = ($: EngineInterface, { Button }: Controls, f: FlowState) =>
     <Button key="plan" hotkey="p" {...primary(f.pointer === 'none')} onPress={start('dev-flow:dev-plan')}>
       Plan
     </Button>,
-    <Button key="debug" hotkey="d" {...primary(f.status === 'diagnosing')} onPress={start('dev-flow:dev-debug', f.status === 'diagnosing' ? f.taskFolder : undefined)}>
+    <Button key="debug" hotkey="d" {...primary(f.status === 'diagnosing')} onPress={start('dev-debug:dev-debug', f.status === 'diagnosing' ? f.taskFolder : undefined)}>
       Debug
     </Button>,
     implementBlocked(f) ? (

@@ -20,12 +20,17 @@
     {
       "name": "dev-flow",
       "source": "./plugins/dev-flow",
-      "description": "Plan, debug, implement, review and QA-impact flow run by subagents (/dev-flow:dev-plan, /dev-flow:dev-debug, /dev-flow:dev-implement, /dev-flow:dev-qa-impact) and guarded by cross-platform hooks: no commit/push/discard/posting/publishing, per-agent and per-package write limits, build/test evidence required before an implementer may finish, working-tree change detection, gate notifications"
+      "description": "Plan, implement, review and QA-impact flow run by subagents (/dev-flow:dev-plan, /dev-flow:dev-implement, /dev-flow:dev-qa-impact; also implements dev-debug's fix plans) and guarded by cross-platform hooks: no commit/push/discard/posting/publishing, per-agent and per-package write limits, build/test evidence required before an implementer may finish, working-tree change detection, gate notifications"
+    },
+    {
+      "name": "dev-debug",
+      "source": "./plugins/dev-debug",
+      "description": "Diagnose a bug before anyone changes code (/dev-debug:dev-debug): a clean-slate, read-only debugger subagent reproduces the failure, tests hypotheses against the code and git history, and writes diagnosis.md with evidence, blast radius and confidence; you confirm the cause (or ask for an independent second opinion) and the diagnosis becomes a regression-test-first fix plan for dev-flow"
     },
     {
       "name": "dev-flow-panel",
       "source": "./plugins/dev-flow-panel",
-      "description": "Companion band above the prompt for dev-flow: buttons that start each skill and a colour-coded view of the current stage (planning, diagnosing, implementing, Claude review, your review, QA impact, done, blocked)"
+      "description": "Companion band above the prompt for dev-flow and dev-debug: buttons that start each skill and a colour-coded view of the current stage (planning, diagnosing, implementing, Claude review, your review, QA impact, done, blocked)"
     }
   ]
 }

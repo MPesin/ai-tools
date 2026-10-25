@@ -1,6 +1,6 @@
 # dev-flow
 
-Plan, debug, implement, review, and QA-impact flow for any project, run by subagents and guarded by hooks. Works on Linux, macOS and Windows (Git Bash).
+Plan, implement, review, and QA-impact flow for any project, run by subagents and guarded by hooks. Bugs start in the companion `dev-debug` plugin, whose diagnosis becomes a fix plan this flow implements. Works on Linux, macOS and Windows (Git Bash).
 
 ```
 /plugin install dev-flow --marketplace MPesin/ai-tools
@@ -9,15 +9,14 @@ Plan, debug, implement, review, and QA-impact flow for any project, run by subag
 ## Skills
 
 - `/dev-flow:dev-plan` - produce an approved plan (interactive with you, or drafted by a planner subagent), reviewed by a plan critic. Never implements.
-- `/dev-flow:dev-debug` - find the cause of a bug before anyone changes code: a clean-slate debugger subagent reproduces it, tests hypotheses against the code and history, and writes `diagnosis.md` with evidence, blast radius and confidence. You confirm the root cause (or ask for an independent second opinion); the diagnosis becomes a fix plan whose first step is a failing regression test, handed to `dev-implement`. Can stop at the diagnosis.
 - `/dev-flow:dev-implement <plan path>` - implement an approved plan, run the Claude review/fix loop, stop for human review, fix human findings, then produce the QA impact note. State lives as files in the task folder; a run resumes from `status` and `review_round`.
 - `/dev-flow:dev-qa-impact` - a fixed-template note for QA engineers who do not read code: what changed for users, which regression tests to run, what was built differently from the requirements. Works from a branch, diff, or PR; no plan needed.
 
 Plans are designed as work packages (disjoint file ownership, explicit dependencies, parallel-safe builds) so `/dev-flow:dev-implement` can run independent packages in parallel subagents, wave by wave.
 
-Plan structure, task folder layout, work packages, pointer files and specs intake are in `skills/dev-implement/plan-format.md`. The diagnosis format and its mapping to a fix plan are in `skills/dev-debug/diagnosis-format.md`. The QA note template is `skills/dev-qa-impact/qa-impact-template.md`.
+Plan structure, task folder layout, work packages, pointer files and specs intake are in `skills/dev-implement/plan-format.md`. The QA note template is `skills/dev-qa-impact/qa-impact-template.md`.
 
-The companion plugin `dev-flow-panel` (same marketplace) adds a band above the prompt with buttons for the four skills and a coloured view of the current stage.
+The companion plugin `dev-debug` (same marketplace) diagnoses bugs and hands this flow an approved fix plan; `dev-flow-panel` adds a band above the prompt with buttons for both plugins' skills and a coloured view of the current stage.
 
 ## How the flow runs
 
@@ -73,57 +72,6 @@ sequenceDiagram
 
 "Fix the critique and start implementing" in one reply is handled the same way: the plan is fixed, approved (status, mode, pointer deleted), and then the `dev-implement` skill is invoked, so Intake and the `status: implementing` transition still happen. The guard refuses to spawn any other dev-flow stage agent at that point.
 
-
-### Debugging: `/dev-flow:dev-debug`
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor U as You
-    participant M as Main session (dev-debug skill)
-    participant H as Hooks
-    participant F as Task folder
-    participant D as dev-debugger
-    participant C as dev-plan-critic
-
-    U->>M: /dev-flow:dev-debug "bug" (or a stack trace, failing test, work item)
-    M->>F: create folder, write .claude/flow/planning
-    M->>U: Paste the report / stack trace / log, or a work item ID; repro steps, environment, last good version?
-    U-->>M: bug report
-    M->>F: specs/bug-report.md (verbatim), plan.md stub with status diagnosing
-    Note over H: planning pointer exists -> main session may write only the task folder; commit/push/post blocked
-    M->>D: task folder, project root, base, specs (nothing else; a theory in the report is a hypothesis)
-    H-->>D: SubagentStart: flow state + snapshot of the working tree
-    D->>D: reproduce (project's run/test commands), localize, read history read-only, test hypotheses, find sibling sites
-    D->>F: diagnosis.md (confidence, reproduction, root cause file:line, evidence, ruled out, blast radius, fix steps, regression test), debug/ scripts
-    H-->>D: SubagentStop: tree unchanged? otherwise block once, log violations.md
-    D-->>M: path, confidence, reproduced?, root cause in one sentence
-    M->>U: diagnosis summary
-    H-->>U: Stop: desktop notification "waiting for you (diagnosing)"
-
-    alt more facts or a disagreement
-        U-->>M: "it also happens when ..."
-        M->>F: append to specs/bug-report.md
-        M->>D: revise diagnosis.md
-    else second opinion (offered when confidence is below High)
-        M->>D: fresh debugger, same inputs, writes diagnosis-2.md, knows nothing of the first
-        M->>U: where the two agree and disagree
-    else diagnosis only
-        U-->>M: "diagnosis only"
-        M->>F: status done, delete .claude/flow/planning
-    end
-
-    U-->>M: "fix" (confirms the cause and approves the fix plan)
-    M->>F: plan.md from diagnosis.md: source dev-debug, one sequential package, regression test first, fix at the cause and every sibling site, verification
-    opt only on request, or when a step changes a contract, schema or persisted data
-        M->>C: dev-plan-critic (plan path, project root, specs)
-    end
-    M->>F: status approved, delete .claude/flow/planning
-    M->>M: invoke /dev-flow:dev-implement plan.md
-    Note over M: the implementer writes the regression test first and appends its failing run to verify.log before fixing;<br>the reviewer checks cause over symptom; the QA note lists the reported scenario as the first regression test
-```
-
-`diagnosis.md` stays in the task folder as the record of why the bug happened; the plan carries only what the implementer and the reviewer need. The debugger never edits source, not even to add a print statement: the hooks refuse it, and anything it would have needed goes under the diagnosis's open questions for you to add by hand.
 
 ### Implementing: `/dev-flow:dev-implement`
 
@@ -217,9 +165,17 @@ Reading the diagrams: the task folder is the only channel between stages (every 
 
 ## Agents
 
-`dev-planner`, `dev-plan-critic`, `dev-debugger`, `dev-implementer`, `dev-reviewer`, `dev-fixer`, `dev-review-triager`, `dev-qa-impact`. They carry the flow's hard rules; skills pass only task data and paths.
+`dev-planner`, `dev-plan-critic`, `dev-implementer`, `dev-reviewer`, `dev-fixer`, `dev-review-triager`, `dev-qa-impact`. They carry the flow's hard rules; skills pass only task data and paths.
 
-Features and changes use the planner, critic, implementer, reviewer, fixer, triager and QA agents. A bug adds one agent in front of them, `dev-debugger`, because the cause has to be found and proven before a plan can name the change; the fix itself then runs through the same implementer, reviewer and fixer, which treat a `source: dev-debug` plan as a bug fix (regression test first, cause over symptom, the reported scenario as the first regression row). There is no separate bug-fixer agent: the hooks, the status panel and the review loop all key on `plan.md`, so the fix is a plan like any other.
+## Bug fixes from `dev-debug`
+
+Features and changes are planned here. A bug is diagnosed first by the `dev-debug` plugin (`/dev-debug:dev-debug`): its read-only `dev-debugger` agent reproduces the bug and writes `diagnosis.md`; the user confirms the cause; the skill writes an approved `plan.md` with `source: dev-debug` in the same task folder layout and invokes `/dev-flow:dev-implement`. This plugin treats such a plan as a bug fix:
+
+- the implementer writes the regression test first and appends its failing run to `verify.log` before touching code, and stops if the test already passes;
+- the reviewer re-derives the cause from the code and checks the change removes it rather than the symptom, and that the same defect does not survive at sibling sites;
+- the QA note lists the reported scenario as the first regression test.
+
+The hooks know the debugger too: while `dev-debug` runs under the `planning` pointer with `status: diagnosing`, `dev-debugger` may write only `diagnosis*.md` and `debug/` in the task folder (never source, not even to instrument it), any other change to the working tree is reported, the main session may write only the task folder, and the Stop hook notifies at the diagnosis gate. Without `dev-flow` installed, `dev-debug` still works; only these guards are missing. There is no separate bug-fixer agent: the hooks, the status panel and the review loop all key on `plan.md`, so the fix is a plan like any other.
 
 ## What your project's rules file provides
 

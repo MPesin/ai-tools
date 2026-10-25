@@ -27,8 +27,8 @@ stage_gate() {
     dev-fixer)          want='reviewing|human-review' ;;
     dev-review-triager) want=human-review ;;
     # Not gated: dev-planner and dev-plan-critic run under the planning pointer or
-    # before Intake (harden mode); dev-debugger runs under the planning pointer
-    # (status diagnosing) or standalone for a diagnosis without a fix; dev-qa-impact
+    # before Intake (harden mode); dev-debugger (the dev-debug plugin) runs under the
+    # planning pointer (status diagnosing) or standalone for a diagnosis without a fix; dev-qa-impact
     # also runs standalone, with no plan or with another task's pointer in place.
     # All four are read-only (write guard above).
     *) return 0 ;;
