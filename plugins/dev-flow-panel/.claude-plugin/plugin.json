@@ -1,7 +1,9 @@
 {
   "name": "dev-flow-panel",
-  "version": "0.1.0",
-  "description": "A pane for the dev-flow plugin: buttons that start /dev-flow:dev-plan, /dev-flow:dev-implement and /dev-flow:dev-qa-impact, and a colour-coded view of the current stage read from the task folder (planning, implementing, Claude review, your review, QA impact, done, blocked).",
-  "author": { "name": "Michael Pesin" },
+  "version": "0.2.0",
+  "description": "A band above the prompt and a pane for the dev-flow plugin: buttons that start /dev-flow:dev-plan, /dev-flow:dev-implement and /dev-flow:dev-qa-impact, and a colour-coded view of the current stage read from the task folder (planning, implementing, Claude review, your review, QA impact, done, blocked).",
+  "author": {
+    "name": "Michael Pesin"
+  },
   "types": "./types/index.d.ts"
 }

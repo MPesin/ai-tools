@@ -109,13 +109,14 @@ may finish; desktop notifications at the human gates. The guards cover Bash,
 PowerShell and MCP tools, run on bash 3.2+ without `jq`, and ship with an
 assertion test suite (`bash plugins/dev-flow/hooks/test-hooks.sh`).
 
-### dev-flow-panel — a pane for the flow
+### dev-flow-panel — the flow beside the chat
 
-A companion plugin (a hooks module) that opens a pane beside the chat with
-buttons for the three skills and a colour-coded view of the current stage
-read from the task folder: planning, approved, implementing, Claude review,
-your review, QA impact, done, blocked — plus the status line and warnings
-when findings wait for your decision. `/dev-flow-panel` opens it.
+A companion plugin (a hooks module). While a task is active it draws a
+two-row band above the prompt: the colour-coded stage read from the task
+folder (planning, approved, implementing, Claude review, your review, QA
+impact, done, blocked), the task, a progress track, warnings when findings
+wait for your decision, and buttons for the three skills. `/dev-flow-panel`
+opens the full stage list in a narrow pane; the status line shows the stage too.
 
 ## Repository layout
 
@@ -124,7 +125,7 @@ when findings wait for your decision. `/dev-flow-panel` opens it.
 plugins/repo-mapper/               # 2 commands, skill + references, 3 agents, hook
 plugins/design-critic/             # the reviewer agent
 plugins/dev-flow/                  # 3 skills, 7 agents, 5 bash hooks + tests
-plugins/dev-flow-panel/            # the pane (hooks module)
+plugins/dev-flow-panel/            # the band and pane (hooks module)
 ```
 
 ## License

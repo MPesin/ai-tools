@@ -25,7 +25,7 @@
     {
       "name": "dev-flow-panel",
       "source": "./plugins/dev-flow-panel",
-      "description": "Companion pane for dev-flow: buttons that start each skill and a colour-coded view of the current stage (planning, implementing, Claude review, your review, QA impact, done, blocked)"
+      "description": "Companion band and pane for dev-flow: buttons that start each skill and a colour-coded view of the current stage (planning, implementing, Claude review, your review, QA impact, done, blocked)"
     }
   ]
 }
