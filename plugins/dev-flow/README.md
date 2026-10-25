@@ -18,6 +18,148 @@ Plan structure, task folder layout, work packages, pointer files and specs intak
 
 The companion plugin `dev-flow-panel` (same marketplace) adds a pane with buttons for the three skills and a coloured view of the current stage.
 
+## How the flow runs
+
+### Planning: `/dev-flow:dev-plan`
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as You
+    participant M as Main session (dev-plan skill)
+    participant H as Hooks
+    participant F as Task folder (.claude/plans/task/)
+    participant P as dev-planner
+    participant C as dev-plan-critic
+
+    U->>M: /dev-flow:dev-plan "task"
+    M->>F: create folder, write .claude/flow/planning
+    Note over H: planning pointer exists -> main session may write only the task folder,<br/>git commit/push/discard, posting and publishing are blocked
+    M->>U: Paste PRD/HLD or a work-item ref? Plan interactively or let a planner draft?
+    U-->>M: specs + mode
+    M->>F: specs/*.md (verbatim, with source line)
+
+    alt Draft mode
+        M->>P: task, project root, task folder, specs (nothing else)
+        H-->>P: SubagentStart: flow state + snapshot of the working tree
+        P->>P: read project rules, explore code, verify facts
+        P->>F: plan.md (status draft, work packages with Owns / Depends on)
+        H-->>P: SubagentStop: tree unchanged? otherwise block once, log violations.md
+        P-->>M: summary + open questions
+        M->>U: summary + open questions
+    else Interactive mode
+        loop until decisions are made
+            M->>U: one or two questions
+            U-->>M: answers
+            M->>F: update plan.md (Open questions shrink)
+        end
+    end
+
+    opt not lite mode
+        M->>C: plan path, project root, specs (nothing else)
+        C->>C: check paths, callers, overrides, Owns disjoint, verification, spec conformance
+        C->>F: plan-critique.md (C1..Cn, Blocking / Should-fix / Note)
+        C-->>M: path + counts
+        M->>U: critique counts + Blocking items
+        U-->>M: changes (optional)
+    end
+
+    U-->>M: "approved"
+    M->>F: status approved, mode full|lite
+    M->>F: delete .claude/flow/planning (guards off)
+    M->>U: run /dev-flow:dev-implement path/to/plan.md
+```
+
+### Implementing: `/dev-flow:dev-implement`
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as You
+    participant M as Main session (dev-implement skill)
+    participant H as Hooks
+    participant F as Task folder
+    participant I as dev-implementer (one per package)
+    participant R as dev-reviewer (new each round)
+    participant X as dev-fixer
+    participant T as dev-review-triager
+    participant Q as dev-qa-impact
+
+    U->>M: /dev-flow:dev-implement plan.md
+    M->>F: validate plan (status approved), set base, status implementing
+    M->>F: write .claude/flow/current
+    Note over H: current pointer exists -> guards on for every tool call
+
+    rect rgb(235, 245, 255)
+    Note over M,I: Stage 2 - Implement, one wave per dependency level
+    loop each wave
+        par one subagent per package whose dependencies are done
+            M->>I: task folder, project root, plan, package id (P1)
+            H-->>I: SubagentStart: state, claim-file path, tree snapshot
+            I->>F: claim-id = P1
+            I->>I: baseline tests, implement steps, build and test own package
+            H-->>I: PreToolUse: Edit/Write outside P1's Owns -> denied
+            I->>F: notes.md [P1] lines, verify.log [P1] block (shell append)
+            H-->>I: SubagentStop: [P1] evidence + notes present? files outside all Owns? else block once
+            I-->>M: changed files, commands run, outcome
+        end
+        M->>F: tick - [x] in plan.md, read violations.md
+    end
+    end
+
+    rect rgb(245, 235, 255)
+    Note over M,X: Stage 3 - Review/fix loop, always ends on a review
+    loop until no Critical/Major/Mid findings (cap 3 fix rounds, 1 in lite)
+        M->>F: status reviewing, review_round = N
+        M->>R: task description, task folder, review-N.md (no implementer output, no earlier findings)
+        H-->>R: SubagentStart: snapshot
+        R->>R: git diff + read changed files in full, callers, tests
+        R->>F: review-N.md (F1..Fn with severity, file:line)
+        H-->>R: SubagentStop: tree unchanged?
+        R-->>M: path + counts
+        alt blocking findings remain
+            M->>X: review-N.md, IDs to fix
+            X->>F: fixes, notes.md (fixed / DISPUTED Fn evidence), verify.log
+            H-->>X: SubagentStop: verify.log updated this run?
+            X-->>M: per-ID outcome
+        end
+    end
+    Note over M,F: a disputed finding raised again -> needs-decision.md (notifies you)
+    end
+
+    M->>F: status human-review
+    H-->>U: Stop: desktop notification + terminal line "waiting for you (human-review)"
+    M->>U: changed files, verify.log tail, Low findings, draft PR text and commit message
+    U->>U: review the diff, commit, push, open the PR, collect reviewer comments
+
+    rect rgb(255, 245, 230)
+    Note over M,X: Stage 5 - Human findings
+    U->>M: PR reference or pasted comments
+    M->>T: PR ref / comments, task folder
+    T->>T: fetch unresolved threads (read-only), verify each against the code
+    T->>F: human-review.md (fix / reply-only, draft replies, proposed checklist additions)
+    M->>X: human-review.md
+    X->>F: fixes for the fix items, notes.md, verify.log
+    M->>U: fixes, draft replies, checklist additions to confirm
+    U->>U: commit, push, reply on the PR
+    end
+
+    rect rgb(235, 255, 235)
+    Note over M,Q: Stage 6 - QA impact (last writer, describes the final code)
+    M->>F: status qa-impact
+    M->>Q: task folder, project root, base, specs
+    Q->>Q: trace callers and consumers, verify every note against the code
+    Q->>F: qa-impact.md from the fixed template (scope, regression tests, differences from requirements)
+    Q-->>M: overall risk, top regression tests, number of differences
+    end
+
+    M->>F: status done, rename .claude/flow/current -> finished
+    H-->>U: Stop: "done" notification, marker files cleaned
+    M->>U: final report (task folder, per-stage summary, evidence, next action)
+```
+
+Reading the diagrams: the task folder is the only channel between stages (every subagent prompt carries paths, not content, so the reviewer never sees the implementer's account); the dashed arrows from Hooks are the guards the harness runs, not instructions in the skill text; the `planning` and `current` pointer files switch all of them on and off; and only two places wait for you, the approval and the human-review gate, plus anything `needs-decision.md` or `violations.md` raises.
+
 ## Agents
 
 `dev-planner`, `dev-plan-critic`, `dev-implementer`, `dev-reviewer`, `dev-fixer`, `dev-review-triager`, `dev-qa-impact`. They carry the flow's hard rules; skills pass only task data and paths.
