@@ -60,6 +60,8 @@ In the fullscreen layout the pane docks beside the transcript, where the header 
 
 The same files the dev-flow hooks use: `<project>/.claude/flow/current` or `planning` points at the task folder, and `plan.md`'s frontmatter holds `status`, `mode` and `review_round`. The plugin polls every 4 seconds and refreshes right after a tool call touches those files. The status line under the prompt shows the same stage.
 
+Every stage has a theme colour of its own, and it is used wherever that stage appears: its chip, the accent bar and the pane's header frame while it is current, its dot in the track, and its row in the pane's list (full colour behind you, bold for the current step, dim ahead). The hint under the current step is a dim tint of the same colour, ticks are `success`, and the flags are `warning` and `error`. Theme keys rather than raw colours, so it follows your theme.
+
 | Stage | Colour (theme key) |
 |---|---|
 | Planning | subtle |

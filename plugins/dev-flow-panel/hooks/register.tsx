@@ -173,17 +173,16 @@ const chip = ({ Text }: Controls, stage: Stage) => (
   <Text bold inverse color={stage.color}>{' '}{stage.label}{' '}</Text>
 )
 
-// The seven stages as a track: the steps behind filled, the current one ringed
-// in the stage's colour, the ones ahead hollow.
+// The seven stages as a track, each dot in its stage's colour: the steps
+// behind filled, the current one ringed and bold, the ones ahead hollow and dim.
 const track = ({ Text }: Controls, f: FlowState) => {
   const at = STAGES.findIndex(s => s.status === f.status)
-  const stage = stageOf(f.status)
   return (
     <Text>
       {STAGES.map((s, i) => (
         <Text>
           {i > 0 ? <Text dimColor>{'─'}</Text> : null}
-          {i === at ? <Text bold color={stage.color}>{'◉'}</Text> : i < at ? <Text color="success">{'●'}</Text> : <Text dimColor>{'○'}</Text>}
+          {i === at ? <Text bold color={s.color}>{'◉'}</Text> : i < at ? <Text color={s.color}>{'●'}</Text> : <Text dimColor color={s.color}>{'○'}</Text>}
         </Text>
       ))}
     </Text>
@@ -249,7 +248,7 @@ export const register: Register = on => {
             {chip(els, stage)}
             {f.needsDecision ? <Text color="warning">{'  ⚠ needs decision'}</Text> : null}
             {f.violations ? <Text color="error">{'  ✗ violations'}</Text> : null}
-            <Text>{'  '}{titleOf(f)}</Text>
+            <Text bold color="text">{'  '}{titleOf(f)}</Text>
             {meta ? <Text dimColor>{' · '}{meta}</Text> : null}
           </Text>
           <Box flexShrink={0}>{track(els, f)}</Box>
@@ -269,7 +268,7 @@ export const register: Register = on => {
           </Box>
           {hintRoom >= 24 ? (
             <Box flexShrink={1}>
-              <Text dimColor wrap="truncate-end">{stage.hint}</Text>
+              <Text dimColor color={stage.color} wrap="truncate-end">{stage.hint}</Text>
             </Box>
           ) : null}
         </Box>
@@ -293,7 +292,7 @@ export const register: Register = on => {
         <Text wrap="truncate-end">
           {framed ? null : <Text color={stage.color}>{'▎'}</Text>}
           {chip(els, stage)}
-          {titleOf(f) ? <Text bold>{'  '}{titleOf(f)}</Text> : null}
+          {titleOf(f) ? <Text bold color="text">{'  '}{titleOf(f)}</Text> : null}
         </Text>
         <Text dimColor wrap="truncate-end">{framed ? '' : ' '}{f.pointer === 'none' ? 'no pointer in .claude/flow' : meta}</Text>
       </Box>
@@ -307,12 +306,12 @@ export const register: Register = on => {
             i === at ? (
               <Box flexDirection="column">
                 <Text bold color={s.color}>{'◉'} {s.label}</Text>
-                <Box paddingLeft={2}><Text dimColor>{s.hint}</Text></Box>
+                <Box paddingLeft={2}><Text dimColor color={s.color}>{s.hint}</Text></Box>
               </Box>
             ) : i < at ? (
-              <Text><Text color="success">{'✓'}</Text><Text dimColor> {s.label}</Text></Text>
+              <Text><Text color="success">{'✓'}</Text><Text color={s.color}> {s.label}</Text></Text>
             ) : (
-              <Text dimColor>{'○'} {s.label}</Text>
+              <Text dimColor color={s.color}>{'○'} {s.label}</Text>
             ),
           )}
         </Box>
@@ -326,7 +325,7 @@ export const register: Register = on => {
         ) : null}
         {at < 0 ? (
           <Box paddingX={1}>
-            <Text dimColor>{stage.hint}</Text>
+            <Text dimColor color={stage.color}>{stage.hint}</Text>
           </Box>
         ) : null}
         <Box flexDirection="column" paddingX={1}>
