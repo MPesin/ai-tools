@@ -1,26 +1,23 @@
-// dev-flow-panel: a compact band above the prompt while a dev-flow task is
-// active, and a pane (`/dev-flow-panel`) with the full stage list. Both carry
-// buttons that start the dev-flow skills. The stage comes from the same files
+// dev-flow-panel: a band above the prompt for the dev-flow plugin. Two rows
+// while a task is active (the stage, the task, a track, the skill buttons);
+// `/dev-flow-panel` or the band's `more` adds the stage list, the flags and
+// the hint. No pane: a docked pane runs the full height of the terminal, and
+// the band takes only the rows it draws. The stage comes from the same files
 // the dev-flow hooks read: <project>/.claude/flow/current|planning points at
 // the task folder, plan.md's frontmatter holds status/mode/round.
 import { atom, read, update } from 'claude-code'
 import type { Color, Elements, EngineInterface, Register } from 'claude-code'
 
-import type { FlowState } from '../types'
+import type { FlowState, PanelView } from '../types'
 
-const PANE = 'dev-flow'
 const COMMAND = 'dev-flow-panel'
 const POLL_MS = 4000
-// The dock takes the whole column beside the transcript whatever we draw, so
-// the lever there is width: ask for a narrow dock (the engine floors it at 24
-// and caps it at 45% of the terminal). Inline, `rows` fits the frame to the
-// tree instead of the default third of the screen.
-const PANE_COLUMNS = 40
 
 const EMPTY: FlowState = { pointer: 'none', status: 'none', needsDecision: false, violations: false, checkedAt: 0 }
 // Bump the tag when FlowState's fields change: a value an earlier version stored
 // outlives a reload and is then read as EMPTY instead of as the old shape.
 const flow = atom({ plugin: 'dev-flow-panel', key: 'flow' } as const, EMPTY, { shape: 'flow-1' })
+const view = atom({ plugin: 'dev-flow-panel', key: 'view' } as const, 'auto' as PanelView)
 
 type Stage = { status: string; label: string; color: Color; hint: string }
 
@@ -111,22 +108,11 @@ const sameFlow = (a: FlowState, b: FlowState) =>
 
 async function refresh($: EngineInterface) {
   const next = await readFlow($)
-  // Only a real change is written, so the band and pane are redrawn when the
-  // stage moves, not on every poll.
+  // Only a real change is written, so the band is redrawn when the stage
+  // moves, not on every poll.
   await update($, flow, prev => (sameFlow(prev, next) ? prev : next))
   $.ui.status(statusLine(next))
 }
-
-// The rows the pane's tree takes inline, so the frame opens that tall rather
-// than a third of the screen: header, stage list, flags, hint and buttons, with
-// the blank rows between them. The engine still caps it at what the layout spares.
-const paneRows = (f: FlowState) => {
-  const flags = (f.needsDecision ? 2 : 0) + (f.violations ? 2 : 0)
-  const hint = Math.ceil(stageOf(f.status).hint.length / 60) || 1
-  return 2 + 1 + STAGES.length + 1 + (flags ? flags + 1 : 0) + hint + 1 + 2
-}
-
-const paneArgs = (f: FlowState) => ({ id: PANE, title: 'dev-flow', columns: PANE_COLUMNS, rows: paneRows(f) })
 
 const metaOf = (f: FlowState) =>
   [f.reviewRound ? `round ${f.reviewRound}` : '', f.mode ?? '', f.base ? `base ${f.base}` : ''].filter(Boolean).join(' · ')
@@ -165,7 +151,7 @@ const skillButtons = ($: EngineInterface, { Button }: Controls, f: FlowState) =>
   ]
 }
 // Cells the three buttons take as the terminal draws them (`[ label ]`), with
-// the gaps: what the band's hint has to fit beside.
+// the gaps: what the compact band's hint has to fit beside.
 const skillButtonsWidth = (f: FlowState) => 8 + 1 + (IN_PROGRESS.includes(f.status) ? 10 : 13) + 1 + 13
 
 // The stage as a chip: the label on a block of the stage's colour.
@@ -189,17 +175,17 @@ const track = ({ Text }: Controls, f: FlowState) => {
   )
 }
 
+const toggleView = ($: EngineInterface) => update($, view, v => (v === 'full' ? 'auto' : 'full'))
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: COMMAND,
-      description: 'Open the dev-flow panel: the stage list and buttons for plan, implement and QA impact',
+      description: 'Show or fold the dev-flow band above the prompt: the stage list, flags and buttons for plan, implement and QA impact',
     })
     const first = await readFlow($)
     await update($, flow, () => first)
     $.ui.status(statusLine(first))
-    // No pane opens by itself: while a task is active the band above the
-    // prompt shows the stage in two rows, and the pane is one keypress away.
     $.clock.every(POLL_MS, () => refresh($))
 
     return next(e)
@@ -207,9 +193,9 @@ export const register: Register = on => {
 
   on('command.run', { command: COMMAND }, async $ => {
     await refresh($)
-    const opened = await $.ui.open(paneArgs(await read($, flow)))
+    const now = await toggleView($)
 
-    return { text: opened.isPlaced ? 'dev-flow panel opened.' : `dev-flow panel waits for a wider window (${opened.reason}).` }
+    return { text: now === 'full' ? 'dev-flow band expanded above the prompt.' : 'dev-flow band folded to two rows (drawn while a task is active).' }
   })
 
   // The stage changes when the skills write plan.md or move the pointer files;
@@ -225,114 +211,94 @@ export const register: Register = on => {
     return ran
   })
 
-  // The band: two rows above the prompt while a task is active, nothing otherwise.
-  //   ▎ Your review  ⚠ needs decision  login fix · round 2 · full       ●─●─●─●─◉─○─○
-  //   ▎ [ Plan ] [ Implement ] [ QA impact ]  ↻ refresh  panel ↗   Waiting for you: review…
-  // An accent bar in the stage's colour ties the two rows; the track at the
-  // right end is what gives way first when the column is narrow.
+  // The band. Compact, two rows:
+  //   ▎ Your review   ⚠ needs decision  login fix · round 2 · full       ●─●─●─●─◉─○─○
+  //   ▎ [ Plan ] [ Implement ] [ QA impact ]   ↻ refresh   more ▾   Waiting for you: review…
+  // Full, the stage list, the hint and the flags between those two rows:
+  //   ▎ ✓ Planning  ✓ Approved  ✓ Implementing  ✓ Claude review  ◉ Your review  ○ QA impact  ○ Done
+  //   ▎   Waiting for you: review the diff, commit, open the PR, then continue.
+  //   ▎ ⚠ needs-decision.md  findings wait for your decision
+  // An accent bar in the stage's colour runs down every row; the track at the
+  // right end of the first row is what gives way first when the column is narrow.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const f = await read($, flow)
-    if (e.props.hasSurvey || f.pointer === 'none') return next(e)
+    const full = (await read($, view)) === 'full'
+    if (e.props.hasSurvey || (!full && f.pointer === 'none')) return next(e)
 
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
     const stage = stageOf(f.status)
+    const at = STAGES.findIndex(s => s.status === f.status)
     const meta = metaOf(f)
-    const hintRoom = e.props.bodyColumns - (2 + skillButtonsWidth(f) + 3 + 9 + 3 + 7 + 3)
+    const bar = <Text color={stage.color}>{'▎'}</Text>
+    const hintRoom = e.props.bodyColumns - (2 + skillButtonsWidth(f) + 3 + 9 + 3 + 6 + 3)
 
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
         <Box justifyContent="space-between" columnGap={2}>
           <Text wrap="truncate-end">
-            <Text color={stage.color}>{'▎'}</Text>
+            {bar}
             {chip(els, stage)}
             {f.needsDecision ? <Text color="warning">{'  ⚠ needs decision'}</Text> : null}
             {f.violations ? <Text color="error">{'  ✗ violations'}</Text> : null}
-            <Text bold color="text">{'  '}{titleOf(f)}</Text>
+            {titleOf(f) ? <Text bold color="text">{'  '}{titleOf(f)}</Text> : null}
             {meta ? <Text dimColor>{' · '}{meta}</Text> : null}
+            {f.pointer === 'none' ? <Text dimColor>{'  no pointer in .claude/flow'}</Text> : null}
           </Text>
           <Box flexShrink={0}>{track(els, f)}</Box>
         </Box>
+        {full ? (
+          <Box columnGap={1}>
+            {bar}
+            <Box flexWrap="wrap" columnGap={2}>
+              {STAGES.map((s, i) =>
+                i === at ? (
+                  <Text bold color={s.color}>{'◉'} {s.label}</Text>
+                ) : i < at ? (
+                  <Text><Text color="success">{'✓'}</Text><Text color={s.color}> {s.label}</Text></Text>
+                ) : (
+                  <Text><Text color={s.color}>{'○'}</Text><Text dimColor> {s.label}</Text></Text>
+                ),
+              )}
+            </Box>
+          </Box>
+        ) : null}
+        {full ? (
+          <Box columnGap={1}>
+            {bar}
+            <Text dimColor italic wrap="truncate-end">{'  '}{stage.hint}</Text>
+          </Box>
+        ) : null}
+        {full && f.needsDecision ? (
+          <Box columnGap={1}>
+            {bar}
+            <Text wrap="truncate-end"><Text color="warning">{'⚠ needs-decision.md'}</Text><Text dimColor>{'  findings wait for your decision'}</Text></Text>
+          </Box>
+        ) : null}
+        {full && f.violations ? (
+          <Box columnGap={1}>
+            {bar}
+            <Text wrap="truncate-end"><Text color="error">{'✗ violations.md'}</Text><Text dimColor>{'  files changed outside an allowance'}</Text></Text>
+          </Box>
+        ) : null}
         <Box columnGap={2}>
           <Box flexShrink={0} columnGap={3}>
             <Box columnGap={1}>
-              <Text color={stage.color}>{'▎'}</Text>
+              {bar}
               {skillButtons($, els, f)}
             </Box>
             <Button key="refresh" plain dimColor onPress={() => { void refresh($) }}>
               ↻ refresh
             </Button>
-            <Button key="panel" plain dimColor onPress={() => { void $.ui.open(paneArgs(f)) }}>
-              panel ↗
+            <Button key="view" plain dimColor onPress={() => toggleView($)}>
+              {full ? 'less ▴' : 'more ▾'}
             </Button>
           </Box>
-          {hintRoom >= 24 ? (
+          {!full && hintRoom >= 24 ? (
             <Box flexShrink={1}>
               <Text dimColor italic wrap="truncate-end">{stage.hint}</Text>
             </Box>
           ) : null}
-        </Box>
-      </Box>
-    )
-  })
-
-  // The pane: the stage chip and the task in a header (framed in the stage's
-  // colour in the dock, which has the rows to spare), the stage list with the
-  // steps behind ticked, the flags, the hint for this stage, and the buttons.
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const els = $.ui.resolve(e)
-    const { Box, Text, Button } = els
-    const f = await read($, flow)
-    const stage = stageOf(f.status)
-    const at = STAGES.findIndex(s => s.status === f.status)
-    const meta = metaOf(f)
-    const framed = e.props.placement === 'dock'
-    const header = (
-      <Box flexDirection="column" paddingX={1} {...(framed ? { borderStyle: 'round', borderColor: stage.color } : {})}>
-        <Text wrap="truncate-end">
-          {framed ? null : <Text color={stage.color}>{'▎'}</Text>}
-          {chip(els, stage)}
-          {titleOf(f) ? <Text bold color="text">{'  '}{titleOf(f)}</Text> : null}
-        </Text>
-        <Text dimColor wrap="truncate-end">{framed ? '' : ' '}{f.pointer === 'none' ? 'no pointer in .claude/flow' : meta}</Text>
-      </Box>
-    )
-
-    return (
-      <Box flexDirection="column" gap={1} paddingX={framed ? 0 : 1}>
-        {header}
-        <Box flexDirection="column" paddingX={1}>
-          {STAGES.map((s, i) =>
-            i === at ? (
-              <Box flexDirection="column">
-                <Text bold color={s.color}>{'◉'} {s.label}</Text>
-                <Box paddingLeft={2}><Text dimColor italic>{s.hint}</Text></Box>
-              </Box>
-            ) : i < at ? (
-              <Text><Text color="success">{'✓'}</Text><Text color={s.color}> {s.label}</Text></Text>
-            ) : (
-              <Text><Text color={s.color}>{'○'}</Text><Text dimColor> {s.label}</Text></Text>
-            ),
-          )}
-        </Box>
-        {f.needsDecision || f.violations ? (
-          <Box flexDirection="column" paddingX={1}>
-            {f.needsDecision ? <Text color="warning">{'⚠ needs-decision.md'}</Text> : null}
-            {f.needsDecision ? <Text dimColor>{'  findings wait for your decision'}</Text> : null}
-            {f.violations ? <Text color="error">{'✗ violations.md'}</Text> : null}
-            {f.violations ? <Text dimColor>{'  files changed outside an allowance'}</Text> : null}
-          </Box>
-        ) : null}
-        {at < 0 ? (
-          <Box paddingX={1}>
-            <Text dimColor italic>{stage.hint}</Text>
-          </Box>
-        ) : null}
-        <Box flexDirection="column" paddingX={1}>
-          <Box flexWrap="wrap" columnGap={1}>{skillButtons($, els, f)}</Box>
-          <Button key="refresh" plain dimColor onPress={() => { void refresh($) }}>
-            ↻ refresh
-          </Button>
         </Box>
       </Box>
     )
