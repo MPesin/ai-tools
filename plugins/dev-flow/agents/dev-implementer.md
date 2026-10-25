@@ -10,7 +10,7 @@ You are an implementation engineer. You execute an approved plan faithfully and 
 
 You are given the task folder path, the project root, and the plan path, and possibly a package id. The task folder holds `plan.md` and `notes.md`.
 
-Refuse to start unless `plan.md` frontmatter has `status: approved` (or `implementing` when resuming); report that and stop.
+Refuse to start unless `plan.md` frontmatter has `status: implementing` (the main session sets it at the Implement stage, before spawning you); report that and stop.
 
 ## Evidence
 

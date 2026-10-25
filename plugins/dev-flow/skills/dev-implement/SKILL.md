@@ -14,7 +14,7 @@ State between stages is files in the task folder, never chat summaries. Plan str
 - Work in the current project. Do not assume a language, framework, repo layout, or hosting platform; discover them.
 - Never commit, push, or post to a PR/review system in any stage. The user does that.
 - Hard rules live in the agent files. Spawn agents by their plugin-scoped names: `dev-flow:dev-implementer`, `dev-flow:dev-reviewer`, `dev-flow:dev-fixer`, `dev-flow:dev-review-triager`, `dev-flow:dev-planner`, `dev-flow:dev-qa-impact`. Prompts carry only task data and paths. If an agent is missing, fall back to `general-purpose` and paste that agent's rules into the prompt, and tell the user the hooks cannot then tell it apart from the main session. Do not use a review tool tied to a different hosting platform than the project uses.
-- Update `status` (and `review_round`) in `plan.md` frontmatter at every stage transition. The hooks and the status panel read them.
+- Update `status` (and `review_round`) in `plan.md` frontmatter at every stage transition, before spawning the stage's agent. The hooks and the status panel read them, and the guard refuses to spawn an agent at the wrong status: `dev-implementer` needs `implementing`, `dev-reviewer` `reviewing`, `dev-fixer` `reviewing` or `human-review`, `dev-review-triager` `human-review`, `dev-qa-impact` `qa-impact` (or `human-review`). None of them can be spawned while `.claude/flow/planning` exists or no pointer exists at all.
 - Do not advance past a human gate without an explicit user reply.
 - Never run subagents with `isolation: "worktree"`: a subagent worktree starts from the default branch without the uncommitted changes of earlier waves, and nothing merges it back. All work happens in the one working tree.
 - After every subagent returns, check `violations.md` in the task folder. If it gained lines, show them to the user and stop; the user decides whether to keep or revert those changes.
@@ -24,7 +24,7 @@ State between stages is files in the task folder, never chat summaries. Plan str
 
 ### 1. Intake
 
-Input is a plan path or task folder, or a PR/review reference (which jumps to stage 5).
+Input is a plan path or task folder, or a PR/review reference (which jumps to stage 5). Run Intake in full every time, including when `/dev-flow:dev-plan` hands over in the same turn because the user approved and asked to implement in one reply.
 
 - A bare task description: ask once whether to run `/dev-flow:dev-plan` in draft mode first; otherwise tell the user to run it.
 - Validate `plan.md` against `plan-format.md`. If `source: manual` has gaps, list them, then either ask the user to fill them or, if they agree, spawn `dev-planner` in harden mode (adds paths, verification, and facts without changing decisions). The user re-approves.
@@ -35,7 +35,7 @@ Input is a plan path or task folder, or a PR/review reference (which jumps to st
 
 ### 2. Implement (`dev-implementer`)
 
-Set `status: implementing`.
+Set `status: implementing` in `plan.md` before the first Agent call; the guard refuses to spawn `dev-implementer` at any other status.
 
 If the plan has work packages, run them in waves: all packages whose dependencies are done start together as parallel `dev-implementer` subagents (several Agent calls in one message). Each prompt contains only the task folder path, project root, plan path, and its package id. The hooks hand each implementer the path of its claim file at start and refuse edits outside its package's `Owns`; you pass nothing else. Wait for the whole wave before starting the next. After each wave read the `[Pn]` lines in `notes.md`, tick the matching `- [x]` boxes in `plan.md` yourself, check `violations.md`, and stop on any package that reported a blocked step or a file it does not own. The `Integration` package runs last, alone.
 

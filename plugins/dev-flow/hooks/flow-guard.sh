@@ -3,18 +3,54 @@
 #   Bash, PowerShell  -> no commit/push/discard, no posting, no publishing (commands.sh)
 #   mcp__*            -> no MCP tools that write to external systems
 #   Edit/Write/NotebookEdit -> per-agent write allowances (table below)
+#   Agent (Task)      -> a stage agent is spawned only at its own plan status (stage_gate);
+#                        checked even without a pointer, since a missing pointer is the finding
 HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
 [ -f "$HERE/lib.sh" ] || HERE="${CLAUDE_PLUGIN_ROOT}/hooks"
 source "$HERE/lib.sh"
 source "$HERE/commands.sh"
-load_task_folder
 
 deny() {
   echo "dev-flow guard: $1" >&2
   exit 2
 }
 
+# stage_gate SUBAGENT_TYPE: the main session may spawn a dev-implement stage agent only
+# when plan.md's status names that stage. This is what keeps status (which the hooks
+# and the status panel read) in step with what is actually running: the skill text
+# alone was skipped when planning and implementing were asked for in one reply.
+stage_gate() {
+  local agent=${1##*:} want pointer status
+  case $agent in
+    dev-implementer)    want=implementing ;;
+    dev-reviewer)       want=reviewing ;;
+    dev-fixer)          want='reviewing|human-review' ;;
+    dev-review-triager) want=human-review ;;
+    dev-qa-impact)      want='qa-impact|human-review' ;;
+    *) return 0 ;;                       # planner and critic (planning, harden mode), other agents
+  esac
+  POINTER_NAMES="current planning"
+  if ! pointer=$(find_flow_pointer); then
+    [ "$agent" = dev-qa-impact ] && return 0   # /dev-flow:dev-qa-impact runs standalone, no plan
+    deny "$agent runs inside /dev-flow:dev-implement, whose Intake writes <project>/.claude/flow/current and whose stages set status in plan.md before spawning. Run /dev-flow:dev-implement <plan path> instead of spawning $agent directly."
+  fi
+  case ${pointer##*/} in
+    planning)
+      [ "$agent" = dev-qa-impact ] && return 0
+      deny "the plan is still being planned (.claude/flow/planning exists). Finish /dev-flow:dev-plan first: apply the requested plan changes, get the user's explicit approval, set status: approved, delete the planning pointer, then invoke /dev-flow:dev-implement <plan path>. Never implement from dev-plan." ;;
+  esac
+  load_task_folder
+  status=$(frontmatter_value status)
+  case "|$want|" in *"|$status|"*) exit 0 ;; esac
+  deny "plan.md has status: ${status:-<none>}, but $agent runs at status $want. Set status in $TASK_FOLDER/plan.md frontmatter to the stage you are starting (the hooks and the status panel read it), then spawn again."
+}
+
 tool=$(json_field tool_name)
+case $tool in
+  Agent|Task) stage_gate "$(tool_input_field subagent_type)"; exit 0 ;;
+esac
+load_task_folder
+
 case $tool in
   Bash|PowerShell) check_command "$(tool_input_field command)" 0; exit 0 ;;
   mcp__*)          check_mcp_tool "$tool"; exit 0 ;;
