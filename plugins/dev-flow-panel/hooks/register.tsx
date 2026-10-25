@@ -157,7 +157,7 @@ const IN_PROGRESS = ['implementing', 'reviewing', 'qa-impact', 'blocked']
 // of running the skill, which would only refuse the unapproved plan (and the
 // dev-flow guard refuses to spawn an implementer at that stage anyway).
 const implementBlocked = (f: FlowState) => f.pointer === 'planning' || f.status === 'draft'
-const NOT_APPROVED = 'Implement needs an approved plan: answer the plan critique and approve it in chat first (dev-plan then hands over), or ask to fix the critique and implement in one reply.'
+const NOT_APPROVED = 'Implement needs an approved plan: answer the critique and approve it in chat first.'
 
 type Controls = Pick<Elements['terminal'], 'Box' | 'Text' | 'Button'>
 

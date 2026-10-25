@@ -45,6 +45,7 @@ write_json() { # AGENT_TYPE PATH [TOOL] [AGENT_ID]
 }
 mcp_json() { printf '{"cwd":"%s","tool_name":"%s","tool_input":{"x":1}}' "$CW" "$1"; }
 agent_json() { printf '{"session_id":"s","cwd":"%s","tool_name":"%s","tool_input":{"subagent_type":"%s","prompt":"x","description":"d"}}' "$CW" "${2:-Agent}" "$1"; }
+agent_json_untyped() { printf '{"session_id":"s","cwd":"%s","tool_name":"Agent","tool_input":{"prompt":"x","description":"d"}}' "$CW"; }
 start_json() { printf '{"cwd":"%s","hook_event_name":"SubagentStart","agent_id":"%s","agent_type":"%s"}' "$CW" "$1" "$2"; }
 stop_json()  { printf '{"cwd":"%s","hook_event_name":"SubagentStop","agent_id":"%s","agent_type":"%s","stop_hook_active":%s}' "$CW" "$1" "$2" "${3:-false}"; }
 main_stop_json() { printf '{"cwd":"%s","hook_event_name":"Stop","stop_hook_active":false}' "$CW"; }
@@ -76,6 +77,18 @@ assert "deny names dev-implement"  'case $err in *"/dev-flow:dev-implement"*) tr
 expect_allow "no pointer: dev-qa-impact runs standalone"            flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
 expect_allow "no pointer: dev-planner (harden before Intake)"       flow-guard.sh "$(agent_json dev-flow:dev-planner)"
 expect_allow "no pointer: general-purpose agent"                    flow-guard.sh "$(agent_json general-purpose)"
+expect_allow "no pointer: Agent call without subagent_type"         flow-guard.sh "$(agent_json_untyped)"
+
+echo "== guard: a pointer that names no task is a finding, not an off switch"
+printf '/nowhere/at/all\n' > .claude/flow/current
+expect_deny  "dangling current: spawn dev-implementer"   flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+assert "deny names the pointer and the folder" 'case $err in *".claude/flow/current"*"/nowhere/at/all"*) true;; *) false;; esac'
+expect_allow "dangling current: dev-qa-impact not gated" flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
+: > .claude/flow/current
+expect_deny  "empty current: spawn dev-fixer"            flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
+mkdir -p noplan; hp "$T/noplan" > .claude/flow/current
+expect_deny  "current folder without plan.md: spawn dev-reviewer" flow-guard.sh "$(agent_json dev-flow:dev-reviewer)"
+assert "deny names plan.md" 'case $err in *"no plan.md"*) true;; *) false;; esac'
 
 hp "$T/task" > .claude/flow/current
 
@@ -145,7 +158,13 @@ expect_allow "implementing: legacy Task tool"                   flow-guard.sh "$
 expect_deny  "implementing: spawn dev-reviewer"                 flow-guard.sh "$(agent_json dev-flow:dev-reviewer)"
 expect_deny  "implementing: spawn dev-fixer"                    flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
 expect_deny  "implementing: spawn dev-review-triager"           flow-guard.sh "$(agent_json dev-flow:dev-review-triager)"
-expect_deny  "implementing: spawn dev-qa-impact"                flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
+expect_allow "implementing: dev-qa-impact is not gated"         flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
+printf -- '---\ntask: t\r\nstatus: implementing   \r\n---\r\n- [ ] one\r\n' > task/plan.md
+expect_allow "CRLF and trailing spaces in status"               flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+printf -- '---\ntask: t\nstatus: "implementing"\n---\n- [ ] one\n' > task/plan.md
+expect_allow "double-quoted status"                             flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+printf -- "---\ntask: t\nstatus: 'implementing'\n---\n- [ ] one\n" > task/plan.md
+expect_allow "single-quoted status"                             flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 plan approved
 expect_deny  "approved: spawn dev-implementer (status not set)" flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 assert "deny names the current and the wanted status" 'case $err in *"status: approved"*implementing*) true;; *) false;; esac'
@@ -163,6 +182,12 @@ expect_deny  "human-review: spawn dev-reviewer"                 flow-guard.sh "$
 plan qa-impact
 expect_allow "qa-impact: spawn dev-qa-impact"                   flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
 expect_deny  "qa-impact: spawn dev-fixer"                       flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
+plan done
+expect_allow "done with current still present: dev-qa-impact"  flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
+plan blocked
+expect_deny  "blocked: spawn dev-fixer"                         flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
+expect_deny  "blocked: spawn dev-reviewer"                      flow-guard.sh "$(agent_json dev-flow:dev-reviewer)"
+assert "deny at blocked names reviewing" 'case $err in *"status: blocked"*reviewing*) true;; *) false;; esac'
 expect_allow "any status: dev-planner"                          flow-guard.sh "$(agent_json dev-flow:dev-planner)"
 expect_allow "any status: dev-plan-critic"                      flow-guard.sh "$(agent_json dev-flow:dev-plan-critic)"
 expect_allow "any status: Explore"                              flow-guard.sh "$(agent_json Explore)"
@@ -322,6 +347,13 @@ assert "deny says to finish dev-plan and run dev-implement" 'case $err in *dev-p
 expect_deny  "spawn dev-fixer while planning"          flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
 expect_allow "spawn dev-plan-critic while planning"    flow-guard.sh "$(agent_json dev-flow:dev-plan-critic)"
 expect_allow "spawn dev-planner while planning"        flow-guard.sh "$(agent_json dev-flow:dev-planner)"
+expect_allow "spawn dev-qa-impact while planning"      flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
+# planning written while a current task is parked: current wins the lookup, planning still gates.
+plan human-review; hp "$T/task" > .claude/flow/current
+expect_deny  "planning beside current: spawn dev-fixer"   flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
+assert "deny is the dev-plan message, not the status one" 'case $err in *"planning exists"*) true;; *) false;; esac'
+expect_deny  "planning beside current: spawn dev-review-triager" flow-guard.sh "$(agent_json dev-flow:dev-review-triager)"
+rm .claude/flow/current; plan draft
 expect_out   "planner start gets context"              flow-context.sh "$(start_json p1 dev-flow:dev-planner)" "status: draft"
 expect_pass  "verify-stop: planner with no changes passes" flow-verify-stop.sh "$(stop_json p1 dev-flow:dev-planner)"
 

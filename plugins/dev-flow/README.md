@@ -70,7 +70,7 @@ sequenceDiagram
     M->>U: run /dev-flow:dev-implement path/to/plan.md
 ```
 
-"Fix the critique and start implementing" in one reply is handled the same way: the plan is fixed, approved (status, mode, pointer deleted), and then the `dev-implement` skill is invoked, so Intake and the `status: implementing` transition still happen. The guard refuses to spawn an implementer any other way.
+"Fix the critique and start implementing" in one reply is handled the same way: the plan is fixed, approved (status, mode, pointer deleted), and then the `dev-implement` skill is invoked, so Intake and the `status: implementing` transition still happen. The guard refuses to spawn any other dev-flow stage agent at that point.
 
 ### Implementing: `/dev-flow:dev-implement`
 
@@ -160,7 +160,7 @@ sequenceDiagram
     M->>U: final report (task folder, per-stage summary, evidence, next action)
 ```
 
-Reading the diagrams: the task folder is the only channel between stages (every subagent prompt carries paths, not content, so the reviewer never sees the implementer's account); the dashed arrows from Hooks are the guards the harness runs, not instructions in the skill text; the `planning` and `current` pointer files switch all of them on and off; and only two places wait for you, the approval and the human-review gate, plus anything `needs-decision.md` or `violations.md` raises.
+Reading the diagrams: the task folder is the only channel between stages (every subagent prompt carries paths, not content, so the reviewer never sees the implementer's account); the dashed arrows from Hooks are the guards the harness runs, not instructions in the skill text; the `planning` and `current` pointer files switch all of them on and off (except the Agent gate, which then refuses the stage agents until Intake writes `current` again); and only two places wait for you, the approval and the human-review gate, plus anything `needs-decision.md` or `violations.md` raises.
 
 ## Agents
 
@@ -196,7 +196,7 @@ Active only while `<project>/.claude/flow/current` (implementing) or `planning` 
 | PreToolUse on Bash and PowerShell | Blocks `git commit/push/checkout/restore/stash/clean/rebase/merge/reset --hard`, `gh`/`glab`/`az` commands that post or change anything, publishing (`dotnet nuget push`, `npm publish`, `docker push`, ...). Parses the command (quotes, `&&`, `;`, `$()`, wrappers like `sudo`/`timeout`, `bash -c "..."`, `cmd /c "..."`, `wsl`), so `grep "git commit"` passes and `git -C "my repo" push` does not. |
 | PreToolUse on `mcp__*` | Blocks MCP tools whose names read like writes (`create_pull_request`, `wit_update_work_item`, `add_issue_comment`, ...). |
 | PreToolUse on Edit/Write/NotebookEdit | Reviewer, plan critic, QA and triager may write only their own file in the task folder; the planner only inside the task folder; implementers in package mode only inside their package's `Owns` (after writing a claim file) and never `plan.md`; the main session, while planning, only the task folder. |
-| PreToolUse on Agent | A stage agent is spawned only at its own plan status: implementer at `implementing`, reviewer at `reviewing`, fixer at `reviewing` or `human-review`, triager at `human-review`, QA at `qa-impact` (or `human-review`). Implementer, reviewer, fixer and triager are refused while `planning` exists or no pointer exists, so a flow cannot run with the guards off and the status panel stale. This one runs even without a pointer. |
+| PreToolUse on Agent | Implementer, reviewer, fixer and triager are spawned only at their own plan status (`implementing`; `reviewing`; `reviewing` or `human-review`; `human-review`), and refused while `planning` exists, when no pointer exists, or when `current` names a missing folder or one without `plan.md`, so a flow cannot run with the guards off and the status panel stale. This one runs even without a pointer. Planner, critic and QA are not gated: QA also runs standalone. |
 | SubagentStart | Injects the flow state; snapshots the working tree; excludes `.claude/flow/` and `.claude/plans/` from `git status` via `.git/info/exclude`. |
 | SubagentStop | Compares the tree with the snapshot: a read-only agent that changed anything, or an implementer that changed files outside every package's `Owns`, is blocked once with the list and the change is appended to `violations.md`. Implementers and fixers must have appended this run's build/test output to `verify.log` (a `[Pn]` block in package mode) and their notes. |
 | Stop | At `draft`, `human-review`, `blocked`, `done`, or when `needs-decision.md` / `violations.md` appear: a terminal message and one desktop notification per state (PowerShell toast on Windows and WSL, `osascript` on macOS, `notify-send` on Linux; `DEV_FLOW_NOTIFY_CMD="<program>"` overrides, called with title and message). |
