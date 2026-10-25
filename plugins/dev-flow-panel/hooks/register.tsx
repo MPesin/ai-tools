@@ -23,7 +23,7 @@ type Stage = { status: string; label: string; color: Color; hint: string }
 
 // Theme keys rather than raw colours, so the pane follows the user's theme.
 const STAGES: readonly Stage[] = [
-  { status: 'draft', label: 'Planning', color: 'subtle', hint: 'The plan is being written; approve it in chat when it is ready.' },
+  { status: 'draft', label: 'Planning', color: 'subtle', hint: 'The plan is being written; answer the critique and approve it in chat. Implement is off until then.' },
   { status: 'approved', label: 'Approved', color: 'suggestion', hint: 'Plan approved. Implement starts the flow.' },
   { status: 'implementing', label: 'Implementing', color: 'claude', hint: 'Implementer subagents are working through the plan.' },
   { status: 'reviewing', label: 'Claude review', color: 'permission', hint: 'Reviewer and fixer are iterating; the loop ends on a review.' },
@@ -152,6 +152,13 @@ const titleOf = (f: FlowState) =>
 
 const IN_PROGRESS = ['implementing', 'reviewing', 'qa-impact', 'blocked']
 
+// Implement waits for an approved plan. While the planning pointer exists, or
+// plan.md is still a draft, the button is drawn dim and a press says why instead
+// of running the skill, which would only refuse the unapproved plan (and the
+// dev-flow guard refuses to spawn an implementer at that stage anyway).
+const implementBlocked = (f: FlowState) => f.pointer === 'planning' || f.status === 'draft'
+const NOT_APPROVED = 'Implement needs an approved plan: answer the plan critique and approve it in chat first (dev-plan then hands over), or ask to fix the critique and implement in one reply.'
+
 type Controls = Pick<Elements['terminal'], 'Box' | 'Text' | 'Button'>
 
 // A skill is a slash command: $.command.run queues `/command args` as if the
@@ -171,9 +178,15 @@ const skillButtons = ($: EngineInterface, { Button }: Controls, f: FlowState) =>
     <Button key="plan" hotkey="p" {...primary(f.pointer === 'none')} onPress={start('dev-flow:dev-plan')}>
       Plan
     </Button>,
-    <Button key="implement" hotkey="i" {...primary(f.status === 'approved' || inProgress)} onPress={start('dev-flow:dev-implement', f.planPath)}>
-      {inProgress ? 'Resume' : 'Implement'}
-    </Button>,
+    implementBlocked(f) ? (
+      <Button key="implement" hotkey="i" dimColor onPress={() => { $.ui.toast(NOT_APPROVED) }}>
+        Implement
+      </Button>
+    ) : (
+      <Button key="implement" hotkey="i" {...primary(f.status === 'approved' || inProgress)} onPress={start('dev-flow:dev-implement', f.planPath)}>
+        {inProgress ? 'Resume' : 'Implement'}
+      </Button>
+    ),
     <Button key="qa" hotkey="q" {...primary(f.status === 'human-review' || f.status === 'done')} onPress={start('dev-flow:dev-qa-impact', f.taskFolder)}>
       QA impact
     </Button>,
