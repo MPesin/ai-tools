@@ -174,7 +174,7 @@ const chip = ({ Text }: Controls, stage: Stage) => (
 )
 
 // The seven stages as a track, each dot in its stage's colour: the steps
-// behind filled, the current one ringed and bold, the ones ahead hollow and dim.
+// behind filled, the current one ringed and bold, the ones ahead hollow.
 const track = ({ Text }: Controls, f: FlowState) => {
   const at = STAGES.findIndex(s => s.status === f.status)
   return (
@@ -182,7 +182,7 @@ const track = ({ Text }: Controls, f: FlowState) => {
       {STAGES.map((s, i) => (
         <Text>
           {i > 0 ? <Text dimColor>{'─'}</Text> : null}
-          {i === at ? <Text bold color={s.color}>{'◉'}</Text> : i < at ? <Text color={s.color}>{'●'}</Text> : <Text dimColor color={s.color}>{'○'}</Text>}
+          {i === at ? <Text bold color={s.color}>{'◉'}</Text> : i < at ? <Text color={s.color}>{'●'}</Text> : <Text color={s.color}>{'○'}</Text>}
         </Text>
       ))}
     </Text>
@@ -268,7 +268,7 @@ export const register: Register = on => {
           </Box>
           {hintRoom >= 24 ? (
             <Box flexShrink={1}>
-              <Text dimColor color={stage.color} wrap="truncate-end">{stage.hint}</Text>
+              <Text dimColor italic wrap="truncate-end">{stage.hint}</Text>
             </Box>
           ) : null}
         </Box>
@@ -306,12 +306,12 @@ export const register: Register = on => {
             i === at ? (
               <Box flexDirection="column">
                 <Text bold color={s.color}>{'◉'} {s.label}</Text>
-                <Box paddingLeft={2}><Text dimColor color={s.color}>{s.hint}</Text></Box>
+                <Box paddingLeft={2}><Text dimColor italic>{s.hint}</Text></Box>
               </Box>
             ) : i < at ? (
               <Text><Text color="success">{'✓'}</Text><Text color={s.color}> {s.label}</Text></Text>
             ) : (
-              <Text dimColor color={s.color}>{'○'} {s.label}</Text>
+              <Text><Text color={s.color}>{'○'}</Text><Text dimColor> {s.label}</Text></Text>
             ),
           )}
         </Box>
@@ -325,7 +325,7 @@ export const register: Register = on => {
         ) : null}
         {at < 0 ? (
           <Box paddingX={1}>
-            <Text dimColor color={stage.color}>{stage.hint}</Text>
+            <Text dimColor italic>{stage.hint}</Text>
           </Box>
         ) : null}
         <Box flexDirection="column" paddingX={1}>
