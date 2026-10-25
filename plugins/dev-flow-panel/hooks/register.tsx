@@ -32,12 +32,20 @@ const STAGES: readonly Stage[] = [
   { status: 'done', label: 'Done', color: 'success', hint: 'Finished: plan, reviews and the QA note are in the task folder.' },
 ]
 const BLOCKED: Stage = { status: 'blocked', label: 'Blocked', color: 'error', hint: 'Stopped: open findings or a blocked step need your decision.' }
+// Debugging (/dev-flow:dev-debug) replaces planning as the first step: the
+// debugger writes diagnosis.md, you confirm the cause, and the fix plan is
+// approved like any plan. It shares Planning's slot in the track and the list.
+const DIAGNOSING: Stage = { status: 'diagnosing', label: 'Diagnosing', color: 'subtle', hint: 'The debugger is reproducing the bug and finding its cause; confirm the diagnosis in chat, then the fix plan runs.' }
 const NONE: Stage = { status: 'none', label: 'No active task', color: 'inactive', hint: 'Plan a task, or Implement an approved plan.' }
 
 const stageOf = (status: string): Stage =>
   status === 'blocked' ? BLOCKED
+  : status === 'diagnosing' ? DIAGNOSING
   : status === 'none' ? NONE
   : STAGES.find(s => s.status === status) ?? { status, label: status, color: 'text', hint: '' }
+
+// Where a status sits in the seven-step track: -1 for blocked, none and unknown.
+const slotOf = (status: string) => STAGES.findIndex(s => s.status === (status === 'diagnosing' ? 'draft' : status))
 
 const sepOf = (path: string) => (path.includes('\\') ? '\\' : '/')
 const join = (dir: string, name: string) => `${dir.replace(/[\\/]+$/, '')}${sepOf(dir)}${name}`
@@ -156,8 +164,9 @@ const IN_PROGRESS = ['implementing', 'reviewing', 'qa-impact', 'blocked']
 // plan.md is still a draft, the button is drawn dim and a press says why instead
 // of running the skill, which would only refuse the unapproved plan (and the
 // dev-flow guard refuses to spawn an implementer at that stage anyway).
-const implementBlocked = (f: FlowState) => f.pointer === 'planning' || f.status === 'draft'
+const implementBlocked = (f: FlowState) => f.pointer === 'planning' || f.status === 'draft' || f.status === 'diagnosing'
 const NOT_APPROVED = 'Implement needs an approved plan: answer the critique and approve it in chat first.'
+const NOT_DIAGNOSED = 'Implement waits for the diagnosis: confirm the root cause in chat (reply fix) and the fix plan starts.'
 
 type Controls = Pick<Elements['terminal'], 'Box' | 'Text' | 'Button'>
 
@@ -169,7 +178,8 @@ const starter = ($: EngineInterface) => (command: string, args?: string) => () =
   })
 }
 
-// The three skill buttons, the suggested next step drawn as the primary one.
+// The four skill buttons, the suggested next step drawn as the primary one.
+// Debug resumes the diagnosis gate of the active task while it is diagnosing.
 const skillButtons = ($: EngineInterface, { Button }: Controls, f: FlowState) => {
   const start = starter($)
   const inProgress = IN_PROGRESS.includes(f.status)
@@ -178,8 +188,11 @@ const skillButtons = ($: EngineInterface, { Button }: Controls, f: FlowState) =>
     <Button key="plan" hotkey="p" {...primary(f.pointer === 'none')} onPress={start('dev-flow:dev-plan')}>
       Plan
     </Button>,
+    <Button key="debug" hotkey="d" {...primary(f.status === 'diagnosing')} onPress={start('dev-flow:dev-debug', f.status === 'diagnosing' ? f.taskFolder : undefined)}>
+      Debug
+    </Button>,
     implementBlocked(f) ? (
-      <Button key="implement" hotkey="i" dimColor onPress={() => { $.ui.toast(NOT_APPROVED) }}>
+      <Button key="implement" hotkey="i" dimColor onPress={() => { $.ui.toast(f.status === 'diagnosing' ? NOT_DIAGNOSED : NOT_APPROVED) }}>
         Implement
       </Button>
     ) : (
@@ -192,9 +205,9 @@ const skillButtons = ($: EngineInterface, { Button }: Controls, f: FlowState) =>
     </Button>,
   ]
 }
-// Cells the three buttons take as the terminal draws them (`[ label ]`), with
+// Cells the four buttons take as the terminal draws them (`[ label ]`), with
 // the gaps: what the compact band's hint has to fit beside.
-const skillButtonsWidth = (f: FlowState) => 8 + 1 + (IN_PROGRESS.includes(f.status) ? 10 : 13) + 1 + 13
+const skillButtonsWidth = (f: FlowState) => 8 + 1 + 9 + 1 + (IN_PROGRESS.includes(f.status) ? 10 : 13) + 1 + 13
 
 // The stage as a chip: the label on a block of the stage's colour.
 const chip = ({ Text }: Controls, stage: Stage) => (
@@ -204,7 +217,7 @@ const chip = ({ Text }: Controls, stage: Stage) => (
 // The seven stages as a track, each dot in its stage's colour: the steps
 // behind filled, the current one ringed and bold, the ones ahead hollow.
 const track = ({ Text }: Controls, f: FlowState) => {
-  const at = STAGES.findIndex(s => s.status === f.status)
+  const at = slotOf(f.status)
   return (
     <Text>
       {STAGES.map((s, i) => (
@@ -259,7 +272,7 @@ export const register: Register = on => {
 
   // The band. Compact, two rows:
   //   ▎ Your review   ⚠ needs decision  login fix · round 2 · full       ●─●─●─●─◉─○─○
-  //   ▎ [ Plan ] [ Implement ] [ QA impact ]   ↻ refresh   more ▾   Waiting for you: review…
+  //   ▎ [ Plan ] [ Debug ] [ Implement ] [ QA impact ]   ↻ refresh   more ▾   Waiting for you: review…
   // Full, the stage list, the hint and the flags between those two rows:
   //   ▎ ✓ Planning  ✓ Approved  ✓ Implementing  ✓ Claude review  ◉ Your review  ○ QA impact  ○ Done
   //   ▎   Waiting for you: review the diff, commit, open the PR, then continue.
@@ -274,7 +287,7 @@ export const register: Register = on => {
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
     const stage = stageOf(f.status)
-    const at = STAGES.findIndex(s => s.status === f.status)
+    const at = slotOf(f.status)
     const meta = metaOf(f)
     const bar = <Text color={stage.color}>{'▎'}</Text>
     const hintRoom = e.props.bodyColumns - (2 + skillButtonsWidth(f) + 3 + 9 + 3 + 6 + 3)
@@ -299,7 +312,7 @@ export const register: Register = on => {
             <Box flexWrap="wrap" columnGap={2}>
               {STAGES.map((s, i) =>
                 i === at ? (
-                  <Text bold color={s.color}>{'◉'} {s.label}</Text>
+                  <Text bold color={stage.color}>{'◉'} {stage.label}</Text>
                 ) : i < at ? (
                   <Text><Text color="success">{'✓'}</Text><Text color={s.color}> {s.label}</Text></Text>
                 ) : (

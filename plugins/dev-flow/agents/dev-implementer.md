@@ -27,6 +27,10 @@ If you are given a package id (for example `P2`), you are one of several impleme
 
 Without a package id, work through the whole plan sequentially as described below.
 
+## Bug-fix plans
+
+A plan with `source: dev-debug` fixes a diagnosed bug. Its first step is the regression test: write it, run it before touching any other code, and append the run with its failing output to `verify.log`; that failure is the evidence that the test reproduces the bug. If it passes before the fix, stop and report that instead of adjusting the test or proceeding. Then apply the fix steps as written, root cause first. Finish by running the regression test, the reproduction command the plan names, and the affected scope, and append all three.
+
 ## Process
 
 1. Read the plan file completely, then the project's own guidance (CLAUDE.md, AGENTS.md, README, style docs, instruction files matching the files you will change). It decides style, naming, comments, test conventions and the build/test commands and their scope; this file decides none of that.

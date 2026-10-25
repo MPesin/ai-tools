@@ -80,15 +80,23 @@ it to review a freshly generated index against the actual code.
 
 This repository's own design was reviewed by it before being built.
 
-### dev-flow — plan, implement, review and QA-impact, run by subagents
+### dev-flow — plan, debug, implement, review and QA-impact, run by subagents
 
-Three skills for any project, in any language, on Linux, macOS and Windows
+Four skills for any project, in any language, on Linux, macOS and Windows
 (Git Bash):
 
 - `/dev-flow:dev-plan` writes a plan (interactively with you, or drafted by
   a planner subagent) in a fixed format with verified facts, acceptance
   criteria and steps grouped into **work packages** with disjoint file
   ownership, reviewed by a plan critic before you approve it.
+- `/dev-flow:dev-debug` finds the cause of a bug before anyone changes code:
+  a clean-slate debugger subagent reproduces it, tests hypotheses against the
+  code and git history (read-only; it cannot edit source even to add a print
+  statement), and writes a diagnosis with evidence, blast radius and
+  confidence. You confirm the root cause, or ask for an independent second
+  diagnosis; the confirmed diagnosis becomes a fix plan whose first step is a
+  failing regression test, and `dev-implement` takes it from there. Features
+  use the planning agents; a bug adds this one agent in front of them.
 - `/dev-flow:dev-implement <plan>` runs the plan: independent packages in
   parallel implementer subagents wave by wave, then a review/fix loop where
   every round gets a brand-new reviewer that has seen nothing but the
@@ -113,14 +121,14 @@ assertion test suite (`bash plugins/dev-flow/hooks/test-hooks.sh`).
 
 A companion plugin (a hooks module). While a task is active it draws a
 two-row band above the prompt: the colour-coded stage read from the task
-folder (planning, approved, implementing, Claude review, your review, QA
-impact, done, blocked), the task, a progress track, warnings when findings
-wait for your decision, and buttons for the three skills. `/dev-flow-panel`
+folder (planning or diagnosing, approved, implementing, Claude review, your
+review, QA impact, done, blocked), the task, a progress track, warnings when
+findings wait for your decision, and buttons for the four skills. `/dev-flow-panel`
 or the band's `more` expands it with the stage list, the hint and the flags.
 No pane, so it never takes the height of the terminal; the status line
 shows the stage too.
 
-![The dev-flow-panel band expanded above the prompt: stage row, progress track, hint and the Plan, Implement and QA impact buttons](docs/images/dev-flow-panel.png)
+![The dev-flow-panel band expanded above the prompt: stage row, progress track, hint and the Plan, Debug, Implement and QA impact buttons](docs/images/dev-flow-panel.png)
 
 ## Repository layout
 

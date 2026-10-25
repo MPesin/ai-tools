@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Stop hook (main session): when the flow waits for the user (draft, human-review,
-# blocked, done, a needs-decision.md or violations.md), show a terminal message and
+# Stop hook (main session): when the flow waits for the user (diagnosing, draft,
+# human-review, blocked, done, a needs-decision.md or violations.md), show a terminal message and
 # send a desktop notification once per state. The `finished` pointer (written by the
 # final report) notifies "done" and is then removed with the run's marker files.
 HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
@@ -22,7 +22,7 @@ if [ "$POINTER_NAME" = finished ]; then
   state=done
 else
   case $status in
-    draft|human-review|blocked|done) state=$status ;;
+    diagnosing|draft|human-review|blocked|done) state=$status ;;
     *) [ -n "$flags" ] || exit 0; state=${status:-unknown} ;;
   esac
 fi

@@ -1,12 +1,12 @@
 # Plan format
 
-Single source of truth for the plan structure and section names. `dev-plan`, `dev-planner`, `dev-plan-critic`, `dev-reviewer`, `dev-qa-impact`, and dev-implement's Intake all use this file. A hand-written plan must satisfy it.
+Single source of truth for the plan structure and section names. `dev-plan`, `dev-debug`, `dev-planner`, `dev-plan-critic`, `dev-reviewer`, `dev-qa-impact`, and dev-implement's Intake all use this file. A hand-written plan must satisfy it.
 
 ## What comes from the project's rules file
 
 This plugin is language-, framework- and platform-agnostic: it defines the flow, the files and the guards, nothing about how a given project is built or styled. Every agent reads the project's own guidance first (CLAUDE.md, AGENTS.md, README, instruction files) and takes from it:
 
-- the build and test commands, and how to scope them to a change;
+- the build and test commands, and how to scope them to a change; how to run the program with an input (the debugger reproduces bugs with it);
 - which commands are safe to run side by side (for parallel work packages), or that the project has none;
 - the plans location, if not `.claude/plans/`;
 - code style, naming, comment and test conventions;
@@ -27,6 +27,8 @@ notes.md           # implementation notes (implementer/fixer only; appended, nev
 review-N.md        # Claude review round N, findings with IDs F1, F2...
 verify.log         # build/test commands and raw output, appended (>>) by implementer/fixer; [Pn] blocks in package mode
 human-review.md    # triaged human comments, draft replies, proposed checklist additions
+diagnosis.md       # dev-debugger output (skills/dev-debug/diagnosis-format.md); diagnosis-2.md for a second opinion
+debug/             # the debugger's reproduction scripts and captured output; never source
 qa-impact.md       # QA impact note from the fixed template (skills/dev-qa-impact/qa-impact-template.md)
 needs-decision.md  # disputed findings awaiting the user (written by dev-implement; triggers a notification)
 violations.md      # files an agent changed outside its allowance (written by the hooks; triggers a notification)
@@ -40,9 +42,9 @@ Only `plan.md` is required to start. The flow creates the rest. The hooks add `.
 ```yaml
 ---
 task: <id or topic>
-source: manual | dev-plan-interactive | dev-plan-draft
+source: manual | dev-plan-interactive | dev-plan-draft | dev-debug
 mode: full | lite
-status: draft | approved | implementing | reviewing | human-review | qa-impact | done | blocked
+status: diagnosing | draft | approved | implementing | reviewing | human-review | qa-impact | done | blocked
 review_round: 0
 specs:            # files in the task folder's specs/ dir (see Specs intake)
   - specs/prd.md
@@ -52,14 +54,14 @@ base: <base branch or commit for diffs>
 ---
 ```
 
-`status` is updated at every stage transition; resuming reads `status` and `review_round` from here. The status panel plugin (`dev-flow-panel`) and the hooks read the same fields.
+`status` is updated at every stage transition; resuming reads `status` and `review_round` from here. The status panel plugin (`dev-flow-panel`) and the hooks read the same fields. `diagnosing` exists only in `dev-debug`, before the plan is written from the diagnosis; a plan with `source: dev-debug` is a bug fix, and the implementer, reviewer and QA agents treat it as one (regression test first, cause over symptom, the reported scenario as the first regression row).
 
 ## Pointer files
 
 Hooks use these to decide whether anything is active. Each contains the absolute task-folder path as its only line.
 
 - `<project>/.claude/flow/current` — written by `dev-implement` at Intake; renamed to `finished` by the final report.
-- `<project>/.claude/flow/planning` — written by `dev-plan` at start, deleted on approval or abandonment.
+- `<project>/.claude/flow/planning` — written by `dev-plan` or `dev-debug` at start, deleted on approval or abandonment.
 - `<project>/.claude/flow/finished` — makes the Stop hook send the "done" notification; the hook then deletes it.
 
 The hooks keep their own marker files beside them (`start-*`, `snap-*`, `claim-*`, `notified`); they are removed at `finished`. Deleting the pointer switches every guard off, except that the stage agents (implementer, reviewer, fixer, triager) cannot be spawned until `dev-implement` Intake writes `current` again.
