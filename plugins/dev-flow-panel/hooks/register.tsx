@@ -63,15 +63,40 @@ const readText = async ($: EngineInterface, path: string) => {
   return typeof text === 'string' ? text : ''
 }
 
+// The project root and its parents, nearest first: the dev-flow hooks walk up
+// from the working directory to the first .claude/flow pointer, so the pointer
+// may sit at the git root above where the session started.
+const lineage = (root: string) => {
+  const dirs = [root]
+  let dir = root.replace(/[\\/]+$/, '')
+  for (let i = 0; i < 8; i += 1) {
+    const cut = Math.max(dir.lastIndexOf('/'), dir.lastIndexOf('\\'))
+    if (cut <= 0) break
+    dir = dir.slice(0, cut)
+    dirs.push(dir)
+  }
+  return dirs
+}
+
+// The first pointer file found, nearest directory first.
+async function findPointer($: EngineInterface, root: string) {
+  for (const dir of lineage(root)) {
+    const flowDir = join(join(dir, '.claude'), 'flow')
+    for (const pointer of ['current', 'planning'] as const) {
+      const pointerPath = join(flowDir, pointer)
+      if (await $.fs.exists(pointerPath)) return { pointer, pointerPath }
+    }
+  }
+  return undefined
+}
+
 async function readFlow($: EngineInterface): Promise<FlowState> {
   const checkedAt = await $.clock.now()
-  const root = await $.session.root()
-  const flowDir = join(join(root, '.claude'), 'flow')
-  for (const pointer of ['current', 'planning'] as const) {
-    const pointerPath = join(flowDir, pointer)
-    if (!(await $.fs.exists(pointerPath))) continue
+  const found = await findPointer($, await $.session.root())
+  if (found) {
+    const { pointer, pointerPath } = found
     const taskFolder = (await readText($, pointerPath)).split(/\r?\n/)[0]?.trim() ?? ''
-    if (!taskFolder) continue
+    if (!taskFolder) return { ...EMPTY, checkedAt }
     const planPath = join(taskFolder, 'plan.md')
     const fm = frontmatter(await readText($, planPath))
     const round = Number(fm.review_round)
@@ -108,10 +133,14 @@ const sameFlow = (a: FlowState, b: FlowState) =>
 
 async function refresh($: EngineInterface) {
   const next = await readFlow($)
-  // Only a real change is written, so the band is redrawn when the stage
-  // moves, not on every poll.
-  await update($, flow, prev => (sameFlow(prev, next) ? prev : next))
+  const prev = await read($, flow)
+  if (sameFlow(prev, next)) return
+  // Only a real change is written and drawn, so the band moves with the
+  // stage, not with every poll. The invalidate covers a band that last had
+  // nothing to draw: the engine keeps that answer until asked again.
+  await update($, flow, () => next)
   $.ui.status(statusLine(next))
+  $.ui.invalidate('ui.render')
 }
 
 const metaOf = (f: FlowState) =>
@@ -175,7 +204,11 @@ const track = ({ Text }: Controls, f: FlowState) => {
   )
 }
 
-const toggleView = ($: EngineInterface) => update($, view, v => (v === 'full' ? 'auto' : 'full'))
+const toggleView = async ($: EngineInterface) => {
+  const now = await update($, view, v => (v === 'full' ? 'auto' : 'full'))
+  $.ui.invalidate('ui.render')
+  return now
+}
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {

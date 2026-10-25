@@ -1,4 +1,4 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 const BAND = {
   plugin: 'dev-flow-panel',
@@ -122,4 +122,41 @@ test('more expands the band to the stage list, the hint and the flags; less fold
   expect(await folded.find({ type: 'Text', text: /✓ Planning/ })).toBeUndefined()
   expect((await folded.find({ type: 'Button', key: 'view' }))?.text).toMatch(/more/)
   await folded.unmount()
+})
+
+test('the poll picks up a stage change in plan.md and a pointer at the git root above the session', async ($, on) => {
+  // The session starts in a subfolder; the pointer sits at the repository root.
+  const files: Record<string, string> = {
+    '/repo/.claude/flow/planning': '/repo/.claude/plans/t\n',
+    '/repo/.claude/plans/t/plan.md': '---\ntask: login fix\nstatus: draft\n---\n',
+  }
+  let invalidated = 0
+  const clock = mock.clock(on)
+  on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
+  on('ui.status', () => ({ value: undefined }))
+  on('ui.invalidate', () => { invalidated += 1; return { value: undefined } })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.root', () => ({ value: '/repo/apps/web' }))
+  on('fs.exists', (_, e) => ({ value: e.path in files }))
+  on('fs.read', (_, e) => ({ value: files[e.path] ?? '' }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false } }))
+
+  await $.session.start({ cwd: '/repo/apps/web', surface: 'desktop', isInteractive: true })
+
+  const planning = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await planning.find({ type: 'Text', text: /Planning/ })).toBeDefined()
+  await planning.unmount()
+
+  // The plan is approved and the planning pointer gives way to current.
+  delete files['/repo/.claude/flow/planning']
+  files['/repo/.claude/flow/current'] = '/repo/.claude/plans/t\n'
+  files['/repo/.claude/plans/t/plan.md'] = '---\ntask: login fix\nstatus: approved\nmode: lite\n---\n'
+  // One poll period passes; the refresh it runs settles with the advance.
+  await clock.advance(4000)
+
+  const approved = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await approved.find({ type: 'Text', text: /Approved/ })).toBeDefined()
+  expect(await approved.find({ type: 'Text', text: /lite/ })).toBeDefined()
+  expect(invalidated).toBeGreaterThan(0)
+  await approved.unmount()
 })
