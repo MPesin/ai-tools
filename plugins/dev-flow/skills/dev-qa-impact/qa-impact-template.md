@@ -20,7 +20,15 @@ classes, functions, methods, commits, diffs, variables, tests by name, or code t
 
 <2 to 5 short sentences: what a user, an admin or an integrated system now sees or gets that is different. Say which screens, features or flows. If nothing is visible to users (an internal change), say so and name what it affects.>
 
-## 2. Regression tests to run
+## 2. Scope of development
+
+What the development covered and what it deliberately did not, so QA knows where to look and what to leave alone.
+
+| In scope | Out of scope |
+|---|---|
+| <feature, screen, flow, integration or data the change touched> | <related area that was left as it was, one per line> |
+
+## 3. Regression tests to run
 
 Existing behaviour that this change could have broken. Highest risk first. Every row is something QA already knows how to test.
 
@@ -28,7 +36,7 @@ Existing behaviour that this change could have broken. Highest risk first. Every
 |---|---|---|---|---|
 | 1 | <area> | <the existing behaviour to re-check> | <what in the change touches it> | <High / Medium / Low> |
 
-## 3. New behaviour to verify
+## 4. New behaviour to verify
 
 What is new or changed on purpose and has no existing test to fall back on.
 
@@ -36,7 +44,7 @@ What is new or changed on purpose and has no existing test to fall back on.
 |---|---|---|---|
 | 1 | <feature> | <what should happen> | <screen, flow, setting, API consumer> |
 
-## 4. Differences from the requirements
+## 5. Differences from the requirements
 
 Everything that was built differently from the PRD / HLD / work item, or not built. Empty means none were found in the provided requirements.
 
@@ -46,14 +54,6 @@ Everything that was built differently from the PRD / HLD / work item, or not bui
 
 Requirements the provided specs do not mention are listed here as "Not covered by provided specs", never as missing.
 
-## 5. Setup QA needs
+## 6. Setup QA needs
 
 <Flags, settings, tenants, accounts, test data, migrations or integrations that must be in place before testing. "None" if nothing.>
-
-## 6. Not affected
-
-<Areas checked and found untouched, one line each, so QA can skip them. "None checked" if nothing was ruled out.>
-
-## 7. Open questions for dev / product
-
-<Questions whose answer changes what QA should test. "None" if nothing.>

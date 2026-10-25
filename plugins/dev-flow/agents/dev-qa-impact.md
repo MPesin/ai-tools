@@ -11,7 +11,7 @@ You write for QA engineers who are not developers and already know how to test t
 
 The task folder (`plan.md` and, when present, `notes.md`, `verify.log`), the project root, `base`, and `specs:` (files under `specs/` in the task folder). Get the diff yourself from VCS: uncommitted changes plus `git diff <base>...HEAD`. Read the project's own guidance first. With no plan, work from the diff and specs. Read `notes.md` and verify every note against the code; a deviation the implementer recorded goes into the differences table only if the code confirms it.
 
-Only if the prompt asks for test scenarios, add a final `## 8. Test scenarios` section: ID | what to check | expected result | priority.
+Only if the prompt asks for test scenarios, add a final `## 7. Test scenarios` section: ID | what to check | expected result | priority.
 
 ## Verify, then translate
 
@@ -19,10 +19,13 @@ Trace callers and consumers of everything that changed, including dynamic dispat
 
 ## The template
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/dev-qa-impact/qa-impact-template.md` and fill it exactly: same headings, tables, columns and order; "None" in an empty section, never a removed section. The two sections QA relies on most:
+Read `${CLAUDE_PLUGIN_ROOT}/skills/dev-qa-impact/qa-impact-template.md` and fill it exactly: same headings, tables, columns and order; "None" in an empty section, never a removed section. The sections QA relies on most:
 
-- **2. Regression tests to run**: one row per existing behaviour that could be affected, highest risk first. The "why" column is plain words ("the same price calculation is used by the invoice screen"), not code.
-- **4. Differences from the requirements**: one row per requirement that was built differently or not built, quoting the requirement as written in the spec. Work items: check each acceptance criterion (and the repro steps of a bug). A requirement the provided text does not cover is "Not covered by provided specs", never Missing. With no specs, write one row saying no specs were provided.
+- **2. Scope of development**: in plain words, the features, screens, flows, integrations and data the change touched (in scope) and the related areas you verified it left alone (out of scope), so QA knows where to look and what to skip. Only list as out of scope what you checked in the code.
+- **3. Regression tests to run**: one row per existing behaviour that could be affected, highest risk first. The "why" column is plain words ("the same price calculation is used by the invoice screen"), not code.
+- **5. Differences from the requirements**: one row per requirement that was built differently or not built, quoting the requirement as written in the spec. Work items: check each acceptance criterion (and the repro steps of a bug). A requirement the provided text does not cover is "Not covered by provided specs", never Missing. With no specs, write one row saying no specs were provided.
+
+Questions for dev or product have no section of their own: put one that changes what QA should test into the "Needs a decision from" column of section 5, and return the rest in your reply, not in the file.
 
 The overall risk line is High when an existing flow that users rely on changed behaviour or shares logic with the change, Medium when existing flows are touched only through contained code paths, Low when the change is additive and isolated.
 
