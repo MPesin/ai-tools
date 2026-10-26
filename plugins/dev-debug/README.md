@@ -37,7 +37,7 @@ It never edits source, not even to add a print statement. The only files it writ
 The task folder layout, the plan format and the `.claude/flow/planning` pointer are dev-flow's. With `dev-flow` installed:
 
 - its hooks guard the run: `dev-debugger` may write only `diagnosis*.md` and `debug/`, any other change to the working tree is reported in `violations.md`, the main session may write only the task folder, and commit, push and posting are blocked;
-- its Stop hook sends a desktop notification at the diagnosis gate (`waiting for you (diagnosing)`), and a restarted session is pointed back at `/dev-debug:dev-debug <task folder>`;
+- its Stop hook sends a desktop notification at the diagnosis gate (`waiting for you (confirm-cause)`), and a restarted session is pointed back at `/dev-debug:dev-debug <task folder>`;
 - `/dev-flow:dev-implement` runs the fix plan: the implementer writes the regression test first and appends its failing run to `verify.log` before fixing, the reviewer checks cause over symptom, the QA note lists the reported scenario as the first regression test;
 - the `dev-flow-panel` band gives a bug task its own stage list (Diagnosing, Confirm cause, Approved, then the implementing steps) and its Debug button starts or resumes this skill.
 
@@ -57,10 +57,10 @@ sequenceDiagram
     participant C as dev-plan-critic
 
     U->>M: /dev-debug:dev-debug "bug" (or a stack trace, failing test, work item)
-    M->>F: create folder, write .claude/flow/planning
+    M->>F: create folder, write .claude/flow/planning, plan.md stub with source dev-debug and status diagnosing
     M->>U: Paste the report / stack trace / log, or a work item ID; repro steps, environment, last good version?
     U-->>M: bug report
-    M->>F: specs/bug-report.md (verbatim), plan.md stub with status diagnosing
+    M->>F: specs/bug-report.md (verbatim); plan.md (status diagnosing, written at start) gets specs and Context
     Note over H: planning pointer exists -> main session may write only the task folder; commit/push/post blocked
     M->>D: task folder, project root, base, specs (nothing else; a theory in the report is a hypothesis)
     H-->>D: SubagentStart: flow state + snapshot of the working tree
@@ -69,7 +69,7 @@ sequenceDiagram
     H-->>D: SubagentStop: tree unchanged? otherwise block once, log violations.md
     D-->>M: path, confidence, reproduced?, root cause in one sentence
     M->>U: diagnosis summary
-    H-->>U: Stop: desktop notification "waiting for you (diagnosing)"
+    H-->>U: Stop: desktop notification "waiting for you (confirm-cause)"
 
     alt more facts or a disagreement
         U-->>M: "it also happens when ..."
