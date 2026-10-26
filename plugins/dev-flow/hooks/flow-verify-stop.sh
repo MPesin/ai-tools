@@ -9,35 +9,13 @@
 HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
 [ -f "$HERE/lib.sh" ] || HERE="${CLAUDE_PLUGIN_ROOT}/hooks"
 source "$HERE/lib.sh"
-
-# Before the usual lookup (which goes quiet when no pointer exists): the start
-# hook left task-<agent id> beside the pointer. If that marker is here and the
-# pointer is not, the pointer disappeared during this agent's run, by whatever
-# means; that is a violation even though every other guard is now off.
-agent_id=$(json_field agent_id)
-if [ -n "$agent_id" ]; then
-  POINTER_NAMES="task-$agent_id"
-  if marker=$(find_flow_pointer); then
-    flow_dir=${marker%/*}
-    if [ ! -f "$flow_dir/current" ] && [ ! -f "$flow_dir/planning" ]; then
-      folder=$(normalize_path "$(head -n 1 "$marker" | tr -d '\r')")
-      agent_type=$(json_field agent_type); agent_type=${agent_type##*:}
-      rm -f "$flow_dir/snap-$agent_id" "$flow_dir/snap-$agent_id.now" "$flow_dir/start-$agent_id" "$flow_dir/claim-$agent_id" "$marker"
-      json_bool_true stop_hook_active && exit 0
-      [ -d "$folder" ] && printf -- '- %s %s (%s): the flow pointer in %s disappeared during its run; the guards were off from then on\n' "$(now_utc)" "$agent_type" "$agent_id" "$flow_dir" >> "$folder/violations.md"
-      printf '{"decision":"block","reason":"%s"}\n' "$(json_escape "the flow pointer $flow_dir/current (or planning) disappeared during your run, so the dev-flow guards were off from then on. Do not recreate it. State in your final message whether you removed or moved it, with the command, or that you did not; the user decides how to continue")"
-      exit 0
-    fi
-  fi
-fi
-
 load_task_folder
 case $AGENT_TYPE in dev-*) ;; *) exit 0 ;; esac
 
 snap="$FLOW_DIR/snap-$AGENT_ID"
 marker="$FLOW_DIR/start-$AGENT_ID"
 claim_file="$FLOW_DIR/claim-$AGENT_ID"
-cleanup() { rm -f "$snap" "$snap.now" "$marker" "$claim_file" "$FLOW_DIR/task-$AGENT_ID"; }
+cleanup() { rm -f "$snap" "$snap.now" "$marker" "$claim_file"; }
 
 if json_bool_true stop_hook_active; then cleanup; exit 0; fi
 
