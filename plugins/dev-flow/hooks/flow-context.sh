@@ -20,6 +20,8 @@ if is_writing_agent "$AGENT_TYPE"; then
   if [ "$AGENT_TYPE" = dev-implementer ] && plan_has_packages; then
     context="$context This plan has work packages: before your first edit, write your package id (for example P2; or the word all if you were given no package) as the only content of $FLOW_DIR/claim-$AGENT_ID. Edits are refused until that file exists, and edits outside your package's Owns are refused."
   fi
+elif [ "$AGENT_TYPE" = dev-debugger ]; then
+  context="$context You are a read-only agent: write nothing but your diagnosis file in the task folder and reproduction scripts or captured output under $TASK_FOLDER/debug/. Never edit source, not even to instrument it. The plugin compares the working tree before and after your run and reports every other changed file to the user."
 else
   context="$context You are a read-only agent: write nothing but your own output file. The plugin compares the working tree before and after your run and reports every other changed file to the user."
 fi

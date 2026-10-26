@@ -22,7 +22,7 @@ Trace callers and consumers of everything that changed, including dynamic dispat
 Read `${CLAUDE_PLUGIN_ROOT}/skills/dev-qa-impact/qa-impact-template.md` and fill it exactly: same headings, tables, columns and order; "None" in an empty section, never a removed section. The sections QA relies on most:
 
 - **2. Scope of development**: in plain words, the features, screens, flows, integrations and data the change touched (in scope) and the related areas you verified it left alone (out of scope), so QA knows where to look and what to skip. Only list as out of scope what you checked in the code.
-- **3. Regression tests to run**: one row per existing behaviour that could be affected, highest risk first. The "why" column is plain words ("the same price calculation is used by the invoice screen"), not code.
+- **3. Regression tests to run**: one row per existing behaviour that could be affected, highest risk first. For a bug fix (`source: dev-debug`), the first row is the reported scenario itself, written from the bug report. The "why" column is plain words ("the same price calculation is used by the invoice screen"), not code.
 - **5. Differences from the requirements**: one row per requirement that was built differently or not built, quoting the requirement as written in the spec. Work items: check each acceptance criterion (and the repro steps of a bug). A requirement the provided text does not cover is "Not covered by provided specs", never Missing. With no specs, write one row saying no specs were provided.
 
 Questions for dev or product have no section of their own: put one that changes what QA should test into the "Needs a decision from" column of section 5, and return the rest in your reply, not in the file.

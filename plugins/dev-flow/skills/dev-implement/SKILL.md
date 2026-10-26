@@ -1,6 +1,6 @@
 ---
 name: dev-implement
-description: Use when the user wants to implement an approved plan and take it through review in any project — Implement, Claude code review, fix findings, human code review, fix human findings, QA impact — with each Claude stage run by a subagent. Starts from an approved plan path produced by /dev-flow:dev-plan or written by hand. Trigger on "/dev-implement", "implement this plan", "run the dev flow", "implement and review this plan".
+description: Use when the user wants to implement an approved plan and take it through review in any project — Implement, Claude code review, fix findings, human code review, fix human findings, QA impact — with each Claude stage run by a subagent. Starts from an approved plan path produced by /dev-flow:dev-plan or by the dev-debug plugin's /dev-debug:dev-debug, or written by hand. Trigger on "/dev-implement", "implement this plan", "run the dev flow", "implement and review this plan".
 ---
 
 # Dev Implement
@@ -39,7 +39,7 @@ Set `status: implementing` in `plan.md` before the first Agent call; the guard r
 
 If the plan has work packages, run them in waves: all packages whose dependencies are done start together as parallel `dev-implementer` subagents (several Agent calls in one message). Each prompt contains only the task folder path, project root, plan path, and its package id. The hooks hand each implementer the path of its claim file at start and refuse edits outside its package's `Owns`; you pass nothing else. Wait for the whole wave before starting the next. After each wave read the `[Pn]` lines in `notes.md`, tick the matching `- [x]` boxes in `plan.md` yourself, check `violations.md`, and stop on any package that reported a blocked step or a file it does not own. The `Integration` package runs last, alone.
 
-Plans without packages run as one implementer whose prompt contains only the task folder path, project root and plan path. It ticks `plan.md` itself.
+Plans without packages run as one implementer whose prompt contains only the task folder path, project root and plan path. It ticks `plan.md` itself. A bug-fix plan (`source: dev-debug`) is always sequential: the implementer writes the regression test first and appends its failing run to `verify.log` before fixing; if it reports that the test passed before the fix, stop and show the user, since the diagnosis or the test is wrong.
 
 The implementer takes a test baseline first, implements, runs the project's build and test commands and appends them with their raw output to `verify.log`, and writes discrepancies to `notes.md`.
 

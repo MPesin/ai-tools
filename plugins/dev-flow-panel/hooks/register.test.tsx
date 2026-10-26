@@ -48,7 +48,7 @@ test('without an active task the band yields to the engine until /dev-flow-panel
     const band = await $.ui.mount({ ...BAND, surface })
     expect(await band.find({ type: 'Text', text: /No active task/ })).toBeDefined()
     expect(await band.find({ type: 'Text', text: /○ Planning/ })).toBeDefined()
-    expect(await band.findAll({ type: 'Button' })).toHaveLength(5)
+    expect(await band.findAll({ type: 'Button' })).toHaveLength(6)
     await band.unmount()
   }
 })
@@ -167,6 +167,51 @@ test('while the plan is a draft, Implement is dim and a press explains instead o
   await approved.press({ key: 'implement' })
   expect(ran).toEqual(['/dev-flow:dev-implement /p/.claude/plans/t/plan.md'])
   await approved.unmount()
+})
+
+test('while the debugger works, the band shows Diagnosing in the first slot, Debug resumes the gate and Implement explains', async ($, on) => {
+  const files: Record<string, string> = {
+    '/p/.claude/flow/planning': '/p/.claude/plans/b\n',
+    '/p/.claude/plans/b/plan.md': '---\ntask: crash on save\nsource: dev-debug\nstatus: diagnosing\n---\n',
+  }
+  const ran: string[] = []
+  const toasts: string[] = []
+  on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
+  on('ui.status', () => ({ value: undefined }))
+  on('ui.invalidate', () => ({ value: undefined }))
+  on('ui.toast', (_, e) => { toasts.push(e.text); return { value: undefined } })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.root', () => ({ value: '/p' }))
+  on('clock.now', () => ({ value: 1 }))
+  on('clock.every', () => ({ value: undefined }))
+  on('fs.exists', (_, e) => ({ value: e.path in files }))
+  on('fs.read', (_, e) => ({ value: files[e.path] ?? '' }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false } }))
+  on('command.run', (_, e) => {
+    ran.push(`/${e.command} ${e.args}`.trim())
+    return { text: 'ran' }
+  })
+
+  await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
+
+  const compact = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await compact.find({ type: 'Text', text: /Diagnosing/ })).toBeDefined()
+  expect(await compact.find({ type: 'Text', text: /crash on save/ })).toBeDefined()
+  await compact.press({ key: 'implement' })
+  expect(ran).toEqual([])
+  expect(toasts.at(-1)).toMatch(/diagnosis/)
+  await compact.press({ key: 'debug' })
+  expect(ran).toEqual(['/dev-debug:dev-debug /p/.claude/plans/b'])
+  await compact.press({ key: 'view' })
+  await compact.unmount()
+
+  // Expanded: Diagnosing takes Planning's place in the list; the steps ahead are unchanged.
+  const full = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await full.find({ type: 'Text', text: /◉ Diagnosing/ })).toBeDefined()
+  expect(await full.find({ type: 'Text', text: /Planning/ })).toBeUndefined()
+  expect(await full.find({ type: 'Text', text: /○ Approved/ })).toBeDefined()
+  await full.press({ key: 'view' })
+  await full.unmount()
 })
 
 test('the poll picks up a stage change in plan.md and a pointer at the git root above the session', async ($, on) => {

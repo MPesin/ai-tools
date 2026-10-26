@@ -1,6 +1,6 @@
 # dev-flow
 
-Plan, implement, review, and QA-impact flow for any project, run by subagents and guarded by hooks. Works on Linux, macOS and Windows (Git Bash).
+Plan, implement, review, and QA-impact flow for any project, run by subagents and guarded by hooks. Bugs start in the companion `dev-debug` plugin, whose diagnosis becomes a fix plan this flow implements. Works on Linux, macOS and Windows (Git Bash).
 
 ```
 /plugin install dev-flow --marketplace MPesin/ai-tools
@@ -16,7 +16,7 @@ Plans are designed as work packages (disjoint file ownership, explicit dependenc
 
 Plan structure, task folder layout, work packages, pointer files and specs intake are in `skills/dev-implement/plan-format.md`. The QA note template is `skills/dev-qa-impact/qa-impact-template.md`.
 
-The companion plugin `dev-flow-panel` (same marketplace) adds a pane with buttons for the three skills and a coloured view of the current stage.
+The companion plugin `dev-debug` (same marketplace) diagnoses bugs and hands this flow an approved fix plan; `dev-flow-panel` adds a band above the prompt with buttons for both plugins' skills and a coloured view of the current stage.
 
 ## How the flow runs
 
@@ -71,6 +71,7 @@ sequenceDiagram
 ```
 
 "Fix the critique and start implementing" in one reply is handled the same way: the plan is fixed, approved (status, mode, pointer deleted), and then the `dev-implement` skill is invoked, so Intake and the `status: implementing` transition still happen. The guard refuses to spawn any other dev-flow stage agent at that point.
+
 
 ### Implementing: `/dev-flow:dev-implement`
 
@@ -166,6 +167,16 @@ Reading the diagrams: the task folder is the only channel between stages (every 
 
 `dev-planner`, `dev-plan-critic`, `dev-implementer`, `dev-reviewer`, `dev-fixer`, `dev-review-triager`, `dev-qa-impact`. They carry the flow's hard rules; skills pass only task data and paths.
 
+## Bug fixes from `dev-debug`
+
+Features and changes are planned here. A bug is diagnosed first by the `dev-debug` plugin (`/dev-debug:dev-debug`): its read-only `dev-debugger` agent reproduces the bug and writes `diagnosis.md`; the user confirms the cause; the skill writes an approved `plan.md` with `source: dev-debug` in the same task folder layout and invokes `/dev-flow:dev-implement`. This plugin treats such a plan as a bug fix:
+
+- the implementer writes the regression test first and appends its failing run to `verify.log` before touching code, and stops if the test already passes;
+- the reviewer re-derives the cause from the code and checks the change removes it rather than the symptom, and that the same defect does not survive at sibling sites;
+- the QA note lists the reported scenario as the first regression test.
+
+The hooks know the debugger too: while `dev-debug` runs under the `planning` pointer with `status: diagnosing`, `dev-debugger` may write only `diagnosis*.md` and `debug/` in the task folder (never source, not even to instrument it), any other change to the working tree is reported, the main session may write only the task folder, and the Stop hook notifies at the diagnosis gate. Without `dev-flow` installed, `dev-debug` still works; only these guards are missing. There is no separate bug-fixer agent: the hooks, the status panel and the review loop all key on `plan.md`, so the fix is a plan like any other.
+
 ## What your project's rules file provides
 
 The plugin knows no language, framework, build tool, tracker or hosting platform. Everything project-specific comes from the project's own guidance (CLAUDE.md, AGENTS.md or whatever the project uses), which every agent reads first. A project that wants the most out of the flow states there:
@@ -173,6 +184,7 @@ The plugin knows no language, framework, build tool, tracker or hosting platform
 ```markdown
 ## Build and test
 - Build: <command>; test: <command>; scope a run to a change by <how>.
+- Run the program with an input: <command> (the debugger reproduces bugs with it).
 - Safe to run side by side (parallel work packages): <commands or "none">.
 
 ## Conventions
@@ -189,17 +201,17 @@ Where the rules file is silent, the agents ask or say so; they do not fall back 
 
 ## Hooks
 
-Active only while `<project>/.claude/flow/current` (implementing) or `planning` exists, except the Agent gate below, which also refuses to start a stage agent when no pointer exists. Delete the pointer file to switch the rest off.
+Active only while `<project>/.claude/flow/current` (implementing) or `planning` (planning or debugging) exists, except the Agent gate below, which also refuses to start a stage agent when no pointer exists. Delete the pointer file to switch the rest off.
 
 | Hook | What it does |
 |---|---|
 | PreToolUse on Bash and PowerShell | Blocks `git commit/push/checkout/restore/stash/clean/rebase/merge/reset --hard`, `gh`/`glab`/`az` commands that post or change anything, publishing (`dotnet nuget push`, `npm publish`, `docker push`, ...). Parses the command (quotes, `&&`, `;`, `$()`, wrappers like `sudo`/`timeout`, `bash -c "..."`, `cmd /c "..."`, `wsl`), so `grep "git commit"` passes and `git -C "my repo" push` does not. |
 | PreToolUse on `mcp__*` | Blocks MCP tools whose names read like writes (`create_pull_request`, `wit_update_work_item`, `add_issue_comment`, ...). |
-| PreToolUse on Edit/Write/NotebookEdit | Reviewer, plan critic, QA and triager may write only their own file in the task folder; the planner only inside the task folder; implementers in package mode only inside their package's `Owns` (after writing a claim file) and never `plan.md`; the main session, while planning, only the task folder. |
-| PreToolUse on Agent | Implementer, reviewer, fixer and triager are spawned only at their own plan status (`implementing`; `reviewing`; `reviewing` or `human-review`; `human-review`), and refused while `planning` exists, when no pointer exists, or when `current` names a missing folder or one without `plan.md`, so a flow cannot run with the guards off and the status panel stale. This one runs even without a pointer. Planner, critic and QA are not gated: QA also runs standalone. |
+| PreToolUse on Edit/Write/NotebookEdit | Reviewer, plan critic, QA and triager may write only their own file in the task folder; the debugger only `diagnosis*.md` and files under `debug/` there (never source, not even to instrument it); the planner only inside the task folder; implementers in package mode only inside their package's `Owns` (after writing a claim file) and never `plan.md`; the main session, while planning, only the task folder. |
+| PreToolUse on Agent | Implementer, reviewer, fixer and triager are spawned only at their own plan status (`implementing`; `reviewing`; `reviewing` or `human-review`; `human-review`), and refused while `planning` exists, when no pointer exists, or when `current` names a missing folder or one without `plan.md`, so a flow cannot run with the guards off and the status panel stale. This one runs even without a pointer. Planner, critic, debugger and QA are not gated: the debugger and QA also run standalone. |
 | SubagentStart | Injects the flow state; snapshots the working tree; excludes `.claude/flow/` and `.claude/plans/` from `git status` via `.git/info/exclude`. |
 | SubagentStop | Compares the tree with the snapshot: a read-only agent that changed anything, or an implementer that changed files outside every package's `Owns`, is blocked once with the list and the change is appended to `violations.md`. Implementers and fixers must have appended this run's build/test output to `verify.log` (a `[Pn]` block in package mode) and their notes. |
-| Stop | At `draft`, `human-review`, `blocked`, `done`, or when `needs-decision.md` / `violations.md` appear: a terminal message and one desktop notification per state (PowerShell toast on Windows and WSL, `osascript` on macOS, `notify-send` on Linux; `DEV_FLOW_NOTIFY_CMD="<program>"` overrides, called with title and message). |
+| Stop | At `diagnosing`, `draft`, `human-review`, `blocked`, `done`, or when `needs-decision.md` / `violations.md` appear: a terminal message and one desktop notification per state (PowerShell toast on Windows and WSL, `osascript` on macOS, `notify-send` on Linux; `DEV_FLOW_NOTIFY_CMD="<program>"` overrides, called with title and message). |
 | SessionStart (startup, resume, compact) | Re-injects the active task folder, status and how to continue; warns when the pointer is older than two days. |
 
 The hooks are bash (3.2 or newer, so macOS's `/bin/bash` and Git Bash both work) and need no `jq`. `bash hooks/test-hooks.sh` runs the assertion suite on any of the three systems.

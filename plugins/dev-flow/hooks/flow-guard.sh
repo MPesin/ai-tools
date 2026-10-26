@@ -2,7 +2,7 @@
 # PreToolUse guard. Active while <project>/.claude/flow/current or /planning exists.
 #   Bash, PowerShell  -> no commit/push/discard, no posting, no publishing (commands.sh)
 #   mcp__*            -> no MCP tools that write to external systems
-#   Edit/Write/NotebookEdit -> per-agent write allowances (table below)
+#   Edit/Write/NotebookEdit -> per-agent write allowances (case table below)
 #   Agent (Task)      -> a stage agent is spawned only at its own plan status (stage_gate);
 #                        checked even without a pointer, since a missing pointer is the finding
 HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
@@ -27,8 +27,10 @@ stage_gate() {
     dev-fixer)          want='reviewing|human-review' ;;
     dev-review-triager) want=human-review ;;
     # Not gated: dev-planner and dev-plan-critic run under the planning pointer or
-    # before Intake (harden mode); dev-qa-impact also runs standalone, with no plan
-    # or with another task's pointer in place, and is read-only (write guard above).
+    # before Intake (harden mode); dev-debugger (the dev-debug plugin) runs under the
+    # planning pointer (status diagnosing) or standalone for a diagnosis without a fix; dev-qa-impact
+    # also runs standalone, with no plan or with another task's pointer in place.
+    # All four are read-only (write guard above).
     *) return 0 ;;
   esac
   POINTER_NAMES="current planning"
@@ -114,6 +116,14 @@ case $AGENT_TYPE in
   dev-plan-critic)    only_file 'plan-critique.md' ;;
   dev-qa-impact)      only_file 'qa-impact.md' ;;
   dev-review-triager) only_file 'human-review.md' ;;
+  dev-debugger)
+    # diagnosis.md (or diagnosis-2.md for a second opinion) plus reproduction
+    # scripts and captured output under debug/; never the source tree.
+    if in_task; then
+      case $base in diagnosis*.md) exit 0 ;; esac
+      path_under "$target" "$TASK_FOLDER/debug" && exit 0
+    fi
+    deny "dev-debugger may only write $TASK_FOLDER/diagnosis*.md and files under $TASK_FOLDER/debug/ (attempted: $target). Never edit source, not even to instrument it: record what you would add under Open questions." ;;
   dev-planner)
     in_task || deny "dev-planner may only write inside $TASK_FOLDER (attempted: $target)."
     exit 0 ;;
