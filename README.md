@@ -102,7 +102,9 @@ Three skills for any project, in any language, on Linux, macOS and Windows
 
 While a flow is active, **hooks enforce what the prompts promise**: no
 `git commit/push/checkout/stash/clean`, no posting to PRs or work items
-(`gh`, `glab`, `az`, MCP tools), no publishing; read-only agents may write
+(`gh`, `glab`, `az`, MCP tools), no publishing, no deleting or moving the
+flow's pointer file by any agent (a pointer that vanishes during a
+subagent's run is reported); read-only agents may write
 only their one output file and any other change to the working tree is
 detected and reported; implementers may edit only their package's files;
 implementers must leave their build/test output in `verify.log` before they

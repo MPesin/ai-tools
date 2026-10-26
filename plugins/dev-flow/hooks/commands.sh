@@ -111,6 +111,7 @@ check_simple() {
   a=("${w[@]:$((i+1))}")
   case $cmd in
     git)  check_git "${a[@]}" ;;
+    rm|unlink|shred|del|erase|rmdir|remove-item|ri|mv|move|rename|move-item|mi|rename-item|rni) check_remove "$cmd" "${a[@]}" ;;
     gh)   check_gh "${a[@]}" ;;
     glab) check_glab "${a[@]}" ;;
     az)   check_az "${a[@]}" ;;
@@ -148,6 +149,59 @@ check_git() {
       for x in "${rest[@]}"; do case $x in -d|-D|-f|-m|-M|--delete|--force|--move) deny "git branch $x is not allowed during the flow." ;; esac; done ;;
   esac
   return 0
+}
+
+# The flow's state files: <project>/.claude/flow/current|planning|finished and the
+# hooks' markers beside them. Deleting the pointer switches every guard off, so
+# no agent may remove or move anything under .claude/flow (or .claude itself),
+# and the main session may only rename current to finished at status done (the
+# final report) or delete planning (approval or abandonment). The user switches
+# the guards off from their own terminal, which no hook sees.
+# flow_file ARG -> prints current|planning|finished|dir|marker|claude|'' ; slashes and
+# backslashes are dropped first so .claude\flow\current (PowerShell, or a bash
+# word whose backslashes split_quotes already ate) reads like .claude/flow/current.
+flow_file() {
+  local w=$1 re='^q([0-9]+)$'
+  if [[ $w =~ $re ]]; then w=${QS[${BASH_REMATCH[1]}]}; w=$(lower "$w"); fi
+  w=$(printf '%s' "$w" | tr -d '/\\')
+  case $w in
+    *.claudeflowcurrent)  printf current ;;
+    *.claudeflowplanning) printf planning ;;
+    *.claudeflowfinished) printf finished ;;
+    *.claudeflow)         printf dir ;;
+    *.claudeflow*)        printf marker ;;
+    .claude|*.claude) printf claude ;;
+  esac
+}
+
+check_remove() {
+  local cmd=$1; shift
+  local x f agent files='' who
+  agent=$(json_field agent_type)
+  for x in "$@"; do
+    is_option "$x" && continue
+    f=$(flow_file "$x")
+    [ -n "$f" ] && files="$files $f"
+  done
+  [ -n "$files" ] || return 0
+  who=${agent:+the $agent agent}; who=${who:-the main session}
+  case $files in
+    *claude*) deny "$cmd on .claude removes the flow state and the plans; not allowed during the flow." ;;
+  esac
+  [ -n "$agent" ] && deny "$cmd on .claude/flow is not allowed for an agent: deleting or moving the flow pointer switches every guard off. Leave the pointer alone and report what you wanted to do."
+  case $cmd in
+    mv|move|rename|move-item|mi|rename-item|rni)
+      case $files in
+        " current finished"|" finished current")
+          [ "$(frontmatter_value status)" = done ] && return 0
+          deny "renaming the current pointer to finished is the final report's last step and needs status: done in plan.md (now: $(frontmatter_value status))." ;;
+      esac
+      deny "$cmd on the flow pointer is not allowed; the main session only renames current to finished at status done." ;;
+  esac
+  case $files in
+    *current*|*finished*|*dir*) deny "$cmd on the flow pointer is not allowed from here: the final report renames current to finished and the Stop hook removes it. To switch the guards off, the user deletes $POINTER from their own terminal." ;;
+  esac
+  return 0    # planning (approval or abandonment) and the hooks' own markers
 }
 
 # gh/glab api: deny anything that is not a plain GET

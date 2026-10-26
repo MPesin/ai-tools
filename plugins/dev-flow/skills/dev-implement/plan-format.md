@@ -64,7 +64,7 @@ Hooks use these to decide whether anything is active. Each contains the absolute
 - `<project>/.claude/flow/planning` — written by `dev-plan` (or the `dev-debug` plugin) at start, deleted on approval or abandonment.
 - `<project>/.claude/flow/finished` — makes the Stop hook send the "done" notification; the hook then deletes it.
 
-The hooks keep their own marker files beside them (`start-*`, `snap-*`, `claim-*`, `notified`); they are removed at `finished`. Deleting the pointer switches every guard off, except that the stage agents (implementer, reviewer, fixer, triager) cannot be spawned until `dev-implement` Intake writes `current` again.
+The hooks keep their own marker files beside them (`start-*`, `snap-*`, `task-*`, `claim-*`, `notified`); they are removed at `finished`. Deleting the pointer switches every guard off, except that the stage agents (implementer, reviewer, fixer, triager) cannot be spawned until `dev-implement` Intake writes `current` again, and that a pointer which disappears during a subagent's run is reported in `violations.md`. No tool call may delete or move a pointer: the command guard refuses it for every agent and lets the main session only rename `current` to `finished` at `status: done` (the final report) or delete `planning` (approval or abandonment). The user deletes a pointer from their own terminal.
 
 ## Specs intake
 

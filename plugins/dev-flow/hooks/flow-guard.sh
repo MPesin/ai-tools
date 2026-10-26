@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse guard. Active while <project>/.claude/flow/current or /planning exists.
-#   Bash, PowerShell  -> no commit/push/discard, no posting, no publishing (commands.sh)
+#   Bash, PowerShell  -> no commit/push/discard, no posting, no publishing, no deleting or
+#                        moving the flow pointer (commands.sh)
 #   mcp__*            -> no MCP tools that write to external systems
 #   Edit/Write/NotebookEdit -> per-agent write allowances (case table below)
 #   Agent (Task)      -> a stage agent is spawned only at its own plan status (stage_gate);

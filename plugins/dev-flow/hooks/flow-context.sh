@@ -9,7 +9,10 @@ load_task_folder
 case $AGENT_TYPE in dev-*) ;; *) exit 0 ;; esac
 
 ensure_git_exclude
-[ -n "$AGENT_ID" ] && tree_snapshot > "$FLOW_DIR/snap-$AGENT_ID"
+if [ -n "$AGENT_ID" ]; then
+  tree_snapshot > "$FLOW_DIR/snap-$AGENT_ID"
+  printf '%s\n' "$TASK_FOLDER" > "$FLOW_DIR/task-$AGENT_ID"   # read at SubagentStop if the pointer is gone
+fi
 
 branch=$(git -C "$GIT_ROOT" symbolic-ref --short HEAD 2>/dev/null || echo unknown)
 context="Dev-flow is active. Task folder: $TASK_FOLDER. Project root: $GIT_ROOT. Branch: $branch. status: $(frontmatter_value status). mode: $(frontmatter_value mode). review_round: $(frontmatter_value review_round). base: $(frontmatter_value base)."

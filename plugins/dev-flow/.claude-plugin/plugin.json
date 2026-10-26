@@ -1,6 +1,6 @@
 {
   "name": "dev-flow",
-  "version": "2.2.0",
-  "description": "Plan, implement, review and QA-impact flow run by subagents and guarded by hooks: /dev-flow:dev-plan, /dev-flow:dev-implement, /dev-flow:dev-qa-impact; implements the regression-test-first fix plans the dev-debug plugin writes from a confirmed diagnosis. Hooks block commit/push/discard, posting and publishing (Bash, PowerShell, MCP), enforce per-agent and per-package write limits, spawn each stage agent only at its plan status, require build/test evidence in verify.log, detect any other change to the working tree, and notify at the human gates. Bash 3.2+ hooks run on Linux, macOS and Windows (Git Bash).",
+  "version": "2.3.0",
+  "description": "Plan, implement, review and QA-impact flow run by subagents and guarded by hooks: /dev-flow:dev-plan, /dev-flow:dev-implement, /dev-flow:dev-qa-impact; implements the regression-test-first fix plans the dev-debug plugin writes from a confirmed diagnosis. Hooks block commit/push/discard, posting and publishing (Bash, PowerShell, MCP) and any deletion or move of the flow pointer by an agent, enforce per-agent and per-package write limits, spawn each stage agent only at its plan status, require build/test evidence in verify.log, detect any other change to the working tree, and notify at the human gates. Bash 3.2+ hooks run on Linux, macOS and Windows (Git Bash).",
   "author": { "name": "Michael Pesin" }
 }

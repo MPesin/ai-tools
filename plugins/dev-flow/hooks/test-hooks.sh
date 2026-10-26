@@ -126,6 +126,36 @@ expect_allow "echo remember to git push"        flow-guard.sh "$(bash_json '' 'e
 expect_allow "heredoc body mentions git push"   flow-guard.sh "$(bash_json '' 'cat >> notes.md <<EOF\ndid not run git push\nEOF')"
 expect_allow "git commit as a literal word arg" flow-guard.sh "$(bash_json '' 'rg \"git commit\" -l')"
 
+echo "== guard: the flow pointer is not deleted or moved by a tool call"
+expect_deny  "reviewer: rm .claude/flow/current"            flow-guard.sh "$(bash_json dev-flow:dev-reviewer 'rm .claude/flow/current')"
+assert "deny says guards switch off" 'case $err in *"switches every guard off"*) true;; *) false;; esac'
+expect_deny  "implementer: rm -rf .claude/flow"             flow-guard.sh "$(bash_json dev-flow:dev-implementer 'rm -rf .claude/flow')"
+expect_deny  "Explore agent: rm the pointer (any agent)"    flow-guard.sh "$(bash_json Explore 'rm -f .claude/flow/current')"
+expect_deny  "general-purpose: absolute path"               flow-guard.sh "$(bash_json general-purpose "rm $T/.claude/flow/current")"
+expect_deny  "agent: mv current elsewhere"                  flow-guard.sh "$(bash_json dev-flow:dev-fixer 'mv .claude/flow/current /tmp/x')"
+expect_deny  "agent: PowerShell Remove-Item backslashes"    flow-guard.sh "$(bash_json dev-flow:dev-reviewer 'Remove-Item .claude\\flow\\current' '' PowerShell)"
+expect_deny  "agent: quoted Windows path"                   flow-guard.sh "$(bash_json dev-flow:dev-reviewer 'del \"C:\\proj\\.claude\\flow\\planning\"' '' PowerShell)"
+expect_deny  "agent: chained: ls && rm pointer"             flow-guard.sh "$(bash_json dev-flow:dev-reviewer 'ls && rm .claude/flow/planning')"
+expect_deny  "agent: rm planning too"                       flow-guard.sh "$(bash_json dev-flow:dev-planner 'rm .claude/flow/planning')"
+expect_deny  "main session: rm .claude/flow/current"        flow-guard.sh "$(bash_json '' 'rm .claude/flow/current')"
+assert "deny names the user's own terminal" 'case $err in *"own terminal"*) true;; *) false;; esac'
+expect_deny  "main session: rm -rf .claude"                 flow-guard.sh "$(bash_json '' 'rm -rf .claude')"
+expect_deny  "main session: rm -rf .claude/flow"            flow-guard.sh "$(bash_json '' 'rm -rf .claude/flow/')"
+expect_allow "main session: rm .claude/flow/planning"       flow-guard.sh "$(bash_json '' 'rm .claude/flow/planning')"
+expect_allow "main session: rm a hook marker"               flow-guard.sh "$(bash_json '' 'rm .claude/flow/snap-x')"
+expect_deny  "main session: mv current finished at implementing" flow-guard.sh "$(bash_json '' 'mv .claude/flow/current .claude/flow/finished')"
+assert "deny names status done" 'case $err in *"status: done"*) true;; *) false;; esac'
+plan done
+expect_allow "main session: mv current finished at done"    flow-guard.sh "$(bash_json '' 'mv .claude/flow/current .claude/flow/finished')"
+expect_allow "main session: mv with absolute paths at done" flow-guard.sh "$(bash_json '' "mv $T/.claude/flow/current $T/.claude/flow/finished")"
+expect_deny  "main session: mv current elsewhere at done"   flow-guard.sh "$(bash_json '' 'mv .claude/flow/current .claude/flow/old')"
+plan implementing
+expect_allow "rm of an ordinary file"                       flow-guard.sh "$(bash_json dev-flow:dev-fixer 'rm build/out.txt')"
+expect_allow "rm of a file merely named current"            flow-guard.sh "$(bash_json dev-flow:dev-fixer 'rm src/current')"
+expect_allow "cat the pointer"                              flow-guard.sh "$(bash_json dev-flow:dev-reviewer 'cat .claude/flow/current')"
+expect_allow "echo mentions rm of the pointer"              flow-guard.sh "$(bash_json dev-flow:dev-reviewer 'echo never rm .claude/flow/current')"
+expect_allow "grep -r rm pattern in flow dir"               flow-guard.sh "$(bash_json '' 'grep -rn current .claude/flow/')"
+
 echo "== guard: hosting platforms and publishing"
 expect_deny  "gh pr comment"      flow-guard.sh "$(bash_json '' 'gh pr comment 5 -b hi')"
 expect_deny  "gh pr create"       flow-guard.sh "$(bash_json '' 'gh pr create --fill')"
@@ -287,6 +317,15 @@ expect_block "reviewer changed a source file (via any means)" flow-verify-stop.s
 assert "violation logged" 'grep -q "dev-reviewer (r2): changed outside its allowance: src/foo/alpha.txt" task/violations.md'
 assert "block names the file" 'case $out in *src/foo/alpha.txt*) true;; *) false;; esac'
 git checkout -q -- src/foo/alpha.txt; rm -f task/violations.md
+run flow-context.sh "$(start_json r4 dev-flow:dev-reviewer)"
+assert "task marker written" '[ "$(cat .claude/flow/task-r4 | tr -d "\r")" = "$(hp "$T/task")" ] || [ "$(cat .claude/flow/task-r4)" = "$T/task" ]'
+mv .claude/flow/current "$T/parked-current"
+expect_block "pointer vanished during the run (guards off): blocked at stop" flow-verify-stop.sh "$(stop_json r4 dev-flow:dev-reviewer)"
+assert "block names the pointer and asks for the command" 'case $out in *"disappeared during your run"*"whether you removed"*) true;; *) false;; esac'
+assert "vanished pointer logged in the task folder" 'grep -q "dev-reviewer (r4): the flow pointer in" task/violations.md'
+assert "markers cleaned, pointer not recreated" '[ ! -f .claude/flow/task-r4 ] && [ ! -f .claude/flow/snap-r4 ] && [ ! -f .claude/flow/current ]'
+expect_pass  "stop_hook_active after a vanished pointer: silent" flow-verify-stop.sh "$(stop_json r4 dev-flow:dev-reviewer true)"
+mv "$T/parked-current" .claude/flow/current; rm -f task/violations.md
 run flow-context.sh "$(start_json r3 dev-flow:dev-reviewer)"
 printf '| F1 | Low | x | y | z | w |\n' > task/review-1.md
 printf 'obj\n' > .claude/flow/scratch
@@ -331,9 +370,9 @@ printf 'disputed\n' > task/needs-decision.md
 expect_out  "needs-decision changes the state"   flow-notify.sh "$(main_stop_json)" "(human-review+needs-decision)"
 assert "three desktop notifications sent (diagnosing, human-review, +needs-decision)" '[ "$(grep -c NOTIFY "$T/notify.log")" = 3 ]'
 rm -f task/needs-decision.md
-mv .claude/flow/current .claude/flow/finished; touch .claude/flow/start-zz .claude/flow/snap-zz
+mv .claude/flow/current .claude/flow/finished; touch .claude/flow/start-zz .claude/flow/snap-zz .claude/flow/task-zz
 expect_out  "finished pointer notifies done"     flow-notify.sh "$(main_stop_json)" "(done)"
-assert "finished pointer and markers removed"    '[ ! -f .claude/flow/finished ] && [ ! -f .claude/flow/start-zz ] && [ ! -f .claude/flow/snap-zz ] && [ ! -f .claude/flow/notified ]'
+assert "finished pointer and markers removed"    '[ ! -f .claude/flow/finished ] && [ ! -f .claude/flow/start-zz ] && [ ! -f .claude/flow/snap-zz ] && [ ! -f .claude/flow/task-zz ] && [ ! -f .claude/flow/notified ]'
 unset DEV_FLOW_NOTIFY_CMD
 
 echo "== Stop: notification text is never spliced into a script"
