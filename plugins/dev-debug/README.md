@@ -39,7 +39,7 @@ The task folder layout, the plan format and the `.claude/flow/planning` pointer 
 - its hooks guard the run: `dev-debugger` may write only `diagnosis*.md` and `debug/`, any other change to the working tree is reported in `violations.md`, the main session may write only the task folder, and commit, push and posting are blocked;
 - its Stop hook sends a desktop notification at the diagnosis gate (`waiting for you (diagnosing)`), and a restarted session is pointed back at `/dev-debug:dev-debug <task folder>`;
 - `/dev-flow:dev-implement` runs the fix plan: the implementer writes the regression test first and appends its failing run to `verify.log` before fixing, the reviewer checks cause over symptom, the QA note lists the reported scenario as the first regression test;
-- the `dev-flow-panel` band shows **Diagnosing** in the first slot and its Debug button starts or resumes this skill.
+- the `dev-flow-panel` band gives a bug task its own stage list (Diagnosing, Confirm cause, Approved, then the implementing steps) and its Debug button starts or resumes this skill.
 
 Without `dev-flow`, the skill and the agent still run and the diagnosis and plan are still written; the agent's own rules are then the only guard, and the plan waits for `dev-flow` or a human to implement it.
 

@@ -13,39 +13,63 @@ import type { FlowState, PanelView } from '../types'
 const COMMAND = 'dev-flow-panel'
 const POLL_MS = 4000
 
-const EMPTY: FlowState = { pointer: 'none', status: 'none', needsDecision: false, violations: false, checkedAt: 0 }
+const EMPTY: FlowState = { pointer: 'none', status: 'none', diagnosed: false, needsDecision: false, violations: false, checkedAt: 0 }
 // Bump the tag when FlowState's fields change: a value an earlier version stored
 // outlives a reload and is then read as EMPTY instead of as the old shape.
-const flow = atom({ plugin: 'dev-flow-panel', key: 'flow' } as const, EMPTY, { shape: 'flow-1' })
+const flow = atom({ plugin: 'dev-flow-panel', key: 'flow' } as const, EMPTY, { shape: 'flow-2' })
 const view = atom({ plugin: 'dev-flow-panel', key: 'view' } as const, 'auto' as PanelView)
 
-type Stage = { status: string; label: string; color: Color; hint: string }
+// A step of the track. `key` names the step; `status` is the plan.md status it
+// stands for (two steps may share one, the diagnosis gate being `diagnosing`
+// with diagnosis.md written).
+type Stage = { key: string; status: string; label: string; color: Color; hint: string }
 
 // Theme keys rather than raw colours, so the pane follows the user's theme.
-const STAGES: readonly Stage[] = [
-  { status: 'draft', label: 'Planning', color: 'subtle', hint: 'The plan is being written; answer the critique and approve it in chat. Implement is off until then.' },
-  { status: 'approved', label: 'Approved', color: 'suggestion', hint: 'Plan approved. Implement starts the flow.' },
-  { status: 'implementing', label: 'Implementing', color: 'claude', hint: 'Implementer subagents are working through the plan.' },
-  { status: 'reviewing', label: 'Claude review', color: 'permission', hint: 'Reviewer and fixer are iterating; the loop ends on a review.' },
-  { status: 'human-review', label: 'Your review', color: 'warning', hint: 'Waiting for you: review the diff, commit, open the PR, then continue.' },
-  { status: 'qa-impact', label: 'QA impact', color: 'ide', hint: 'Writing the QA impact note from the template.' },
-  { status: 'done', label: 'Done', color: 'success', hint: 'Finished: plan, reviews and the QA note are in the task folder.' },
+const IMPLEMENTING: readonly Stage[] = [
+  { key: 'implementing', status: 'implementing', label: 'Implementing', color: 'claude', hint: 'Implementer subagents are working through the plan.' },
+  { key: 'reviewing', status: 'reviewing', label: 'Claude review', color: 'permission', hint: 'Reviewer and fixer are iterating; the loop ends on a review.' },
+  { key: 'human-review', status: 'human-review', label: 'Your review', color: 'warning', hint: 'Waiting for you: review the diff, commit, open the PR, then continue.' },
+  { key: 'qa-impact', status: 'qa-impact', label: 'QA impact', color: 'ide', hint: 'Writing the QA impact note from the template.' },
+  { key: 'done', status: 'done', label: 'Done', color: 'success', hint: 'Finished: plan, reviews and the QA note are in the task folder.' },
 ]
-const BLOCKED: Stage = { status: 'blocked', label: 'Blocked', color: 'error', hint: 'Stopped: open findings or a blocked step need your decision.' }
-// Debugging (/dev-debug:dev-debug, the dev-debug plugin) replaces planning as the first step: the
-// debugger writes diagnosis.md, you confirm the cause, and the fix plan is
-// approved like any plan. It shares Planning's slot in the track and the list.
-const DIAGNOSING: Stage = { status: 'diagnosing', label: 'Diagnosing', color: 'subtle', hint: 'The debugger is reproducing the bug and finding its cause; confirm the diagnosis in chat, then the fix plan runs.' }
-const NONE: Stage = { status: 'none', label: 'No active task', color: 'inactive', hint: 'Plan a task, or Implement an approved plan.' }
+// A feature or change: planned by /dev-flow:dev-plan, then implemented.
+const STAGES: readonly Stage[] = [
+  { key: 'draft', status: 'draft', label: 'Planning', color: 'subtle', hint: 'The plan is being written; answer the critique and approve it in chat. Implement is off until then.' },
+  { key: 'approved', status: 'approved', label: 'Approved', color: 'suggestion', hint: 'Plan approved. Implement starts the flow.' },
+  ...IMPLEMENTING,
+]
+// A bug: diagnosed by /dev-debug:dev-debug (plan.md has source: dev-debug), the
+// cause confirmed at a gate, the fix plan approved, then the same implementing
+// steps. The plan is written in the moment between the gate and approval; while
+// it is, the Approved step is drawn as Fix plan.
+const DEBUG_STAGES: readonly Stage[] = [
+  { key: 'diagnosing', status: 'diagnosing', label: 'Diagnosing', color: 'claude', hint: 'The debugger is reproducing the bug and finding its cause; it writes diagnosis.md.' },
+  { key: 'confirm', status: 'diagnosing', label: 'Confirm cause', color: 'warning', hint: 'Waiting for you: confirm the root cause (reply fix), add facts, ask for a second opinion, or stop at the diagnosis.' },
+  { key: 'approved', status: 'approved', label: 'Approved', color: 'suggestion', hint: 'Fix plan approved: regression test first, then the fix. Implement starts the flow.' },
+  ...IMPLEMENTING,
+]
+const FIX_PLAN: Stage = { key: 'approved', status: 'draft', label: 'Fix plan', color: 'subtle', hint: 'The fix plan is being written from the diagnosis.' }
+const BLOCKED: Stage = { key: 'blocked', status: 'blocked', label: 'Blocked', color: 'error', hint: 'Stopped: open findings or a blocked step need your decision.' }
+const NONE: Stage = { key: 'none', status: 'none', label: 'No active task', color: 'inactive', hint: 'Plan a task, Debug a bug, or Implement an approved plan.' }
 
-const stageOf = (status: string): Stage =>
-  status === 'blocked' ? BLOCKED
-  : status === 'diagnosing' ? DIAGNOSING
-  : status === 'none' ? NONE
-  : STAGES.find(s => s.status === status) ?? { status, label: status, color: 'text', hint: '' }
+const isBug = (f: FlowState) => f.source === 'dev-debug'
+const stagesOf = (f: FlowState) => (isBug(f) ? DEBUG_STAGES : STAGES)
 
-// Where a status sits in the seven-step track: -1 for blocked, none and unknown.
-const slotOf = (status: string) => STAGES.findIndex(s => s.status === (status === 'diagnosing' ? 'draft' : status))
+// The step a task is at: its status, except that `diagnosing` is the gate once
+// diagnosis.md exists, and a bug's `draft` is the fix plan at the Approved step.
+const keyOf = (f: FlowState) =>
+  f.status === 'diagnosing' ? (f.diagnosed ? 'confirm' : 'diagnosing')
+  : f.status === 'draft' && isBug(f) ? 'approved'
+  : f.status
+
+const stageOf = (f: FlowState): Stage =>
+  f.status === 'blocked' ? BLOCKED
+  : f.status === 'none' ? NONE
+  : f.status === 'draft' && isBug(f) ? FIX_PLAN
+  : stagesOf(f).find(s => s.key === keyOf(f)) ?? { key: f.status, status: f.status, label: f.status, color: 'text', hint: '' }
+
+// Where the task sits in its track: -1 for blocked, none and unknown.
+const slotOf = (f: FlowState) => stagesOf(f).findIndex(s => s.key === keyOf(f))
 
 const sepOf = (path: string) => (path.includes('\\') ? '\\' : '/')
 const join = (dir: string, name: string) => `${dir.replace(/[\\/]+$/, '')}${sepOf(dir)}${name}`
@@ -114,6 +138,8 @@ async function readFlow($: EngineInterface): Promise<FlowState> {
       planPath,
       task: fm.task || undefined,
       status: fm.status || (pointer === 'planning' ? 'draft' : 'unknown'),
+      source: fm.source || undefined,
+      diagnosed: await nonEmpty($, join(taskFolder, 'diagnosis.md')),
       mode: fm.mode || undefined,
       base: fm.base || undefined,
       reviewRound: Number.isFinite(round) && round > 0 ? round : undefined,
@@ -129,7 +155,7 @@ const statusLine = (f: FlowState) =>
   f.pointer === 'none'
     ? undefined
     : [
-        `dev-flow: ${stageOf(f.status).label}`,
+        `dev-flow: ${stageOf(f).label}`,
         f.reviewRound ? `round ${f.reviewRound}` : '',
         f.task ?? '',
         f.needsDecision ? 'needs decision' : '',
@@ -214,13 +240,13 @@ const chip = ({ Text }: Controls, stage: Stage) => (
   <Text bold inverse color={stage.color}>{' '}{stage.label}{' '}</Text>
 )
 
-// The seven stages as a track, each dot in its stage's colour: the steps
+// The task's stages as a track, each dot in its stage's colour: the steps
 // behind filled, the current one ringed and bold, the ones ahead hollow.
 const track = ({ Text }: Controls, f: FlowState) => {
-  const at = slotOf(f.status)
+  const at = slotOf(f)
   return (
     <Text>
-      {STAGES.map((s, i) => (
+      {stagesOf(f).map((s, i) => (
         <Text>
           {i > 0 ? <Text dimColor>{'─'}</Text> : null}
           {i === at ? <Text bold color={s.color}>{'◉'}</Text> : i < at ? <Text color={s.color}>{'●'}</Text> : <Text color={s.color}>{'○'}</Text>}
@@ -263,7 +289,7 @@ export const register: Register = on => {
     const ran = await next(e)
     const path = 'file_path' in e && typeof e.file_path === 'string' ? e.file_path : ''
     const command = 'command' in e && typeof e.command === 'string' ? e.command : ''
-    if (/plan\.md$|[\\/]\.claude[\\/]flow[\\/]/.test(path) || /\.claude[\\/]flow|plan\.md|needs-decision|violations/.test(command)) {
+    if (/plan\.md$|diagnosis[^\\/]*\.md$|[\\/]\.claude[\\/]flow[\\/]/.test(path) || /\.claude[\\/]flow|plan\.md|diagnosis|needs-decision|violations/.test(command)) {
       void refresh($)
     }
 
@@ -275,6 +301,8 @@ export const register: Register = on => {
   //   ▎ [ Plan ] [ Debug ] [ Implement ] [ QA impact ]   ↻ refresh   more ▾   Waiting for you: review…
   // Full, the stage list, the hint and the flags between those two rows:
   //   ▎ ✓ Planning  ✓ Approved  ✓ Implementing  ✓ Claude review  ◉ Your review  ○ QA impact  ○ Done
+  // A bug task (source: dev-debug) has its own list and track:
+  //   ▎ ✓ Diagnosing  ◉ Confirm cause  ○ Approved  ○ Implementing  ○ Claude review  ○ Your review  ○ QA impact  ○ Done
   //   ▎   Waiting for you: review the diff, commit, open the PR, then continue.
   //   ▎ ⚠ needs-decision.md  findings wait for your decision
   // An accent bar in the stage's colour runs down every row; the track at the
@@ -286,8 +314,8 @@ export const register: Register = on => {
 
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
-    const stage = stageOf(f.status)
-    const at = slotOf(f.status)
+    const stage = stageOf(f)
+    const at = slotOf(f)
     const meta = metaOf(f)
     const bar = <Text color={stage.color}>{'▎'}</Text>
     const hintRoom = e.props.bodyColumns - (2 + skillButtonsWidth(f) + 3 + 9 + 3 + 6 + 3)
@@ -310,7 +338,7 @@ export const register: Register = on => {
           <Box columnGap={1}>
             {bar}
             <Box flexWrap="wrap" columnGap={2}>
-              {STAGES.map((s, i) =>
+              {stagesOf(f).map((s, i) =>
                 i === at ? (
                   <Text bold color={stage.color}>{'◉'} {stage.label}</Text>
                 ) : i < at ? (

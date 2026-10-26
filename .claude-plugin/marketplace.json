@@ -30,7 +30,7 @@
     {
       "name": "dev-flow-panel",
       "source": "./plugins/dev-flow-panel",
-      "description": "Companion band above the prompt for dev-flow and dev-debug: buttons that start each skill and a colour-coded view of the current stage (planning, diagnosing, implementing, Claude review, your review, QA impact, done, blocked)"
+      "description": "Companion band above the prompt for dev-flow and dev-debug: buttons that start each skill and a colour-coded view of the current stage (planning, approved, implementing, Claude review, your review, QA impact, done, blocked; a bug from dev-debug shows diagnosing and confirm cause instead of planning)"
     }
   ]
 }

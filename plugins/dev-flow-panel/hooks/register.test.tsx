@@ -169,24 +169,26 @@ test('while the plan is a draft, Implement is dim and a press explains instead o
   await approved.unmount()
 })
 
-test('while the debugger works, the band shows Diagnosing in the first slot, Debug resumes the gate and Implement explains', async ($, on) => {
+test('a bug task has its own stages: Diagnosing, then Confirm cause once diagnosis.md exists; Debug resumes the gate and Implement explains', async ($, on) => {
   const files: Record<string, string> = {
     '/p/.claude/flow/planning': '/p/.claude/plans/b\n',
     '/p/.claude/plans/b/plan.md': '---\ntask: crash on save\nsource: dev-debug\nstatus: diagnosing\n---\n',
   }
+  let diagnosed = false
   const ran: string[] = []
   const toasts: string[] = []
+  const clock = mock.clock(on)
   on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
   on('ui.status', () => ({ value: undefined }))
   on('ui.invalidate', () => ({ value: undefined }))
   on('ui.toast', (_, e) => { toasts.push(e.text); return { value: undefined } })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.root', () => ({ value: '/p' }))
-  on('clock.now', () => ({ value: 1 }))
-  on('clock.every', () => ({ value: undefined }))
   on('fs.exists', (_, e) => ({ value: e.path in files }))
   on('fs.read', (_, e) => ({ value: files[e.path] ?? '' }))
-  on('fs.stat', () => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false } }))
+  on('fs.stat', (_, e) => ({
+    value: { kind: 'file', size: diagnosed && e.path.endsWith('diagnosis.md') ? 40 : 0, mtimeMs: 0, isLink: false },
+  }))
   on('command.run', (_, e) => {
     ran.push(`/${e.command} ${e.args}`.trim())
     return { text: 'ran' }
@@ -194,6 +196,7 @@ test('while the debugger works, the band shows Diagnosing in the first slot, Deb
 
   await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
 
+  // The debugger is working: Diagnosing, first slot of the bug's own track.
   const compact = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await compact.find({ type: 'Text', text: /Diagnosing/ })).toBeDefined()
   expect(await compact.find({ type: 'Text', text: /crash on save/ })).toBeDefined()
@@ -205,13 +208,36 @@ test('while the debugger works, the band shows Diagnosing in the first slot, Deb
   await compact.press({ key: 'view' })
   await compact.unmount()
 
-  // Expanded: Diagnosing takes Planning's place in the list; the steps ahead are unchanged.
+  // Expanded: the bug's list, Planning nowhere in it.
   const full = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await full.find({ type: 'Text', text: /◉ Diagnosing/ })).toBeDefined()
+  expect(await full.find({ type: 'Text', text: /○ Confirm cause/ })).toBeDefined()
   expect(await full.find({ type: 'Text', text: /Planning/ })).toBeUndefined()
   expect(await full.find({ type: 'Text', text: /○ Approved/ })).toBeDefined()
-  await full.press({ key: 'view' })
   await full.unmount()
+
+  // diagnosis.md written: the gate waits for the user.
+  diagnosed = true
+  await clock.advance(4000)
+  const gate = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await gate.find({ type: 'Text', text: /✓ Diagnosing/ })).toBeDefined()
+  expect(await gate.find({ type: 'Text', text: /◉ Confirm cause/ })).toBeDefined()
+  expect(await gate.find({ type: 'Text', text: /Waiting for you: confirm the root cause/ })).toBeDefined()
+  await gate.unmount()
+
+  // Approved in chat (reply fix): the planning pointer gives way to current, and
+  // the bug's list keeps its first two steps ticked.
+  delete files['/p/.claude/flow/planning']
+  files['/p/.claude/flow/current'] = '/p/.claude/plans/b\n'
+  files['/p/.claude/plans/b/plan.md'] = '---\ntask: crash on save\nsource: dev-debug\nstatus: implementing\nmode: full\n---\n'
+  await clock.advance(4000)
+  const fixing = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await fixing.find({ type: 'Text', text: /✓ Confirm cause/ })).toBeDefined()
+  expect(await fixing.find({ type: 'Text', text: /◉ Implementing/ })).toBeDefined()
+  expect(await fixing.find({ type: 'Text', text: /Planning/ })).toBeUndefined()
+  expect((await fixing.find({ type: 'Button', key: 'implement' }))?.text).toMatch(/Resume/)
+  await fixing.press({ key: 'view' })
+  await fixing.unmount()
 })
 
 test('the poll picks up a stage change in plan.md and a pointer at the git root above the session', async ($, on) => {
