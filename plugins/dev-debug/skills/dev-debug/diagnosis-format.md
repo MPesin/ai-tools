@@ -71,7 +71,7 @@ base: <merge-base with the default branch>
 ---
 ```
 
-`status` is `diagnosing` from the moment the stub is written until the user confirms the cause (the dev-flow hooks and the dev-flow-panel read it: the panel shows Diagnosing, the Stop hook notifies at the gate), `draft` while the fix plan is written, `approved` when handed to `/dev-flow:dev-implement`, `done` when the user stops at the diagnosis. `mode` is `lite` only when the plan has at most 3 steps, changes no public contract or schema, and has no `specs:`; a bug report under `specs/` therefore makes most fixes `full` (three fix rounds, a QA note checked against the report).
+`status` is `diagnosing` from the moment the task folder is created until the user confirms the cause (the dev-flow hooks and the dev-flow-panel read it: the panel shows Diagnosing, then Confirm cause once `diagnosis.md` exists; the Stop hook notifies once at intake and again at the gate), `draft` while the fix plan is written, `approved` when handed to `/dev-flow:dev-implement`, `done` when the user stops at the diagnosis. `mode` is `lite` only when the plan has at most 3 steps, changes no public contract or schema, and has no `specs:`; a bug report under `specs/` therefore makes most fixes `full` (three fix rounds, a QA note checked against the report).
 
 Required headings, verbatim, in this order: `## Context`, `## Requirements` with a `### Acceptance criteria` sub-list, `## Specs`, `## Verified facts`, `## Steps` (`- [ ]` items with exact file paths and each its own minimal build/test verification; a bug-fix plan is one sequential package, no `###` package headings), `## Risks`, `## Open questions`.
 

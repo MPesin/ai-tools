@@ -17,9 +17,9 @@ Find the cause of a bug before anyone changes code, then hand the fix to the imp
 
 ## 1. Start
 
-1. Create the task folder `YYYY-MM-DD-<bug-id-or-topic>` in the plans location and write its absolute path as the only line of `<project>/.claude/flow/planning` (create the directory).
+1. Create the task folder `YYYY-MM-DD-<bug-id-or-topic>` in the plans location and write its absolute path as the only line of `<project>/.claude/flow/planning` (create the directory). In the same step, before asking anything, write `plan.md` with the frontmatter from `diagnosis-format.md` (`task`, `source: dev-debug`, `status: diagnosing`, `review_round: 0`, an empty `specs:`, `base` set to the merge-base with the default branch), `## Context` holding the bug in one paragraph from whatever the user has said so far, and the other required headings with `Pending diagnosis.` The dev-flow hooks and the dev-flow-panel read this file: without it the band shows Planning instead of Diagnosing.
 2. Ask once, in one message: "Paste the bug report, stack trace, failing test name or log excerpt, or give a work item ID. If you know them, add: how to reproduce, the environment, and the last version or commit where it worked." Save everything per **Specs intake** in `diagnosis-format.md`. If the user gave the material in the message that started the skill, use that; do not ask again. The user can add material later; append it the same way.
-3. Set `base` to the merge-base with the default branch. Write `plan.md` with the frontmatter from `diagnosis-format.md` (`task`, `source: dev-debug`, `status: diagnosing`, `review_round: 0`, `specs:`, `base`), `## Context` holding the bug in one paragraph, and the other required headings with `Pending diagnosis.` Writing it now is what lets the dev-flow hooks and the dev-flow-panel show the Diagnosing stage and notify you at the gate.
+3. Update `plan.md`: list the saved files in `specs:` and refine `## Context` from the report. The status stays `diagnosing`.
 
 ## 2. Diagnose (`dev-debugger`)
 

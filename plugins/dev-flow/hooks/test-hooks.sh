@@ -323,13 +323,17 @@ export DEV_FLOW_NOTIFY_CMD="$T/fake-notify.sh"
 plan implementing
 expect_pass "implementing: no notification"      flow-notify.sh "$(main_stop_json)"
 plan diagnosing
-expect_out  "diagnosing: systemMessage (diagnosis gate)" flow-notify.sh "$(main_stop_json)" '"systemMessage":"dev-flow: t: waiting for you (diagnosing)"'
+expect_out  "diagnosing: systemMessage (bug report intake)" flow-notify.sh "$(main_stop_json)" '"systemMessage":"dev-flow: t: waiting for you (diagnosing)"'
+expect_pass "diagnosing again: deduplicated"              flow-notify.sh "$(main_stop_json)"
+printf 'Confidence: High\n' > task/diagnosis.md
+expect_out  "diagnosis.md written: the gate notifies again" flow-notify.sh "$(main_stop_json)" '"systemMessage":"dev-flow: t: waiting for you (confirm-cause)"'
+rm -f task/diagnosis.md
 plan human-review
 expect_out  "human-review: systemMessage"        flow-notify.sh "$(main_stop_json)" '"systemMessage":"dev-flow: t: waiting for you (human-review)"'
 expect_pass "human-review again: deduplicated"   flow-notify.sh "$(main_stop_json)"
 printf 'disputed\n' > task/needs-decision.md
 expect_out  "needs-decision changes the state"   flow-notify.sh "$(main_stop_json)" "(human-review+needs-decision)"
-assert "three desktop notifications sent (diagnosing, human-review, +needs-decision)" '[ "$(grep -c NOTIFY "$T/notify.log")" = 3 ]'
+assert "four desktop notifications sent (diagnosing, confirm-cause, human-review, +needs-decision)" '[ "$(grep -c NOTIFY "$T/notify.log")" = 4 ]'
 rm -f task/needs-decision.md
 mv .claude/flow/current .claude/flow/finished; touch .claude/flow/start-zz .claude/flow/snap-zz
 expect_out  "finished pointer notifies done"     flow-notify.sh "$(main_stop_json)" "(done)"
