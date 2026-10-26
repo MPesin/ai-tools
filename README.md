@@ -129,10 +129,11 @@ a fix; with `dev-flow` installed, its hooks guard the debugger and the gate.
 
 A companion plugin (a hooks module). While a task is active it draws a
 two-row band above the prompt: the colour-coded stage read from the task
-folder (planning or diagnosing, approved, implementing, Claude review, your
-review, QA impact, done, blocked), the task, a progress track, warnings when
-findings wait for your decision, and buttons for the dev-flow and dev-debug
-skills. `/dev-flow-panel`
+folder (planning, approved, implementing, Claude review, your review, QA
+impact, done, blocked; a bug from dev-debug gets its own list with
+diagnosing and the confirm-cause gate in front), the task, a progress track,
+warnings when findings wait for your decision, and buttons for the dev-flow
+and dev-debug skills. `/dev-flow-panel`
 or the band's `more` expands it with the stage list, the hint and the flags.
 No pane, so it never takes the height of the terminal; the status line
 shows the stage too.

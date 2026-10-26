@@ -14,6 +14,10 @@ export type FlowState = {
   task?: string
   /** plan.md frontmatter `status`, or `none` without an active task */
   status: string
+  /** plan.md frontmatter `source`; `dev-debug` marks a bug task with its own stage list */
+  source?: string
+  /** diagnosis.md exists and is not empty: the debugger has written and the diagnosis gate waits */
+  diagnosed: boolean
   mode?: string
   reviewRound?: number
   base?: string
