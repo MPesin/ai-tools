@@ -9,7 +9,7 @@ Produce a plan that satisfies `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-f
 
 ## Hard rules
 
-- Never edit source code. The only files you write are in the task folder and `.claude/flow/planning`. While the `planning` pointer exists the hooks refuse every other write from the main session.
+- Never edit source code. The only files you write are in the task folder and `.claude/flow/<branch key>/planning`. While the `planning` pointer exists the hooks refuse every other write from the main session.
 - Never commit, push, or post anywhere.
 - Read the project's own guidance (CLAUDE.md, AGENTS.md, README, instruction files) first; project rules override this skill. Check the project's plans/handoffs/notes locations for existing work on the task ID.
 - A bug whose cause is not yet known is not planned here: suggest `/dev-debug:dev-debug` (the dev-debug plugin), which finds and verifies the cause first and then writes the fix plan. Plan a bug here only when the cause is already confirmed.
@@ -17,7 +17,7 @@ Produce a plan that satisfies `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-f
 
 ## Start
 
-1. Create the task folder and write its absolute path as the only line of `<project>/.claude/flow/planning` (create the directory).
+1. Check the branch: `git branch --show-current`. On `main` or `master` (or a detached HEAD) stop and ask the user to create a branch for the task, suggesting a name from the task id or topic (`git checkout -b feature/<task-id>`); do nothing else until they have. A flow lives on its branch, and the dev-flow hooks refuse a pointer and the stage agents on those branches. Then create the task folder and write its absolute path as the only line of `<project>/.claude/flow/<branch key>/planning` (create the directories), where the branch key is the branch name with every `/` replaced by `__` (`feature/login` gives `feature__login`). Each branch keeps its own pointers, so a task parked on another branch is untouched and comes back when that branch is checked out again.
 2. Ask once: "Paste the relevant PRD/HLD sections, or give a work item / ticket reference (or say none)." Save them per **Specs intake** in `plan-format.md` and list them in `specs:`. The user can add specs at any point; append them the same way.
 3. Choose the mode.
 
@@ -56,23 +56,23 @@ A reply such as "fix the critique and start implementing" approves the plan as i
 1. Apply the requested changes to `plan.md` (yourself, or via the planner in draft mode). If a change needs a decision the user has not made (an open question, a Blocking item with alternatives), ask that first instead of deciding for them.
 2. Show the changes in a few lines.
 3. Run **On explicit approval** below in full: `status: approved`, `mode`, delete the `planning` pointer.
-4. Invoke the `dev-flow:dev-implement` skill with the plan path. Its Intake writes `.claude/flow/current` and its Implement stage sets `status: implementing` before spawning anything.
+4. Invoke the `dev-flow:dev-implement` skill with the plan path. Its Intake writes `.claude/flow/<branch key>/current` and its Implement stage sets `status: implementing` before spawning anything.
 
 Never spawn `dev-implementer` or edit source from this skill. The hooks refuse to spawn a stage agent while the `planning` pointer exists, while no pointer exists, or while `status` is not that stage's own, so skipping steps 3 and 4 fails loudly instead of leaving the status panel on "Planning".
 
 ## On explicit approval
 
 1. Set `status: approved` and `mode` (lite criteria are in `plan-format.md`; the user can force either).
-2. Delete `<project>/.claude/flow/planning`.
+2. Delete `<project>/.claude/flow/<branch key>/planning`.
 3. Print the absolute path of `plan.md` and tell the user to run `/dev-flow:dev-implement <plan path>`.
 
 ## Already done on the branch
 
-When exploring shows that a commit after `base` (or an uncommitted change) already does what the task asks, there is nothing to plan. Say so with the commit, record it under `## Context` in `plan.md`, set `status: done`, delete `<project>/.claude/flow/planning`, and point at `/dev-flow:dev-qa-impact <task folder>` for the QA note on that change. If only part of the task is done, plan the rest and list the existing commit under `## Verified facts`.
+When exploring shows that a commit after `base` (or an uncommitted change) already does what the task asks, there is nothing to plan. Say so with the commit, record it under `## Context` in `plan.md`, set `status: done`, delete `<project>/.claude/flow/<branch key>/planning`, and point at `/dev-flow:dev-qa-impact <task folder>` for the QA note on that change. If only part of the task is done, plan the rest and list the existing commit under `## Verified facts`.
 
 ## Exits: the pointer checklist
 
-`<project>/.claude/flow/planning` belongs to `status: draft` only. Every exit of this skill ends with its deletion; a pointer left behind at a later status makes the hooks report it as stale (they stop enforcing it, and the Stop hook removes it), but the skill does not rely on that. The terminal states, each with the pointer step spelled out:
+`<project>/.claude/flow/<branch key>/planning` belongs to `status: draft` only. Every exit of this skill ends with its deletion; a pointer left behind at a later status makes the hooks report it as stale (they stop enforcing it, and the Stop hook removes it), but the skill does not rely on that. The terminal states, each with the pointer step spelled out:
 
 1. Approved: `status: approved`, **delete the pointer**, print the plan path (or invoke `dev-flow:dev-implement` when approval and implementation came in one reply).
 2. Already done on the branch: `status: done`, **delete the pointer**.

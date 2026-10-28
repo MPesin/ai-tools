@@ -7,6 +7,13 @@ HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
 [ -f "$HERE/lib.sh" ] || HERE="${CLAUDE_PLUGIN_ROOT}/hooks"
 source "$HERE/lib.sh"
 HOOK_EVENT=SessionStart
+POINTER_NAMES="planning current"
+if ! find_flow_pointer; then
+  # No flow on this branch: name the ones parked on other branches of the checkout.
+  find_any_flow_root && parked=$(parked_flows)
+  [ -n "$parked" ] && emit_context SessionStart "dev-flow: no flow on branch ${FLOW_BRANCH:-(detached HEAD)}. Flows parked on other branches of this checkout: $(printf '%s' "$parked" | tr '\n' ';'). Check out a branch to continue its flow; a flow never runs on main or master."
+  exit 0
+fi
 load_task_folder "planning current"
 
 status=$(frontmatter_value status)
@@ -19,12 +26,14 @@ elif [ "$status" = done ]; then
 else
   next="Continue with /dev-flow:dev-implement $TASK_FOLDER/plan.md (it resumes from status and review_round)."
 fi
-msg="dev-flow: a flow is active in this project. Task folder: $TASK_FOLDER. status: ${status:-unknown}. mode: $(frontmatter_value mode). review_round: $(frontmatter_value review_round). base: $(frontmatter_value base). $next While the pointer exists the plugin's hooks block git commit/push/discard, posting and publishing, and limit what each agent may write; delete $POINTER to switch them off (stage agents then cannot be spawned until Intake writes it again)."
+msg="dev-flow: a flow is active on branch ${FLOW_BRANCH:-(no branch)}. Task folder: $TASK_FOLDER. status: ${status:-unknown}. mode: $(frontmatter_value mode). review_round: $(frontmatter_value review_round). base: $(frontmatter_value base). $next While the pointer exists the plugin's hooks block git commit/push/discard, posting and publishing, and limit what each agent may write; delete $POINTER to switch them off (stage agents then cannot be spawned until Intake writes it again)."
 [ -s "$TASK_FOLDER/needs-decision.md" ] && msg="$msg needs-decision.md has items waiting for the user."
 [ -s "$TASK_FOLDER/violations.md" ] && msg="$msg violations.md lists files changed outside an agent's allowance."
 [ -n "$(find "$POINTER" -mtime +2 2>/dev/null)" ] && msg="$msg The pointer is more than 2 days old: the flow may have been abandoned; ask the user before continuing."
-if [ "$POINTER_NAME" = planning ] && [ -f "$FLOW_DIR/current" ]; then
-  parked=$(normalize_path "$(head -n 1 "$FLOW_DIR/current" | tr -d '\r')")
+if [ "$POINTER_NAME" = planning ] && [ -f "$(pointer_path current)" ]; then
+  parked=$(normalize_path "$(head -n 1 "$(pointer_path current)" | tr -d '\r')")
   msg="$msg Another task is parked meanwhile: $parked at status: $(frontmatter_value status "$parked/plan.md"); its stage agents cannot be spawned until this planning ends (approve or abandon it), then /dev-flow:dev-implement $parked/plan.md resumes it."
 fi
+parked=$(parked_flows)
+[ -n "$parked" ] && msg="$msg Flows parked on other branches of this checkout: $(printf '%s' "$parked" | tr '\n' ';')."
 emit_context SessionStart "$msg"

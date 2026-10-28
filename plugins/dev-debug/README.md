@@ -34,8 +34,9 @@ It never edits source, not even to add a print statement. The only files it writ
 
 ## With and without dev-flow
 
-The task folder layout, the plan format and the `.claude/flow/planning` pointer are dev-flow's. With `dev-flow` installed:
+The task folder layout, the plan format and the `.claude/flow/<branch>/planning` pointer are dev-flow's. With `dev-flow` installed:
 
+- the flow lives on the branch (`.claude/flow/<branch>/planning`): a bug can be parked and another task started on another branch of the same checkout, each with its own status and messages; no flow starts on `main` or `master`, the skill asks for a branch first;
 - its hooks guard the run: `dev-debugger` may write only `diagnosis*.md` and `debug/`, any other change to the working tree is reported in `violations.md`, the main session may write only the task folder, and commit, push and posting are blocked;
 - its Stop hook sends a desktop notification at the diagnosis gate (`waiting for you (confirm-cause)`), and a restarted session is pointed back at `/dev-debug:dev-debug <task folder>`; a `planning` pointer left behind once `plan.md` is past `diagnosing`/`draft` is reported as stale, not enforced, and removed at the next Stop; a diagnosis can start while another task's `current` pointer is parked at human-review (the debugger is keyed on `planning`, though the gate notification and the band then follow the parked task);
 - `/dev-flow:dev-implement` runs the fix plan: the implementer writes the regression test first and appends its failing run to `verify.log` before fixing, the reviewer checks cause over symptom, the QA note lists the reported scenario as the first regression test;
@@ -57,7 +58,7 @@ sequenceDiagram
     participant C as dev-plan-critic
 
     U->>M: /dev-debug:dev-debug "bug" (or a stack trace, failing test, work item)
-    M->>F: create folder, write .claude/flow/planning, plan.md stub with source dev-debug and status diagnosing
+    M->>F: create folder, write .claude/flow/<branch>/planning, plan.md stub with source dev-debug and status diagnosing
     M->>U: Paste the report / stack trace / log, or a work item ID; repro steps, environment, last good version?
     U-->>M: bug report
     M->>F: specs/bug-report.md (verbatim); plan.md (status diagnosing, written at start) gets specs and Context
@@ -80,10 +81,10 @@ sequenceDiagram
         M->>U: where the two agree and disagree
     else diagnosis only
         U-->>M: "diagnosis only"
-        M->>F: status done, delete .claude/flow/planning
+        M->>F: status done, delete .claude/flow/<branch>/planning
     else already fixed (the fix is on the branch)
         U-->>M: "already fixed"
-        M->>F: commit noted in plan.md, status done, delete .claude/flow/planning
+        M->>F: commit noted in plan.md, status done, delete .claude/flow/<branch>/planning
     end
 
     U-->>M: "fix" (confirms the cause and approves the fix plan)
@@ -91,7 +92,7 @@ sequenceDiagram
     opt only on request, or when a step changes a contract, schema or persisted data
         M->>C: dev-plan-critic (plan path, project root, specs)
     end
-    M->>F: status approved, delete .claude/flow/planning
+    M->>F: status approved, delete .claude/flow/<branch>/planning
     M->>M: invoke /dev-flow:dev-implement plan.md
     Note over M: the implementer writes the regression test first and appends its failing run to verify.log before fixing;<br>the reviewer checks cause over symptom; the QA note lists the reported scenario as the first regression test
 ```

@@ -17,6 +17,12 @@ deny() {
   exit 2
 }
 
+# No flow starts on main or master (or a detached HEAD): FLOW_BRANCH is set by flow_branch.
+deny_protected_branch() {
+  is_protected_branch || return 0
+  deny "no flow runs on ${FLOW_BRANCH:-a detached HEAD}: ask the user to create a branch for the task (git checkout -b <branch>) and start again there. A flow is kept per branch under .claude/flow/<branch>/ (DEV_FLOW_PROTECTED_BRANCHES lists the branches that carry none; default: main master)."
+}
+
 # stage_gate SUBAGENT_TYPE: the main session may spawn a dev-implement stage agent only
 # when plan.md's status names that stage. This is what keeps status (which the hooks
 # and the status panel read) in step with what is actually running: the skill text
@@ -35,16 +41,19 @@ stage_gate() {
     # All four are read-only (write guard above).
     *) return 0 ;;
   esac
+  flow_branch "$(hook_cwd)"
+  deny_protected_branch
   POINTER_NAMES="current planning"
-  pointer=$(find_flow_pointer) \
-    || deny "$agent runs inside /dev-flow:dev-implement, whose Intake writes <project>/.claude/flow/current and whose stages set status in plan.md before spawning. Run /dev-flow:dev-implement <plan path> instead of spawning $agent directly."
+  find_flow_pointer \
+    || deny "$agent runs inside /dev-flow:dev-implement, whose Intake writes <project>/.claude/flow/<branch>/current and whose stages set status in plan.md before spawning. Run /dev-flow:dev-implement <plan path> instead of spawning $agent directly."
+  pointer=$POINTER
   # planning is checked by name: find_flow_pointer prefers current when both exist.
   # Its plan's status decides whether it gates: a stale one is named, not obeyed.
-  planning="${pointer%/*}/planning"
+  planning=$(pointer_path planning)
   if [ -f "$planning" ]; then
     if planning_stale "$planning"; then
-      [ -f "${pointer%/*}/current" ] \
-        || deny "$STALE_NOTICE $agent runs inside /dev-flow:dev-implement, whose Intake writes ${pointer%/*}/current and whose stages set status in plan.md before spawning; run /dev-flow:dev-implement <plan path>."
+      [ -f "$(pointer_path current)" ] \
+        || deny "$STALE_NOTICE $agent runs inside /dev-flow:dev-implement, whose Intake writes $FLOW_ROOT/${FLOW_BRANCH_KEY:+$FLOW_BRANCH_KEY/}current and whose stages set status in plan.md before spawning; run /dev-flow:dev-implement <plan path>."
     elif [ "$STALE_STATUS" = diagnosing ]; then
       deny "the bug is still being diagnosed ($planning exists; $STALE_FOLDER/plan.md has status: diagnosing). Finish /dev-debug:dev-debug first: the user confirms the cause (reply fix), the skill writes the fix plan, sets status: approved, deletes the planning pointer, then invokes /dev-flow:dev-implement <plan path>. Never implement from dev-debug."
     else
@@ -67,6 +76,12 @@ stage_gate() {
 tool=$(json_field tool_name)
 case $tool in
   Agent|Task) stage_gate "$(tool_input_field subagent_type)"; exit 0 ;;
+  Edit|Write)
+    # A pointer may not be written on a protected branch (checked before any flow exists).
+    target=$(normalize_path "$(tool_input_field file_path)")
+    case ${target##*/} in
+      planning|current) case ${target%/*} in */.claude/flow|*/.claude/flow/*) flow_branch "${target%/.claude/flow*}"; deny_protected_branch ;; esac ;;
+    esac ;;
 esac
 load_task_folder
 
@@ -82,7 +97,7 @@ target=$(normalize_path "$target")
 base=${target##*/}
 
 in_task() { path_under "$target" "$TASK_FOLDER"; }
-in_flow() { path_under "$target" "$FLOW_DIR"; }
+in_flow() { path_under "$target" "$FLOW_ROOT"; }
 
 # only_file PATTERN: the agent may write nothing but $TASK_FOLDER/PATTERN
 only_file() {

@@ -33,7 +33,7 @@ sequenceDiagram
     participant C as dev-plan-critic
 
     U->>M: /dev-flow:dev-plan "task"
-    M->>F: create folder, write .claude/flow/planning
+    M->>F: create folder, write .claude/flow/<branch>/planning
     Note over H: planning pointer exists -> main session may write only the task folder,<br/>git commit/push/discard, posting and publishing are blocked
     M->>U: Paste PRD/HLD or a work-item ref? Plan interactively or let a planner draft?
     U-->>M: specs + mode
@@ -66,7 +66,7 @@ sequenceDiagram
 
     U-->>M: "approved"
     M->>F: status approved, mode full|lite
-    M->>F: delete .claude/flow/planning (guards off)
+    M->>F: delete .claude/flow/<branch>/planning (guards off)
     M->>U: run /dev-flow:dev-implement path/to/plan.md
 ```
 
@@ -90,7 +90,7 @@ sequenceDiagram
 
     U->>M: /dev-flow:dev-implement plan.md
     M->>F: validate plan (status approved), set base, status implementing
-    M->>F: write .claude/flow/current
+    M->>F: write .claude/flow/<branch>/current
     Note over H: current pointer exists -> guards on for every tool call
 
     rect rgb(235, 245, 255)
@@ -156,7 +156,7 @@ sequenceDiagram
     Q-->>M: overall risk, top regression tests, number of differences
     end
 
-    M->>F: status done, rename .claude/flow/current -> finished
+    M->>F: status done, rename .claude/flow/<branch>/current -> finished
     H-->>U: Stop: "done" notification, marker files cleaned
     M->>U: final report (task folder, per-stage summary, evidence, next action)
 ```
@@ -201,18 +201,18 @@ Where the rules file is silent, the agents ask or say so; they do not fall back 
 
 ## Hooks
 
-Active only while `<project>/.claude/flow/current` (implementing) or `planning` (planning or debugging) exists, except the Agent gate below, which also refuses to start a stage agent when no pointer exists. Delete the pointer file to switch the rest off. A `planning` pointer left behind by a plan that moved on (`plan.md` at `approved` or later, or its folder gone) is stale: the hooks do not enforce it, they say so once per session with the `rm` command, and the Stop hook removes it once `plan.md` shows the later status (a pointer at `draft` or `diagnosing` is never touched; one naming a missing folder is only named). A `current` left at `status: done` (the final report's rename to `finished` skipped) is finished by the Stop hook the same way as `finished`, so it cannot keep commit and push blocked. When `planning` stands beside a parked `current` (a task waiting at human-review while a second one is planned or diagnosed), the planner, critic and debugger are keyed on `planning` and the stage agents on `current`; the Stop hook announces the planning task's gate and SessionStart re-injects it, naming the parked task too. The pointer is looked up from the working directory upwards and the lookup stops at the first directory holding a `.git`, so a session started in a subdirectory finds the project's flow, while a git worktree (Claude Code creates them under `<repo>/.claude/worktrees/<name>`, with a `.git` file at their root) is its own project: it neither sees nor is guarded by the main checkout's flow, and a flow started inside it stays there.
+Active only while `<project>/.claude/flow/<branch>/current` (implementing) or `planning` (planning or debugging) exists for the checked-out branch, except the Agent gate below, which also refuses to start a stage agent when no pointer exists. A flow lives on its branch (`<branch>` is the branch name with `/` as `__`): a bug parked on `fix/login` and a task on `feature/export` each keep their own pointer, status, messages and plan in the same checkout, and checking out a branch brings its flow back; SessionStart lists the flows parked on the other branches. No flow runs on `main` or `master` (nor on a detached HEAD; `DEV_FLOW_PROTECTED_BRANCHES` overrides the list): the skills ask you to create a branch first, and the hooks refuse a pointer write and a stage agent there. Switch branches at a gate with a clean tree, since git carries uncommitted edits across a checkout. Pointers written straight into `.claude/flow/` by earlier versions are still read. Delete the pointer file to switch the rest off. A `planning` pointer left behind by a plan that moved on (`plan.md` at `approved` or later, or its folder gone) is stale: the hooks do not enforce it, they say so once per session with the `rm` command, and the Stop hook removes it once `plan.md` shows the later status (a pointer at `draft` or `diagnosing` is never touched; one naming a missing folder is only named). A `current` left at `status: done` (the final report's rename to `finished` skipped) is finished by the Stop hook the same way as `finished`, so it cannot keep commit and push blocked. When `planning` stands beside a parked `current` (a task waiting at human-review while a second one is planned or diagnosed), the planner, critic and debugger are keyed on `planning` and the stage agents on `current`; the Stop hook announces the planning task's gate and SessionStart re-injects it, naming the parked task too. The pointer is looked up from the working directory upwards and the lookup stops at the first directory holding a `.git`, so a session started in a subdirectory finds the project's flow, while a git worktree (Claude Code creates them under `<repo>/.claude/worktrees/<name>`, with a `.git` file at their root) is its own project: it neither sees nor is guarded by the main checkout's flow, and a flow started inside it stays there.
 
 | Hook | What it does |
 |---|---|
 | PreToolUse on Bash and PowerShell | Blocks `git commit/push/checkout/restore/stash/clean/rebase/merge/reset --hard`, `gh`/`glab`/`az` commands that post or change anything, publishing (`dotnet nuget push`, `npm publish`, `docker push`, ...). Parses the command (quotes, `&&`, `;`, `$()`, wrappers like `sudo`/`timeout`, `bash -c "..."`, `cmd /c "..."`, `wsl`), so `grep "git commit"` passes and `git -C "my repo" push` does not. |
 | PreToolUse on `mcp__*` | Blocks MCP tools whose names read like writes (`create_pull_request`, `wit_update_work_item`, `add_issue_comment`, ...). |
-| PreToolUse on Edit/Write/NotebookEdit | Reviewer, plan critic, QA and triager may write only their own file in the task folder; the debugger only `diagnosis*.md` and files under `debug/` there (never source, not even to instrument it); the planner only inside the task folder; implementers in package mode only inside their package's `Owns` (globs with `*` and `{a,b}`, after writing a claim file) and never `plan.md`; the main session, while planning, only the task folder. |
-| PreToolUse on Agent | Implementer, reviewer, fixer and triager are spawned only at their own plan status (`implementing`; `reviewing`; `reviewing` or `human-review`; `human-review`), and refused while a genuine `planning` exists (the refusal names the plan's status and the skill to finish), when no pointer exists, or when `current` names a missing folder or one without `plan.md`, so a flow cannot run with the guards off and the status panel stale. A stale `planning` does not gate, but `current` is still needed. This one runs even without a pointer. Planner, critic, debugger and QA are not gated: the debugger and QA also run standalone. |
+| PreToolUse on Edit/Write/NotebookEdit | A `planning` or `current` pointer is refused on `main`, `master` or a detached HEAD (create a branch first). Reviewer, plan critic, QA and triager may write only their own file in the task folder; the debugger only `diagnosis*.md` and files under `debug/` there (never source, not even to instrument it); the planner only inside the task folder; implementers in package mode only inside their package's `Owns` (globs with `*` and `{a,b}`, after writing a claim file) and never `plan.md`; the main session, while planning, only the task folder. |
+| PreToolUse on Agent | Implementer, reviewer, fixer and triager are refused on `main`, `master` or a detached HEAD, and otherwise spawned only at their own plan status (`implementing`; `reviewing`; `reviewing` or `human-review`; `human-review`), and refused while a genuine `planning` exists (the refusal names the plan's status and the skill to finish), when no pointer exists, or when `current` names a missing folder or one without `plan.md`, so a flow cannot run with the guards off and the status panel stale. A stale `planning` does not gate, but `current` is still needed. This one runs even without a pointer. Planner, critic, debugger and QA are not gated: the debugger and QA also run standalone. |
 | SubagentStart | Injects the flow state; snapshots the working tree; excludes `.claude/flow/` and `.claude/plans/` from `git status` via `.git/info/exclude`. |
 | SubagentStop | Compares the tree with the snapshot: a read-only agent that changed anything, or an implementer that changed files outside every package's `Owns`, is blocked once with the list and the change is appended to `violations.md`. Implementers and fixers must have appended this run's build/test output to `verify.log` (a `[Pn]` block in package mode) and their notes. |
 | Stop | At `diagnosing` (once at intake, again as `confirm-cause` when `diagnosis.md` exists), `draft`, `human-review`, `blocked`, `done`, or when `needs-decision.md` / `violations.md` appear: a terminal message and one desktop notification per state (PowerShell toast on Windows and WSL, `osascript` on macOS, `notify-send` on Linux; `DEV_FLOW_NOTIFY_CMD="<program>"` overrides, called with title and message). Removes a stale `planning` pointer whose `plan.md` is past planning, with a message; finishes a `current` left at `done` like `finished`. |
-| SessionStart (startup, resume, compact) | Re-injects the active task folder, status and how to continue (the task being planned first, with the parked `current` task named beside it); warns when the pointer is older than two days; reports a stale `planning` pointer as stale (with the status found and how the task itself continues) instead of as planning or debugging in progress. |
+| SessionStart (startup, resume, compact) | Re-injects the branch's active task folder, status and how to continue (the task being planned first, with the parked `current` task named beside it), and lists the flows parked on other branches of the checkout, also when this branch has none; warns when the pointer is older than two days; reports a stale `planning` pointer as stale (with the status found and how the task itself continues) instead of as planning or debugging in progress. |
 
 The hooks are bash (3.2 or newer, so macOS's `/bin/bash` and Git Bash both work) and need no `jq`. `bash hooks/test-hooks.sh` runs the assertion suite on any of the three systems.
 

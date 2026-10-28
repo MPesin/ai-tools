@@ -112,20 +112,69 @@ path_under() {
 
 # ---------------------------------------------------------------- flow state
 
-# Walk up from the hook's cwd to the first .claude/flow/<name> pointer. The walk
-# ends at the first directory that holds a .git (a directory in the main checkout,
-# a file in a worktree or submodule): a flow belongs to one checkout, so a session
-# in a worktree (Claude Code puts them under <repo>/.claude/worktrees/<name>) must
-# not pick up the main checkout's pointer above it.
-find_flow_pointer() {
-  local dir name
+# The hook's working directory, resolved.
+hook_cwd() {
+  local dir
   dir=$(json_field cwd)
   [ -z "$dir" ] && dir=$PWD
-  dir=$(cd "$(normalize_path "$dir")" 2>/dev/null && pwd) || return 1
+  cd "$(normalize_path "$dir")" 2>/dev/null && pwd
+}
+
+# A flow lives on a branch: its pointers sit in <project>/.claude/flow/<branch key>/,
+# the branch name with / as __ and characters a file name cannot carry as _, so
+# switching branches parks the flow and brings it back. Pointers written straight
+# into .claude/flow/ (older skills, or a project outside git) are still read, after
+# the branch's own. Sets FLOW_BRANCH ('' when detached or outside git) and
+# FLOW_BRANCH_KEY ('' when there is no branch).
+flow_branch() {   # DIR
+  FLOW_IN_GIT=''; FLOW_BRANCH=''; FLOW_BRANCH_KEY=''
+  [ -n "$1" ] && [ "$(git -C "$1" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] || return 0
+  FLOW_IN_GIT=1
+  FLOW_BRANCH=$(git -C "$1" symbolic-ref --short -q HEAD 2>/dev/null | tr -d '\r')
+  FLOW_BRANCH_KEY=$(printf '%s' "$FLOW_BRANCH" | sed 's,/,__,g; s,[\\:*?"<>|[:space:]],_,g')
+}
+
+# main and master (DEV_FLOW_PROTECTED_BRANCHES overrides, space separated) carry no
+# flow: the skills ask for a branch first, and the hooks refuse a pointer or a
+# stage agent there. A detached HEAD has no branch to live on either. Outside git
+# there is no branch to protect.
+is_protected_branch() {
+  [ -n "$FLOW_IN_GIT" ] || return 1
+  [ -z "$FLOW_BRANCH" ] && return 0
+  case " ${DEV_FLOW_PROTECTED_BRANCHES:-main master} " in *" $FLOW_BRANCH "*) return 0 ;; esac
+  return 1
+}
+
+# The nearest <dir>/.claude/flow directory, with or without a pointer (for the list
+# of flows parked on other branches). Sets FLOW_ROOT.
+find_any_flow_root() {
+  local dir
+  dir=$(hook_cwd) || return 1
+  flow_branch "$dir"
+  while :; do
+    if [ -d "$dir/.claude/flow" ]; then FLOW_ROOT="$dir/.claude/flow"; return 0; fi
+    [ -e "$dir/.git" ] && return 1
+    [ -z "$dir" ] || [ "$dir" = "/" ] && return 1
+    dir=${dir%/*}
+    [ -z "$dir" ] && dir=/
+  done
+}
+
+# Walk up from the hook's cwd to the first <dir>/.claude/flow that holds a pointer
+# (in the branch's directory or at the top). The walk ends at the first directory
+# that holds a .git (a directory in the main checkout, a file in a worktree or
+# submodule): a flow belongs to one checkout, so a session in a worktree (Claude
+# Code puts them under <repo>/.claude/worktrees/<name>) must not pick up the main
+# checkout's pointer above it. Sets FLOW_ROOT (and FLOW_BRANCH*); no subshell, so
+# the caller keeps them.
+find_flow_root() {
+  local dir name
+  dir=$(hook_cwd) || return 1
+  flow_branch "$dir"
   while :; do
     for name in $POINTER_NAMES; do
-      if [ -f "$dir/.claude/flow/$name" ]; then
-        printf '%s' "$dir/.claude/flow/$name"
+      if [ -n "$FLOW_BRANCH_KEY" ] && [ -f "$dir/.claude/flow/$FLOW_BRANCH_KEY/$name" ] || [ -f "$dir/.claude/flow/$name" ]; then
+        FLOW_ROOT="$dir/.claude/flow"
         return 0
       fi
     done
@@ -133,6 +182,45 @@ find_flow_pointer() {
     [ -z "$dir" ] || [ "$dir" = "/" ] && return 1
     dir=${dir%/*}
     [ -z "$dir" ] && dir=/
+  done
+}
+
+# pointer_path NAME: the path of pointer NAME under FLOW_ROOT, the branch's own
+# when it exists, else the top-level one (which may not exist either).
+pointer_path() {
+  if [ -n "$FLOW_BRANCH_KEY" ] && [ -f "$FLOW_ROOT/$FLOW_BRANCH_KEY/$1" ]; then
+    printf '%s' "$FLOW_ROOT/$FLOW_BRANCH_KEY/$1"
+  else
+    printf '%s' "$FLOW_ROOT/$1"
+  fi
+}
+
+# The first pointer of POINTER_NAMES, branch directory before the top level. Sets
+# POINTER (with FLOW_ROOT and FLOW_BRANCH*); false when there is none.
+find_flow_pointer() {
+  local name p
+  find_flow_root || return 1
+  for name in $POINTER_NAMES; do
+    p=$(pointer_path "$name")
+    [ -f "$p" ] && { POINTER=$p; return 0; }
+  done
+  return 1
+}
+
+# Flows parked on other branches of this checkout: "key (pointer, status: s)" lines.
+parked_flows() {
+  local d key name folder
+  [ -d "$FLOW_ROOT" ] || return 0
+  for d in "$FLOW_ROOT"/*/; do
+    [ -d "$d" ] || continue
+    key=${d%/}; key=${key##*/}
+    [ "$key" = "$FLOW_BRANCH_KEY" ] && continue
+    for name in current planning; do
+      [ -f "$d$name" ] || continue
+      folder=$(normalize_path "$(head -n 1 "$d$name" | tr -d '\r')")
+      printf '%s (%s, status: %s)\n' "$key" "$name" "$(frontmatter_value status "$folder/plan.md")"
+      break
+    done
   done
 }
 
@@ -150,15 +238,15 @@ load_task_folder() {
   case $AGENT_TYPE in
     dev-planner|dev-plan-critic|dev-debugger) [ "$POINTER_NAMES" = "current planning" ] && POINTER_NAMES="planning current" ;;
   esac
-  POINTER=$(find_flow_pointer) || exit 0
+  find_flow_pointer || exit 0
   POINTER_NAME=${POINTER##*/}
   FLOW_DIR=${POINTER%/*}
-  PROJECT_DIR=${FLOW_DIR%/.claude/flow}
+  PROJECT_DIR=${FLOW_ROOT%/.claude/flow}
   SESSION_ID=$(json_field session_id)
   if [ "$POINTER_NAME" = planning ] && planning_stale "$POINTER"; then
     # Beside a current pointer the parked task carries on; the Stop hook sweeps.
-    if [ "$HOOK_EVENT" != Stop ] && [ -f "$FLOW_DIR/current" ]; then
-      POINTER="$FLOW_DIR/current"; POINTER_NAME=current
+    if [ "$HOOK_EVENT" != Stop ] && [ -f "$(pointer_path current)" ]; then
+      POINTER=$(pointer_path current); POINTER_NAME=current; FLOW_DIR=${POINTER%/*}
     else
       stale_exit
     fi
@@ -194,7 +282,7 @@ planning_stale() {
     STALE_STATUS=$(frontmatter_value status "$STALE_FOLDER/plan.md")
     is_planning_status "$STALE_STATUS" && return 1
     why="it points at $STALE_FOLDER, whose plan.md has status: $STALE_STATUS, past planning (the pointer is deleted on approval), so it guards nothing. The Stop hook removes it at the end of the turn; to remove it now: rm \"$1\"."
-    [ "$STALE_STATUS" = done ] || STALE_RESUME=" The task itself continues with /dev-flow:dev-implement $STALE_FOLDER/plan.md (its Intake writes ${1%/*}/current)."
+    [ "$STALE_STATUS" = done ] || STALE_RESUME=" The task itself continues with /dev-flow:dev-implement $STALE_FOLDER/plan.md (its Intake writes current)."
   fi
   STALE_NOTICE="dev-flow: stale pointer $1: $why"
   return 0

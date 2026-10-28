@@ -110,16 +110,42 @@ const lineage = (root: string) => {
   return dirs
 }
 
-// The pointer files of the nearest directory that has one. Like the hooks, the walk
-// ends at the first directory holding a .git (a file in a worktree): a session in
-// a worktree under <repo>/.claude/worktrees/ must not show the main checkout's task.
+// The checked-out branch as the hooks key the flow by it: the branch name from
+// .git/HEAD (a worktree's .git is a file naming its git dir) with / as __ and
+// characters a file name cannot carry as _; '' when detached or outside git.
+async function branchKey($: EngineInterface, dirs: string[]) {
+  for (const dir of dirs) {
+    const dotGit = join(dir, '.git')
+    if (!(await $.fs.exists(dotGit))) continue
+    let gitDir = dotGit
+    const stat = await $.fs.stat(dotGit).catch(() => undefined)
+    if (stat?.kind === 'file') {
+      const m = /^gitdir:[ \t]*(.+)$/m.exec(await readText($, dotGit))
+      if (!m) return ''
+      gitDir = (m[1] ?? '').trim()
+      if (!/^([A-Za-z]:)?[\\/]/.test(gitDir)) gitDir = join(dir, gitDir)
+    }
+    const ref = /^ref:[ \t]*refs\/heads\/(.+)$/m.exec(await readText($, join(gitDir, 'HEAD')))
+    return ref ? (ref[1] ?? '').trim().replace(/\//g, '__').replace(/[\\:*?"<>|\s]/g, '_') : ''
+  }
+  return ''
+}
+
+// The pointer files of the nearest directory that has one, the branch's own
+// directory before a pointer straight under .claude/flow (earlier versions). Like
+// the hooks, the walk ends at the first directory holding a .git (a file in a
+// worktree): a session in a worktree under <repo>/.claude/worktrees/ must not
+// show the main checkout's task.
 async function findPointers($: EngineInterface, root: string) {
-  for (const dir of lineage(root)) {
+  const dirs = lineage(root)
+  const key = await branchKey($, dirs)
+  for (const dir of dirs) {
     const flowDir = join(join(dir, '.claude'), 'flow')
     const found: { pointer: 'planning' | 'current'; pointerPath: string }[] = []
     for (const pointer of ['planning', 'current'] as const) {
-      const pointerPath = join(flowDir, pointer)
-      if (await $.fs.exists(pointerPath)) found.push({ pointer, pointerPath })
+      for (const pointerPath of key ? [join(join(flowDir, key), pointer), join(flowDir, pointer)] : [join(flowDir, pointer)]) {
+        if (await $.fs.exists(pointerPath)) { found.push({ pointer, pointerPath }); break }
+      }
     }
     if (found.length > 0) return found
     if (await $.fs.exists(join(dir, '.git'))) return []

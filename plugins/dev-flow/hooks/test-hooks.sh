@@ -13,6 +13,7 @@ git init -q . && git config user.email t@t && git config user.name t
 mkdir -p .claude/flow task/specs src/foo src/bar tests
 printf 'base\n' > src/foo/alpha.txt; printf 'base\n' > src/bar/beta.txt; printf 'base\n' > src/shared.txt
 git add -A && git commit -q -m base
+git checkout -q -b feat/x
 
 # What Claude Code sends as a path on this OS.
 hp() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
@@ -511,6 +512,61 @@ expect_out  "SessionStart reports the dangling pointer"      flow-session.sh "$(
 expect_out  "Stop names a dangling pointer"                  flow-notify.sh "$(main_stop_json)" "not a folder"
 assert "but leaves it for the user to fix or remove" '[ -f .claude/flow/planning ]'
 rm -f .claude/flow/planning .claude/flow/stale-notified
+
+echo "== pointers per branch"
+rm -rf .claude/flow; mkdir -p .claude/flow/feat__x .claude/flow/other task3
+plan implementing
+printf -- '---\ntask: t3\nstatus: human-review\n---\n' > task3/plan.md
+hp "$T/task3" > .claude/flow/other/current
+expect_pass   "a pointer in another branch's directory is not this branch's flow" flow-guard.sh "$(bash_json '' 'git commit -m x')"
+expect_deny   "no flow on this branch: stage agents still refused"                flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+assert "deny names the branch directory" 'case $err in *".claude/flow/<branch>/current"*) true;; *) false;; esac'
+expect_out    "SessionStart lists the flow parked on the other branch"             flow-session.sh "$(session_json startup)" "other (current, status: human-review)"
+assert "and says there is none here" 'case $out in *"no flow on branch feat/x"*) true;; *) false;; esac'
+hp "$T/task" > .claude/flow/feat__x/current
+expect_deny   "branch directory: git commit refused"                               flow-guard.sh "$(bash_json '' 'git commit -m x')"
+expect_allow  "branch directory: spawn dev-implementer"                            flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+expect_out    "branch directory: SessionStart names the branch and the parked flow" flow-session.sh "$(session_json resume)" "active on branch feat/x"
+assert "parked flow listed beside it" 'case $out in *"status: implementing"*"other (current, status: human-review)"*) true;; *) false;; esac'
+plan implementing 1
+expect_out    "branch directory: implementer start puts the claim file there"      flow-context.sh "$(start_json b1 dev-flow:dev-implementer)" "feat__x/claim-b1"
+plan implementing
+assert "snapshot and marker in the branch directory" '[ -f .claude/flow/feat__x/snap-b1 ] && [ -f .claude/flow/feat__x/start-b1 ]'
+expect_allow  "main session writes a pointer in the branch directory"              flow-guard.sh "$(write_json '' "$T/.claude/flow/feat__x/planning")"
+hp "$T/task3" > .claude/flow/current
+expect_out    "the branch's own pointer wins over a top-level one"                 flow-session.sh "$(session_json resume)" "status: implementing"
+rm .claude/flow/feat__x/current
+expect_out    "a top-level pointer (older skills) is still read"                   flow-session.sh "$(session_json resume)" "status: human-review"
+rm .claude/flow/current
+plan done; hp "$T/task" > .claude/flow/feat__x/finished
+expect_out    "finished in the branch directory notifies done and is cleaned"      flow-notify.sh "$(main_stop_json)" "(done)"
+assert "finished and markers removed" '[ ! -f .claude/flow/feat__x/finished ] && [ ! -f .claude/flow/feat__x/start-b1 ]'
+printf -- '---\ntask: t3\nstatus: draft\n---\n' > task3/plan.md; hp "$T/task3" > .claude/flow/other/planning; rm .claude/flow/other/current
+expect_out    "a planning parked elsewhere is listed as planning"                  flow-session.sh "$(session_json startup)" "other (planning, status: draft)"
+rm -rf .claude/flow/other
+
+echo "== no flow on main, master or a detached HEAD"
+git checkout -q main 2>/dev/null || git checkout -q -b main
+expect_deny   "main: writing the planning pointer"                                 flow-guard.sh "$(write_json '' "$T/.claude/flow/main/planning")"
+assert "deny asks for a branch" 'case $err in *"no flow runs on main"*"create a branch"*) true;; *) false;; esac'
+expect_deny   "main: writing a top-level current pointer"                          flow-guard.sh "$(write_json '' "$T/.claude/flow/current")"
+expect_allow  "main: other writes are not touched"                                 flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+plan implementing; hp "$T/task" > .claude/flow/current
+expect_deny   "main: a stage agent, even with a pointer in place"                  flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+assert "deny asks for a branch, not for a status" 'case $err in *"no flow runs on main"*) true;; *) false;; esac'
+expect_allow  "main: dev-qa-impact still runs standalone"                          flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
+rm .claude/flow/current
+git checkout -q master 2>/dev/null || git checkout -q -b master
+expect_deny   "master: writing the planning pointer"                               flow-guard.sh "$(write_json '' "$T/.claude/flow/master/planning")"
+git checkout -q --detach
+expect_deny   "detached HEAD: writing the planning pointer"                        flow-guard.sh "$(write_json '' "$T/.claude/flow/planning")"
+assert "deny names the detached HEAD" 'case $err in *"detached HEAD"*) true;; *) false;; esac'
+git checkout -q feat/x
+DEV_FLOW_PROTECTED_BRANCHES='feat/x' expect_deny "DEV_FLOW_PROTECTED_BRANCHES adds a branch" flow-guard.sh "$(write_json '' "$T/.claude/flow/feat__x/planning")"
+expect_allow  "feat/x: writing the planning pointer"                               flow-guard.sh "$(write_json '' "$T/.claude/flow/feat__x/planning")"
+mkdir -p "$T/nogit"; ( cd "$T/nogit" && mkdir -p .claude/flow ) 
+nogit_write() { printf '{"session_id":"s","cwd":"%s","tool_name":"Write","tool_input":{"file_path":"%s","content":"x"}}' "$(jp "$T/nogit")" "$(jp "$T/nogit/.claude/flow/planning")"; }
+expect_allow  "outside git: no branch to protect, top-level pointer allowed"       flow-guard.sh "$(nogit_write)"
 
 echo
 printf '%d passed, %d failed\n' "$pass" "$fail"
