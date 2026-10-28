@@ -276,3 +276,40 @@ test('the poll picks up a stage change in plan.md and a pointer at the git root 
   expect(invalidated).toBeGreaterThan(0)
   await approved.unmount()
 })
+
+test('a session in a worktree under .claude/worktrees does not show the main checkout\'s task', async ($, on) => {
+  // Claude Code puts a worktree at <repo>/.claude/worktrees/<name>, below the main
+  // checkout's .claude/flow; its root holds a .git file, where the lookup stops.
+  const files: Record<string, string> = {
+    '/repo/.claude/flow/current': '/repo/.claude/plans/t\n',
+    '/repo/.claude/plans/t/plan.md': PLAN,
+    '/repo/.claude/worktrees/bug/.git': 'gitdir: /repo/.git/worktrees/bug\n',
+  }
+  on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
+  on('ui.status', () => ({ value: undefined }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.root', () => ({ value: '/repo/.claude/worktrees/bug' }))
+  on('clock.now', () => ({ value: 1 }))
+  on('clock.every', () => ({ value: undefined }))
+  on('fs.exists', (_, e) => ({ value: e.path in files }))
+  on('fs.read', (_, e) => ({ value: files[e.path] ?? '' }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false } }))
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+
+  await $.session.start({ cwd: '/repo/.claude/worktrees/bug', surface: 'desktop', isInteractive: true })
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await band.find({ type: 'Text' }))?.text).toBe('engine')
+  await band.unmount()
+
+  // A flow started in the worktree itself is the one it shows.
+  files['/repo/.claude/worktrees/bug/.claude/flow/current'] = '/repo/.claude/worktrees/bug/task\n'
+  files['/repo/.claude/worktrees/bug/task/plan.md'] = '---\ntask: crash on save\nstatus: reviewing\nmode: lite\n---\n'
+  await $.command.run({ command: 'dev-flow-panel', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  const own = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await own.find({ type: 'Text', text: /crash on save/ })).toBeDefined()
+  await own.unmount()
+})

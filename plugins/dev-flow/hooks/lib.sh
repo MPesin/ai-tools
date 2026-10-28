@@ -112,7 +112,11 @@ path_under() {
 
 # ---------------------------------------------------------------- flow state
 
-# Walk up from the hook's cwd to the first .claude/flow/<name> pointer.
+# Walk up from the hook's cwd to the first .claude/flow/<name> pointer. The walk
+# ends at the first directory that holds a .git (a directory in the main checkout,
+# a file in a worktree or submodule): a flow belongs to one checkout, so a session
+# in a worktree (Claude Code puts them under <repo>/.claude/worktrees/<name>) must
+# not pick up the main checkout's pointer above it.
 find_flow_pointer() {
   local dir name
   dir=$(json_field cwd)
@@ -125,6 +129,7 @@ find_flow_pointer() {
         return 0
       fi
     done
+    [ -e "$dir/.git" ] && return 1
     [ -z "$dir" ] || [ "$dir" = "/" ] && return 1
     dir=${dir%/*}
     [ -z "$dir" ] && dir=/

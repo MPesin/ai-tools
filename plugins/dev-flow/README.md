@@ -201,7 +201,7 @@ Where the rules file is silent, the agents ask or say so; they do not fall back 
 
 ## Hooks
 
-Active only while `<project>/.claude/flow/current` (implementing) or `planning` (planning or debugging) exists, except the Agent gate below, which also refuses to start a stage agent when no pointer exists. Delete the pointer file to switch the rest off.
+Active only while `<project>/.claude/flow/current` (implementing) or `planning` (planning or debugging) exists, except the Agent gate below, which also refuses to start a stage agent when no pointer exists. Delete the pointer file to switch the rest off. The pointer is looked up from the working directory upwards and the lookup stops at the first directory holding a `.git`, so a session started in a subdirectory finds the project's flow, while a git worktree (Claude Code creates them under `<repo>/.claude/worktrees/<name>`, with a `.git` file at their root) is its own project: it neither sees nor is guarded by the main checkout's flow, and a flow started inside it stays there.
 
 | Hook | What it does |
 |---|---|
