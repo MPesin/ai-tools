@@ -37,7 +37,7 @@ It never edits source, not even to add a print statement. The only files it writ
 The task folder layout, the plan format and the `.claude/flow/planning` pointer are dev-flow's. With `dev-flow` installed:
 
 - its hooks guard the run: `dev-debugger` may write only `diagnosis*.md` and `debug/`, any other change to the working tree is reported in `violations.md`, the main session may write only the task folder, and commit, push and posting are blocked;
-- its Stop hook sends a desktop notification at the diagnosis gate (`waiting for you (confirm-cause)`), and a restarted session is pointed back at `/dev-debug:dev-debug <task folder>`; a `planning` pointer left behind once `plan.md` is past `diagnosing`/`draft` is reported as stale, not enforced, and removed at the next Stop;
+- its Stop hook sends a desktop notification at the diagnosis gate (`waiting for you (confirm-cause)`), and a restarted session is pointed back at `/dev-debug:dev-debug <task folder>`; a `planning` pointer left behind once `plan.md` is past `diagnosing`/`draft` is reported as stale, not enforced, and removed at the next Stop; a diagnosis can start while another task's `current` pointer is parked at human-review (the debugger is keyed on `planning`, though the gate notification and the band then follow the parked task);
 - `/dev-flow:dev-implement` runs the fix plan: the implementer writes the regression test first and appends its failing run to `verify.log` before fixing, the reviewer checks cause over symptom, the QA note lists the reported scenario as the first regression test;
 - the `dev-flow-panel` band gives a bug task its own stage list (Diagnosing, Confirm cause, Approved, then the implementing steps) and its Debug button starts or resumes this skill.
 

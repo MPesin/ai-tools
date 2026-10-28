@@ -142,6 +142,14 @@ find_flow_pointer() {
 # the pointer found is a stale planning one (stale_exit says so first).
 load_task_folder() {
   POINTER_NAMES=${1:-"current planning"}
+  AGENT_TYPE=$(json_field agent_type)
+  AGENT_TYPE=${AGENT_TYPE##*:}
+  # Planner, critic and debugger belong to the task being planned: with a planning
+  # pointer beside a parked current (a task waiting at human-review), theirs is the
+  # planning one, or they could write nothing but the parked task's folder.
+  case $AGENT_TYPE in
+    dev-planner|dev-plan-critic|dev-debugger) [ "$POINTER_NAMES" = "current planning" ] && POINTER_NAMES="planning current" ;;
+  esac
   POINTER=$(find_flow_pointer) || exit 0
   POINTER_NAME=${POINTER##*/}
   FLOW_DIR=${POINTER%/*}
@@ -152,8 +160,6 @@ load_task_folder() {
   [ -n "$TASK_FOLDER" ] && [ -d "$TASK_FOLDER" ] || exit 0
   GIT_ROOT=$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)
   GIT_ROOT=$(normalize_path "${GIT_ROOT:-$PROJECT_DIR}")
-  AGENT_TYPE=$(json_field agent_type)
-  AGENT_TYPE=${AGENT_TYPE##*:}
   AGENT_ID=$(json_field agent_id)
 }
 

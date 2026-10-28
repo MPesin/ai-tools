@@ -14,6 +14,8 @@ if [ "$POINTER_NAME" = planning ] && [ "$(frontmatter_value source)" = dev-debug
   next="Debugging is in progress: continue with /dev-debug:dev-debug $TASK_FOLDER (it shows the diagnosis gate again when diagnosis.md exists), or delete $POINTER to abandon it."
 elif [ "$POINTER_NAME" = planning ]; then
   next="Planning is in progress: continue with /dev-flow:dev-plan, or delete $POINTER to abandon it."
+elif [ "$status" = done ]; then
+  next="The run is finished; the Stop hook removes $POINTER at the end of the turn."
 else
   next="Continue with /dev-flow:dev-implement $TASK_FOLDER/plan.md (it resumes from status and review_round)."
 fi

@@ -338,6 +338,9 @@ rm -f task/needs-decision.md
 mv .claude/flow/current .claude/flow/finished; touch .claude/flow/start-zz .claude/flow/snap-zz
 expect_out  "finished pointer notifies done"     flow-notify.sh "$(main_stop_json)" "(done)"
 assert "finished pointer and markers removed"    '[ ! -f .claude/flow/finished ] && [ ! -f .claude/flow/start-zz ] && [ ! -f .claude/flow/snap-zz ] && [ ! -f .claude/flow/notified ]'
+plan done; hp "$T/task" > .claude/flow/current; touch .claude/flow/start-yy
+expect_out  "current left at done (rename skipped) is finished too" flow-notify.sh "$(main_stop_json)" "(done)"
+assert "current pointer and markers removed"     '[ ! -f .claude/flow/current ] && [ ! -f .claude/flow/start-yy ] && [ ! -f .claude/flow/notified ]'
 unset DEV_FLOW_NOTIFY_CMD
 
 echo "== Stop: notification text is never spliced into a script"
@@ -359,6 +362,9 @@ echo "== SessionStart"
 plan reviewing
 expect_out "resume re-injects the task folder and status" flow-session.sh "$(session_json resume)" "status: reviewing"
 expect_out "startup names the pointer to delete"          flow-session.sh "$(session_json startup)" "delete"
+plan done
+expect_out "current at done: finished, not 'continue with dev-implement'" flow-session.sh "$(session_json resume)" "finished"
+assert "no resume hint at done" 'case $out in *"Continue with"*) false;; *) true;; esac'
 mv .claude/flow/current .claude/flow/planning
 printf -- '---\ntask: t\nsource: dev-debug\nstatus: diagnosing\n---\n' > task/plan.md
 expect_out "planning pointer with source dev-debug resumes dev-debug" flow-session.sh "$(session_json resume)" "/dev-debug:dev-debug"
@@ -431,6 +437,19 @@ mkdir -p task2; printf -- '---\ntask: t2\nstatus: draft\n---\n' > task2/plan.md;
 expect_deny  "planning beside current: spawn dev-fixer"   flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
 assert "deny is the dev-plan message with the second plan's status" 'case $err in *"planning exists"*"task2/plan.md has status: draft"*) true;; *) false;; esac'
 expect_deny  "planning beside current: spawn dev-review-triager" flow-guard.sh "$(agent_json dev-flow:dev-review-triager)"
+# The second task's own agents belong to the planning pointer, not the parked current.
+expect_allow "planning beside current: planner writes task2/plan.md"           flow-guard.sh "$(write_json dev-flow:dev-planner "$T/task2/plan.md")"
+expect_deny  "planning beside current: planner writes the parked task's folder" flow-guard.sh "$(write_json dev-flow:dev-planner "$T/task/plan.md")"
+expect_deny  "planning beside current: planner writes src"                     flow-guard.sh "$(write_json dev-flow:dev-planner "$T/src/foo/alpha.txt")"
+expect_allow "planning beside current: critic writes task2/plan-critique.md"   flow-guard.sh "$(write_json dev-flow:dev-plan-critic "$T/task2/plan-critique.md")"
+printf -- '---\ntask: b2\nsource: dev-debug\nstatus: diagnosing\n---\n' > task2/plan.md
+expect_allow "planning beside current: debugger writes task2/diagnosis.md"     flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task2/diagnosis.md")"
+expect_deny  "planning beside current: debugger writes task/diagnosis.md"      flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task/diagnosis.md")"
+expect_out   "planning beside current: debugger start gets the planning task"  flow-context.sh "$(start_json d9 dev-debug:dev-debugger)" "task2. "
+assert "debugger start says diagnosing" 'case $out in *"status: diagnosing"*) true;; *) false;; esac'
+expect_pass  "planning beside current: debugger stop compares against its own snapshot" flow-verify-stop.sh "$(stop_json d9 dev-debug:dev-debugger)"
+expect_allow "planning beside current: reviewer still writes the parked task"  flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/task/review-1.md")"
+expect_deny  "planning beside current: reviewer writes task2"                  flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/task2/review-1.md")"
 rm .claude/flow/current; hp "$T/task" > .claude/flow/planning; plan draft
 expect_out   "planner start gets context"              flow-context.sh "$(start_json p1 dev-flow:dev-planner)" "status: draft"
 expect_pass  "verify-stop: planner with no changes passes" flow-verify-stop.sh "$(stop_json p1 dev-flow:dev-planner)"

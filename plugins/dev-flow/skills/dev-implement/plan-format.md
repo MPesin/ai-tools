@@ -60,11 +60,11 @@ base: <base branch or commit for diffs>
 
 Hooks use these to decide whether anything is active. Each contains the absolute task-folder path as its only line.
 
-- `<project>/.claude/flow/current` — written by `dev-implement` at Intake; renamed to `finished` by the final report.
+- `<project>/.claude/flow/current` — written by `dev-implement` at Intake; renamed to `finished` by the final report (a `current` left at `status: done` is finished by the Stop hook all the same).
 - `<project>/.claude/flow/planning` — written by `dev-plan` (or the `dev-debug` plugin) at start, deleted on approval, on a diagnosis-only or already-done close-out, and on abandonment. It belongs to `status: diagnosing` and `status: draft` (and to a `plan.md` not written yet). One left behind at a later status, or naming a folder that no longer exists, is **stale**: the hooks treat it as absent (nothing is denied on its basis, the Agent gate still needs `current`), say so once per session with the `rm` command that removes it, and the Stop hook removes it when `plan.md` shows the later status; a pointer naming a missing folder is only named, never removed, and a pointer at `diagnosing` or `draft` is never touched.
 - `<project>/.claude/flow/finished` — makes the Stop hook send the "done" notification; the hook then deletes it.
 
-`<project>` is the first directory at or above the working directory that holds a pointer, and the lookup never crosses a `.git` (directory or file): a git worktree, Claude Code's included (`<repo>/.claude/worktrees/<name>`), is its own project with its own `.claude/flow/`, and does not see the main checkout's pointer.
+`<project>` is the first directory at or above the working directory that holds a pointer (`current` before `planning`, except for the planner, the plan critic and the debugger, which belong to the task being planned and take `planning` first), and the lookup never crosses a `.git` (directory or file): a git worktree, Claude Code's included (`<repo>/.claude/worktrees/<name>`), is its own project with its own `.claude/flow/`, and does not see the main checkout's pointer.
 
 The hooks keep their own marker files beside them (`start-*`, `snap-*`, `claim-*`, `notified`, `stale-notified`); they are removed at `finished`. Deleting the pointer switches every guard off, except that the stage agents (implementer, reviewer, fixer, triager) cannot be spawned until `dev-implement` Intake writes `current` again.
 
