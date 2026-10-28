@@ -57,7 +57,7 @@ A task diagnosed by the [dev-debug](../dev-debug) plugin (`plan.md` has `source:
 
 ## Where the stage comes from
 
-The same files the dev-flow hooks use: `<project>/.claude/flow/current` or `planning` points at the task folder, and `plan.md`'s frontmatter holds `status`, `mode`, `review_round` and `source`; `diagnosis.md` in the task folder tells Diagnosing from Confirm cause. The plugin polls every 4 seconds and refreshes right after a tool call touches those files. The status line under the prompt shows the same stage.
+The same files the dev-flow hooks use: `<project>/.claude/flow/current` or `planning` points at the task folder (when both exist, the task being planned or diagnosed is shown while its plan is at `draft` or `diagnosing`; a `planning` pointer past that is stale and the `current` task is shown), and `plan.md`'s frontmatter holds `status`, `mode`, `review_round` and `source`; `diagnosis.md` in the task folder tells Diagnosing from Confirm cause. The plugin polls every 4 seconds and refreshes right after a tool call touches those files. The status line under the prompt shows the same stage.
 
 Every stage has a theme colour of its own, and it is used wherever that stage appears: its chip and the accent bar while it is current, its dot in the track, and its glyph in the list, where the label is in colour behind you, bold for the current step and dim ahead. Hints are dim italics, ticks are `success`, and the flags are `warning` and `error`. Theme keys rather than raw colours, so it follows your theme. (On the terminal `dimColor` replaces a colour rather than tinting it, which is why a dim label sits next to a coloured glyph instead of being coloured itself.)
 

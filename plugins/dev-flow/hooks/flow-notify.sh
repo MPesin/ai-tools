@@ -12,7 +12,9 @@ HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
 [ -f "$HERE/lib.sh" ] || HERE="${CLAUDE_PLUGIN_ROOT}/hooks"
 source "$HERE/lib.sh"
 HOOK_EVENT=Stop
-load_task_folder "current planning finished"
+# planning first: a task being planned or diagnosed beside a parked current is the
+# one the user is working on, so its gate is the one to announce.
+load_task_folder "planning current finished"
 [ -z "$AGENT_TYPE" ] || exit 0
 
 finish_cleanup() {

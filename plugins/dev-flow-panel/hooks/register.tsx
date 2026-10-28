@@ -110,30 +110,42 @@ const lineage = (root: string) => {
   return dirs
 }
 
-// The first pointer file found, nearest directory first. Like the hooks, the walk
+// The pointer files of the nearest directory that has one. Like the hooks, the walk
 // ends at the first directory holding a .git (a file in a worktree): a session in
 // a worktree under <repo>/.claude/worktrees/ must not show the main checkout's task.
-async function findPointer($: EngineInterface, root: string) {
+async function findPointers($: EngineInterface, root: string) {
   for (const dir of lineage(root)) {
     const flowDir = join(join(dir, '.claude'), 'flow')
-    for (const pointer of ['current', 'planning'] as const) {
+    const found: { pointer: 'planning' | 'current'; pointerPath: string }[] = []
+    for (const pointer of ['planning', 'current'] as const) {
       const pointerPath = join(flowDir, pointer)
-      if (await $.fs.exists(pointerPath)) return { pointer, pointerPath }
+      if (await $.fs.exists(pointerPath)) found.push({ pointer, pointerPath })
     }
-    if (await $.fs.exists(join(dir, '.git'))) return undefined
+    if (found.length > 0) return found
+    if (await $.fs.exists(join(dir, '.git'))) return []
   }
-  return undefined
+  return []
 }
+
+const PLANNING_STATUSES = ['draft', 'diagnosing', '']
 
 async function readFlow($: EngineInterface): Promise<FlowState> {
   const checkedAt = await $.clock.now()
-  const found = await findPointer($, await $.session.root())
-  if (found) {
-    const { pointer, pointerPath } = found
+  // A planning pointer counts only while its plan is still being planned or
+  // diagnosed; past that it is stale (the hooks ignore and remove it), and a
+  // current pointer beside it names the task that carries on.
+  let found: { pointer: 'planning' | 'current'; pointerPath: string; taskFolder: string; fm: Record<string, string> } | undefined
+  for (const { pointer, pointerPath } of await findPointers($, await $.session.root())) {
     const taskFolder = (await readText($, pointerPath)).split(/\r?\n/)[0]?.trim() ?? ''
+    const fm = taskFolder ? frontmatter(await readText($, join(taskFolder, 'plan.md'))) : {}
+    const candidate = { pointer, pointerPath, taskFolder, fm }
+    if (pointer === 'current' || (taskFolder && PLANNING_STATUSES.includes(fm.status ?? ''))) { found = candidate; break }
+    found ??= candidate
+  }
+  if (found) {
+    const { pointer, taskFolder, fm } = found
     if (!taskFolder) return { ...EMPTY, checkedAt }
     const planPath = join(taskFolder, 'plan.md')
-    const fm = frontmatter(await readText($, planPath))
     const round = Number(fm.review_round)
     return {
       pointer,

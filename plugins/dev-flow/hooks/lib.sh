@@ -155,7 +155,14 @@ load_task_folder() {
   FLOW_DIR=${POINTER%/*}
   PROJECT_DIR=${FLOW_DIR%/.claude/flow}
   SESSION_ID=$(json_field session_id)
-  if [ "$POINTER_NAME" = planning ] && planning_stale "$POINTER"; then stale_exit; fi
+  if [ "$POINTER_NAME" = planning ] && planning_stale "$POINTER"; then
+    # Beside a current pointer the parked task carries on; the Stop hook sweeps.
+    if [ "$HOOK_EVENT" != Stop ] && [ -f "$FLOW_DIR/current" ]; then
+      POINTER="$FLOW_DIR/current"; POINTER_NAME=current
+    else
+      stale_exit
+    fi
+  fi
   TASK_FOLDER=$(normalize_path "$(head -n 1 "$POINTER" | tr -d '\r')")
   [ -n "$TASK_FOLDER" ] && [ -d "$TASK_FOLDER" ] || exit 0
   GIT_ROOT=$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)
@@ -220,10 +227,20 @@ stale_exit() {
   exit 0
 }
 
-# Value of a frontmatter key; CR, trailing spaces and surrounding quotes removed.
+# A sed pattern matching WORD in any letter case (POSIX sed has no I flag).
+ci_pattern() {
+  local w=$1 i c out=''
+  for ((i = 0; i < ${#w}; i++)); do
+    c=${w:$i:1}
+    case $c in [A-Za-z]) out="$out[$(printf '%s' "$c" | tr '[:lower:]' '[:upper:]')$(lower "$c")]" ;; *) out="$out$c" ;; esac
+  done
+  printf '%s' "$out"
+}
+
+# Value of a frontmatter key (any letter case); CR, trailing spaces and surrounding quotes removed.
 frontmatter_value() {   # KEY [PLAN_PATH]
   sed -n '/^---/,/^---/p' "${2:-$TASK_FOLDER/plan.md}" 2>/dev/null | tr -d '\r' \
-    | sed -n "s/^$1:[[:space:]]*//p" | head -n 1 | sed 's/[[:space:]]*$//' \
+    | sed -n "s/^$(ci_pattern "$1"):[[:space:]]*//p" | head -n 1 | sed 's/[[:space:]]*$//' \
     | sed "s/^\"\(.*\)\"\$/\1/; s/^'\(.*\)'\$/\1/"
 }
 
@@ -231,11 +248,42 @@ plan_has_packages() {
   grep -E -q '^###[[:space:]]+P[0-9A-Za-z]+[[:space:]]*-' "$TASK_FOLDER/plan.md" 2>/dev/null
 }
 
+# Comma or whitespace separated list -> one item per line; a comma inside {a,b}
+# is part of the item.
+split_owns() {
+  local s=$1 out='' depth=0 c i
+  for ((i = 0; i < ${#s}; i++)); do
+    c=${s:$i:1}
+    case $c in
+      '{') depth=$((depth+1)) ;;
+      '}') [ $depth -gt 0 ] && depth=$((depth-1)) ;;
+      ,)   [ $depth -gt 0 ] && c=$'\001' ;;
+    esac
+    out="$out$c"
+  done
+  printf '%s' "$out" | tr ', ' '\n\n' | tr '\001' ','
+}
+
+# Patterns on stdin, one per line; src/{a,b}/** becomes src/a/** and src/b/**.
+# Done by hand: brace expansion of plan text through eval would run it.
+expand_braces() {
+  local pat pre body post alt
+  while IFS= read -r pat || [ -n "$pat" ]; do
+    case $pat in
+      *\{*\}*)
+        pre=${pat%%\{*}; body=${pat#*\{}; body=${body%%\}*}; post=${pat#*\}}
+        printf '%s\n' "$body" | tr ',' '\n' | while IFS= read -r alt || [ -n "$alt" ]; do printf '%s\n' "$pre$alt$post"; done | expand_braces ;;
+      *) printf '%s\n' "$pat" ;;
+    esac
+  done
+}
+
 # Owns patterns of one package, one per line (comma or whitespace separated in the plan).
 package_owns() {
-  sed -n "/^###[[:space:]]*$1[[:space:]]*-/,/^##/p" "$TASK_FOLDER/plan.md" 2>/dev/null \
-    | tr -d '\r' | sed -n 's/^[[:space:]]*Owns:[[:space:]]*//p' | head -n 1 \
-    | tr -d '`' | tr ', ' '\n\n' | sed 's/^\.\///' | grep -v '^[[:space:]]*$'
+  local line
+  line=$(sed -n "/^###[[:space:]]*$1[[:space:]]*-/,/^##/p" "$TASK_FOLDER/plan.md" 2>/dev/null \
+    | tr -d '\r' | sed -n 's/^[[:space:]]*Owns:[[:space:]]*//p' | head -n 1 | tr -d '`')
+  split_owns "$line" | expand_braces | sed 's/^\.\///' | grep -v '^[[:space:]]*$'
 }
 
 all_package_ids() {

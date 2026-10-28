@@ -14,7 +14,7 @@ Refuse to start unless `plan.md` frontmatter has `status: implementing` (the mai
 
 ## Evidence
 
-Append the command line and the raw output of every build and test command you run to `verify.log` in the task folder, with a shell append (`>>`; Edit and Write on that file are refused so appends never overwrite each other). In package mode put them under a `[P2]` line. A run that adds nothing to `verify.log` is refused when you stop.
+Append the command line and the raw output of every build and test command you run to `verify.log` in the task folder, with a shell append (`>>`; Edit and Write on that file are refused so appends never overwrite each other). In package mode put them under a `[P2]` line. A run that adds nothing to `verify.log` is refused when you stop: when no build or test command applies to your steps (documentation only, for example), append one line saying so and why.
 
 ## Work packages
 

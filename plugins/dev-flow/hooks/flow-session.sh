@@ -7,7 +7,7 @@ HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
 [ -f "$HERE/lib.sh" ] || HERE="${CLAUDE_PLUGIN_ROOT}/hooks"
 source "$HERE/lib.sh"
 HOOK_EVENT=SessionStart
-load_task_folder "current planning"
+load_task_folder "planning current"
 
 status=$(frontmatter_value status)
 if [ "$POINTER_NAME" = planning ] && [ "$(frontmatter_value source)" = dev-debug ]; then
@@ -23,4 +23,8 @@ msg="dev-flow: a flow is active in this project. Task folder: $TASK_FOLDER. stat
 [ -s "$TASK_FOLDER/needs-decision.md" ] && msg="$msg needs-decision.md has items waiting for the user."
 [ -s "$TASK_FOLDER/violations.md" ] && msg="$msg violations.md lists files changed outside an agent's allowance."
 [ -n "$(find "$POINTER" -mtime +2 2>/dev/null)" ] && msg="$msg The pointer is more than 2 days old: the flow may have been abandoned; ask the user before continuing."
+if [ "$POINTER_NAME" = planning ] && [ -f "$FLOW_DIR/current" ]; then
+  parked=$(normalize_path "$(head -n 1 "$FLOW_DIR/current" | tr -d '\r')")
+  msg="$msg Another task is parked meanwhile: $parked at status: $(frontmatter_value status "$parked/plan.md"); its stage agents cannot be spawned until this planning ends (approve or abandon it), then /dev-flow:dev-implement $parked/plan.md resumes it."
+fi
 emit_context SessionStart "$msg"

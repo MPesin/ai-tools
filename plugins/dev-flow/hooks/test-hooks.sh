@@ -166,6 +166,8 @@ printf -- '---\ntask: t\nstatus: "implementing"\n---\n- [ ] one\n' > task/plan.m
 expect_allow "double-quoted status"                             flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 printf -- "---\ntask: t\nstatus: 'implementing'\n---\n- [ ] one\n" > task/plan.md
 expect_allow "single-quoted status"                             flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+printf -- '---\nTask: t\nStatus: implementing\n---\n- [ ] one\n' > task/plan.md
+expect_allow "capitalised Status: key"                          flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 plan approved
 expect_deny  "approved: spawn dev-implementer (status not set)" flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 assert "deny names the current and the wanted status" 'case $err in *"status: approved"*implementing*) true;; *) false;; esac'
@@ -244,6 +246,13 @@ printf 'P2\n' > .claude/flow/claim-p2
 expect_allow "P2 edits src/bar/beta.txt (backticked Owns)"   flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/bar/beta.txt" Write p2)"
 printf 'all\n' > .claude/flow/claim-p3
 expect_allow "claim all edits anything"                  flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/shared.txt" Write p3)"
+printf -- '---\ntask: t\nstatus: implementing\n---\n## Steps\n### P1 - Braces\nOwns: src/{foo,bar}/**, tests/{foo,bar}-*\n- [ ] one\n### P2 - Rest\nOwns: src/shared.txt\n- [ ] two\n' > task/plan.md
+printf 'P1\n' > .claude/flow/claim-p4
+expect_allow "Owns with {a,b}: first alternative"        flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/foo/alpha.txt" Write p4)"
+expect_allow "Owns with {a,b}: second alternative"       flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/bar/beta.txt" Write p4)"
+expect_allow "Owns with {a,b}: second pattern"           flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/tests/bar-x.txt" Write p4)"
+expect_deny  "Owns with {a,b}: outside both"             flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/src/shared.txt" Write p4)"
+assert "deny lists the expanded patterns" 'case $err in *"src/foo/**"*"src/bar/**"*) true;; *) false;; esac'
 rm -f .claude/flow/claim-*
 
 echo "== SubagentStart"
@@ -450,6 +459,16 @@ assert "debugger start says diagnosing" 'case $out in *"status: diagnosing"*) tr
 expect_pass  "planning beside current: debugger stop compares against its own snapshot" flow-verify-stop.sh "$(stop_json d9 dev-debug:dev-debugger)"
 expect_allow "planning beside current: reviewer still writes the parked task"  flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/task/review-1.md")"
 expect_deny  "planning beside current: reviewer writes task2"                  flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/task2/review-1.md")"
+rm -f .claude/flow/notified
+expect_out   "planning beside current: Stop announces the planning task's gate"  flow-notify.sh "$(main_stop_json)" "b2: waiting for you (diagnosing)"
+expect_out   "planning beside current: SessionStart re-injects the planning task" flow-session.sh "$(session_json resume)" "/dev-debug:dev-debug"
+assert "and names the parked task with its status" 'case $out in *"parked"*"/task at status: human-review"*) true;; *) false;; esac'
+printf -- '---\ntask: b2\nsource: dev-debug\nstatus: done\n---\n' > task2/plan.md
+expect_out   "stale planning beside current: SessionStart re-injects the current task" flow-session.sh "$(session_json resume)" "status: human-review"
+expect_allow "stale planning beside current: debugger falls back to current"    flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task/diagnosis.md")"
+expect_out   "stale planning beside current: Stop sweeps it"                   flow-notify.sh "$(main_stop_json)" "removed stale pointer"
+assert "current untouched" '[ -f .claude/flow/current ] && [ ! -f .claude/flow/planning ]'
+mkdir -p task2; printf -- '---\ntask: t2\nstatus: draft\n---\n' > task2/plan.md; hp "$T/task2" > .claude/flow/planning
 rm .claude/flow/current; hp "$T/task" > .claude/flow/planning; plan draft
 expect_out   "planner start gets context"              flow-context.sh "$(start_json p1 dev-flow:dev-planner)" "status: draft"
 expect_pass  "verify-stop: planner with no changes passes" flow-verify-stop.sh "$(stop_json p1 dev-flow:dev-planner)"
