@@ -3,23 +3,30 @@
 # confirm-cause once diagnosis.md exists, draft, human-review, blocked, done, a
 # needs-decision.md or violations.md), show a terminal message and
 # send a desktop notification once per state. The `finished` pointer (written by the
-# final report) notifies "done" and is then removed with the run's marker files.
+# final report) notifies "done" and is then removed with the run's marker files; a
+# `current` left at status done (the rename skipped) is treated the same, or it
+# would keep commit and push blocked for good.
+# A planning pointer left behind by a plan past draft/diagnosing is removed here
+# (stale_exit in lib.sh), with a message; one naming a missing folder is only named.
 HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
 [ -f "$HERE/lib.sh" ] || HERE="${CLAUDE_PLUGIN_ROOT}/hooks"
 source "$HERE/lib.sh"
-load_task_folder "current planning finished"
+HOOK_EVENT=Stop
+# planning first: a task being planned or diagnosed beside a parked current is the
+# one the user is working on, so its gate is the one to announce.
+load_task_folder "planning current finished"
 [ -z "$AGENT_TYPE" ] || exit 0
 
 finish_cleanup() {
-  [ "$POINTER_NAME" = finished ] || return 0
-  rm -f "$POINTER" "$FLOW_DIR/notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/claim-* 2>/dev/null
+  [ "$POINTER_NAME" = finished ] || [ "$status" = done ] || return 0
+  rm -f "$POINTER" "$FLOW_DIR/notified" "$FLOW_DIR/stale-notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/claim-* 2>/dev/null
 }
 
 status=$(frontmatter_value status)
 flags=''
 [ -s "$TASK_FOLDER/needs-decision.md" ] && flags="$flags+needs-decision"
 [ -s "$TASK_FOLDER/violations.md" ] && flags="$flags+violations"
-if [ "$POINTER_NAME" = finished ]; then
+if [ "$POINTER_NAME" = finished ] || [ "$status" = done ]; then
   state=done
 else
   case $status in

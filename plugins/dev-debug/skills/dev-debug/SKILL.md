@@ -25,7 +25,7 @@ Find the cause of a bug before anyone changes code, then hand the fix to the imp
 
 Spawn `dev-debug:dev-debugger` with only the task folder path, the project root, `base` and `specs:`. It reproduces the bug, tests hypotheses, and writes `diagnosis.md` (and reproduction scripts under `debug/`). It returns the path, the confidence, whether it reproduced, and the one-sentence root cause. After it returns, check `violations.md` in the task folder; if it exists and gained lines, show them and stop.
 
-If the debugger reports that the bug did not reproduce, the gate below still runs: the user may know the missing input.
+If the debugger reports that the bug did not reproduce, the gate below still runs: the user may know the missing input. If it reports that the cause is already changed on the branch (a commit after `base`, or an uncommitted change, at the root cause, and the reproduction passes at HEAD), say so at the gate with the commit and offer `already fixed`.
 
 ## 3. Diagnosis gate
 
@@ -36,6 +36,7 @@ Read `diagnosis.md` and show, in a few lines each: the symptom, whether it repro
 - **More information or a disagreement** ("it also happens when ...", "that is not it"): append the new facts to the bug report file in `specs/`, then continue the same debugger via SendMessage, or spawn a fresh one pointed at the existing `diagnosis.md` to revise it. Show the gate again.
 - **`second opinion`**: spawn a fresh `dev-debug:dev-debugger` with the same inputs, the output file name `diagnosis-2.md`, and nothing about the first diagnosis. Show where the two agree and disagree. Offer this yourself when the confidence is below High or the user doubts the cause.
 - **`diagnosis only`**: stop here. Set `status: done`, delete `.claude/flow/planning`, and print the path of `diagnosis.md`. Say that `/dev-debug:dev-debug <task folder>` resumes it later to plan the fix.
+- **`already fixed`** (the user fixed it by hand, or the fix is already on the branch): there is nothing to implement, so no fix plan. Record under `## Context` in `plan.md` the commit (hash and subject) or the uncommitted change that carries the fix, and that the reproduction passes with it. Set `status: done`, delete `.claude/flow/planning`, and print the path of `diagnosis.md`. The change still lacks what the flow would have given it: say that `/dev-flow:dev-qa-impact <task folder>` writes the QA note from the branch, and that the regression test from `diagnosis.md` can be planned with `/dev-flow:dev-plan` (the cause is confirmed). Do not hand the commit to `/dev-flow:dev-implement`: its Intake starts at Implement, where the regression test would pass before any fix and stop the run.
 
 Status stays `diagnosing` until the user replies; with dev-flow installed, its Stop hook notifies them.
 
@@ -55,8 +56,16 @@ The `fix` reply approved the plan as shown. In the same turn:
 
 Never spawn an implementer or edit source from this skill. With dev-flow installed, its hooks refuse to spawn a stage agent while the `planning` pointer exists or while `status` is not that stage's own.
 
-## Resuming and exits
+## Resuming
 
 - `/dev-debug:dev-debug <task folder>` with an existing `diagnosis.md`: show the gate (**3**) again and continue from there; write the `planning` pointer first if it is missing.
-- If the user abandons the task, delete `.claude/flow/planning`. It must be removed on every exit path.
 - A bug whose cause is already known and confirmed does not need this skill: `/dev-flow:dev-plan` plans the fix directly.
+
+## Exits: the pointer checklist
+
+`<project>/.claude/flow/planning` belongs to `status: diagnosing` and `status: draft` only. Every exit of this skill ends with its deletion; a pointer left behind at a later status makes the dev-flow hooks report it as stale (they stop enforcing it, and the Stop hook removes it), but the skill does not rely on that. The terminal states, each with the pointer step spelled out:
+
+1. `fix`: `status: approved`, **delete the pointer**, invoke `dev-flow:dev-implement` (**5**).
+2. `diagnosis only`: `status: done`, **delete the pointer**, print the diagnosis path (**3**).
+3. `already fixed`: note the commit in `plan.md`, `status: done`, **delete the pointer**, print the diagnosis path (**3**).
+4. Abandoned (the user drops the task, or the debugger cannot proceed and the user does not continue): leave `status` as it is, **delete the pointer**.

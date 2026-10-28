@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# PreToolUse guard. Active while <project>/.claude/flow/current or /planning exists.
+# PreToolUse guard. Active while <project>/.claude/flow/current or /planning exists
+# (a planning pointer left behind past draft/diagnosing is stale: named once, not enforced).
 #   Bash, PowerShell  -> no commit/push/discard, no posting, no publishing (commands.sh)
 #   mcp__*            -> no MCP tools that write to external systems
 #   Edit/Write/NotebookEdit -> per-agent write allowances (case table below)
@@ -9,6 +10,7 @@ HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
 [ -f "$HERE/lib.sh" ] || HERE="${CLAUDE_PLUGIN_ROOT}/hooks"
 source "$HERE/lib.sh"
 source "$HERE/commands.sh"
+HOOK_EVENT=PreToolUse
 
 deny() {
   echo "dev-flow guard: $1" >&2
@@ -20,7 +22,7 @@ deny() {
 # and the status panel read) in step with what is actually running: the skill text
 # alone was skipped when planning and implementing were asked for in one reply.
 stage_gate() {
-  local agent=${1##*:} want pointer folder status
+  local agent=${1##*:} want pointer planning folder status
   case $agent in
     dev-implementer)    want=implementing ;;
     dev-reviewer)       want=reviewing ;;
@@ -37,8 +39,18 @@ stage_gate() {
   pointer=$(find_flow_pointer) \
     || deny "$agent runs inside /dev-flow:dev-implement, whose Intake writes <project>/.claude/flow/current and whose stages set status in plan.md before spawning. Run /dev-flow:dev-implement <plan path> instead of spawning $agent directly."
   # planning is checked by name: find_flow_pointer prefers current when both exist.
-  [ -f "${pointer%/*}/planning" ] \
-    && deny "the plan is still being planned (.claude/flow/planning exists). Finish /dev-flow:dev-plan first: apply the requested plan changes, get the user's explicit approval, set status: approved, delete the planning pointer, then invoke /dev-flow:dev-implement <plan path>. Never implement from dev-plan."
+  # Its plan's status decides whether it gates: a stale one is named, not obeyed.
+  planning="${pointer%/*}/planning"
+  if [ -f "$planning" ]; then
+    if planning_stale "$planning"; then
+      [ -f "${pointer%/*}/current" ] \
+        || deny "$STALE_NOTICE $agent runs inside /dev-flow:dev-implement, whose Intake writes ${pointer%/*}/current and whose stages set status in plan.md before spawning; run /dev-flow:dev-implement <plan path>."
+    elif [ "$STALE_STATUS" = diagnosing ]; then
+      deny "the bug is still being diagnosed ($planning exists; $STALE_FOLDER/plan.md has status: diagnosing). Finish /dev-debug:dev-debug first: the user confirms the cause (reply fix), the skill writes the fix plan, sets status: approved, deletes the planning pointer, then invokes /dev-flow:dev-implement <plan path>. Never implement from dev-debug."
+    else
+      deny "the plan is still being planned ($planning exists; $STALE_FOLDER/plan.md has status: ${STALE_STATUS:-none yet}). Finish /dev-flow:dev-plan first: apply the requested plan changes, get the user's explicit approval, set status: approved, delete the planning pointer, then invoke /dev-flow:dev-implement <plan path>. Never implement from dev-plan."
+    fi
+  fi
   # A pointer whose folder is gone switches every other guard off silently
   # (load_task_folder exits 0); here that is the finding.
   folder=$(normalize_path "$(head -n 1 "$pointer" | tr -d '\r')")

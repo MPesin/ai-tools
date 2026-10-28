@@ -1,6 +1,6 @@
 {
   "name": "dev-debug",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Diagnose a bug before anyone changes code: /dev-debug:dev-debug runs a clean-slate, read-only debugger subagent that reproduces the failure, tests hypotheses against the code and git history, and writes diagnosis.md with evidence, blast radius and confidence. You confirm the root cause (or ask for an independent second opinion); the diagnosis becomes an approved fix plan with the regression test as its first step, which the dev-flow plugin implements, reviews and QA-notes. Works standalone for a diagnosis without a fix.",
   "author": { "name": "Michael Pesin" }
 }

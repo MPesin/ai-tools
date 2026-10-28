@@ -54,19 +54,19 @@ base: <base branch or commit for diffs>
 ---
 ```
 
-`status` is updated at every stage transition; resuming reads `status` and `review_round` from here. The status panel plugin (`dev-flow-panel`) and the hooks read the same fields. `diagnosing` is set by the `dev-debug` plugin before the plan is written from the diagnosis (its `diagnosis-format.md` mirrors the frontmatter and headings below; change both together); a plan with `source: dev-debug` is a bug fix, and the implementer, reviewer and QA agents treat it as one (regression test first, cause over symptom, the reported scenario as the first regression row).
+`status` is updated at every stage transition (the hooks read the keys in any letter case); resuming reads `status` and `review_round` from here. The status panel plugin (`dev-flow-panel`) and the hooks read the same fields. `diagnosing` is set by the `dev-debug` plugin before the plan is written from the diagnosis (its `diagnosis-format.md` mirrors the frontmatter and headings below; change both together); a plan with `source: dev-debug` is a bug fix, and the implementer, reviewer and QA agents treat it as one (regression test first, cause over symptom, the reported scenario as the first regression row).
 
 ## Pointer files
 
 Hooks use these to decide whether anything is active. Each contains the absolute task-folder path as its only line.
 
-- `<project>/.claude/flow/current` — written by `dev-implement` at Intake; renamed to `finished` by the final report.
-- `<project>/.claude/flow/planning` — written by `dev-plan` (or the `dev-debug` plugin) at start, deleted on approval or abandonment.
+- `<project>/.claude/flow/current` — written by `dev-implement` at Intake; renamed to `finished` by the final report (a `current` left at `status: done` is finished by the Stop hook all the same).
+- `<project>/.claude/flow/planning` — written by `dev-plan` (or the `dev-debug` plugin) at start, deleted on approval, on a diagnosis-only or already-done close-out, and on abandonment. It belongs to `status: diagnosing` and `status: draft` (and to a `plan.md` not written yet). One left behind at a later status, or naming a folder that no longer exists, is **stale**: the hooks treat it as absent (nothing is denied on its basis, the Agent gate still needs `current`), say so once per session with the `rm` command that removes it, and the Stop hook removes it when `plan.md` shows the later status; a pointer naming a missing folder is only named, never removed, and a pointer at `diagnosing` or `draft` is never touched.
 - `<project>/.claude/flow/finished` — makes the Stop hook send the "done" notification; the hook then deletes it.
 
-`<project>` is the first directory at or above the working directory that holds a pointer, and the lookup never crosses a `.git` (directory or file): a git worktree, Claude Code's included (`<repo>/.claude/worktrees/<name>`), is its own project with its own `.claude/flow/`, and does not see the main checkout's pointer.
+`<project>` is the first directory at or above the working directory that holds a pointer (`current` before `planning`, except for the planner, the plan critic and the debugger, which belong to the task being planned and take `planning` first), and the lookup never crosses a `.git` (directory or file): a git worktree, Claude Code's included (`<repo>/.claude/worktrees/<name>`), is its own project with its own `.claude/flow/`, and does not see the main checkout's pointer.
 
-The hooks keep their own marker files beside them (`start-*`, `snap-*`, `claim-*`, `notified`); they are removed at `finished`. Deleting the pointer switches every guard off, except that the stage agents (implementer, reviewer, fixer, triager) cannot be spawned until `dev-implement` Intake writes `current` again.
+The hooks keep their own marker files beside them (`start-*`, `snap-*`, `claim-*`, `notified`, `stale-notified`); they are removed at `finished`. Deleting the pointer switches every guard off, except that the stage agents (implementer, reviewer, fixer, triager) cannot be spawned until `dev-implement` Intake writes `current` again.
 
 ## Specs intake
 
@@ -103,7 +103,7 @@ Depends on: none | P0, P2
 
 Rules:
 
-- **Heading and ownership syntax.** A package heading is `### P<n> - <name>`. `Owns:` is a comma-separated list of paths or globs relative to the repository root; `*` also crosses directories (`src/Orders/**` and `src/Orders/*` mean the same). The hooks parse this line and refuse edits outside it, so keep it on one line and exact.
+- **Heading and ownership syntax.** A package heading is `### P<n> - <name>`. `Owns:` is a comma-separated list of paths or globs relative to the repository root; `*` also crosses directories (`src/Orders/**` and `src/Orders/*` mean the same), and `{a,b}` lists alternatives (`src/{Orders,Billing}/**`). The hooks parse this line and refuse edits outside it, so keep it on one line and exact.
 - **Disjoint ownership.** No file appears in two packages' `Owns`. Tests live with the package that owns the code under test.
 - **Shared touchpoints are sequenced.** Contracts and schemas, DI/registration, project and config files, and anything several packages need go in an early package (`P0`) that the others depend on, or in a final package named `Integration` (`### P<n> - Integration`, `Owns: *`) that depends on all of them.
 - **Acyclic dependencies.** Packages with no unmet dependencies form a wave and run in parallel; the next wave starts when the previous one is done.

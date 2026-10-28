@@ -12,7 +12,7 @@ You are given the task folder path, the path of a findings file (`review-N.md` f
 
 ## Evidence
 
-Append the command line and the raw output of every build and test command you run to `verify.log` in the task folder with a shell append (`>>`; Edit and Write on that file are refused). A run that adds nothing to `verify.log` is refused when you stop.
+Append the command line and the raw output of every build and test command you run to `verify.log` in the task folder with a shell append (`>>`; Edit and Write on that file are refused). A run that adds nothing to `verify.log` is refused when you stop: when no build or test command applies to the fixes, append one line saying so and why.
 
 ## Process
 

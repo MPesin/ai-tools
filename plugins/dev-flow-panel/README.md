@@ -37,7 +37,7 @@ The stage list runs across, wrapping onto a second row in a narrow column, with 
 |---|---|
 | Plan | `/dev-flow:dev-plan` |
 | Debug | `/dev-debug:dev-debug` (the dev-debug plugin), with the active task folder while it is diagnosing, so a press brings the diagnosis gate back. Primary at that stage. |
-| Implement / Resume | `/dev-flow:dev-implement <plan.md of the active task>`. Dim while the plan is still a draft or a diagnosis is in progress (the `planning` pointer exists): a press then shows why instead of running the skill, since the plan has to be approved in chat first. |
+| Implement / Resume | `/dev-flow:dev-implement <plan.md of the active task>`. Dim while the plan is still a draft or a diagnosis is in progress (`plan.md` at `draft` or `diagnosing`): a press then shows why instead of running the skill, since the plan has to be approved in chat first. A `planning` pointer left behind by a plan at a later status does not dim it; the dev-flow hooks treat such a pointer as stale too. |
 | QA impact | `/dev-flow:dev-qa-impact <task folder>` |
 | ↻ refresh | re-reads the task folder now |
 | more ▾ / less ▴ | expands or folds the band |
@@ -57,7 +57,7 @@ A task diagnosed by the [dev-debug](../dev-debug) plugin (`plan.md` has `source:
 
 ## Where the stage comes from
 
-The same files the dev-flow hooks use: `<project>/.claude/flow/current` or `planning` points at the task folder, and `plan.md`'s frontmatter holds `status`, `mode`, `review_round` and `source`; `diagnosis.md` in the task folder tells Diagnosing from Confirm cause. The plugin polls every 4 seconds and refreshes right after a tool call touches those files. The status line under the prompt shows the same stage.
+The same files the dev-flow hooks use: `<project>/.claude/flow/current` or `planning` points at the task folder (when both exist, the task being planned or diagnosed is shown while its plan is at `draft` or `diagnosing`; a `planning` pointer past that is stale and the `current` task is shown), and `plan.md`'s frontmatter holds `status`, `mode`, `review_round` and `source`; `diagnosis.md` in the task folder tells Diagnosing from Confirm cause. The plugin polls every 4 seconds and refreshes right after a tool call touches those files. The status line under the prompt shows the same stage.
 
 Every stage has a theme colour of its own, and it is used wherever that stage appears: its chip and the accent bar while it is current, its dot in the track, and its glyph in the list, where the label is in colour behind you, bold for the current step and dim ahead. Hints are dim italics, ticks are `success`, and the flags are `warning` and `error`. Theme keys rather than raw colours, so it follows your theme. (On the terminal `dimColor` replaces a colour rather than tinting it, which is why a dim label sits next to a coloured glyph instead of being coloured itself.)
 

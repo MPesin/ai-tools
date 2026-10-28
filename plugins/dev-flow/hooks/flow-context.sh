@@ -16,7 +16,7 @@ context="Dev-flow is active. Task folder: $TASK_FOLDER. Project root: $GIT_ROOT.
 
 if is_writing_agent "$AGENT_TYPE"; then
   : > "$FLOW_DIR/start-$AGENT_ID"
-  context="$context Append the command line and raw output of every build/test command you run to $TASK_FOLDER/verify.log with a shell append (>>); a run that adds nothing there is refused when you stop."
+  context="$context Append the command line and raw output of every build/test command you run to $TASK_FOLDER/verify.log with a shell append (>>); a run that adds nothing there is refused when you stop, so when no build or test command applies to your steps, append one line saying so and why."
   if [ "$AGENT_TYPE" = dev-implementer ] && plan_has_packages; then
     context="$context This plan has work packages: before your first edit, write your package id (for example P2; or the word all if you were given no package) as the only content of $FLOW_DIR/claim-$AGENT_ID. Edits are refused until that file exists, and edits outside your package's Owns are refused."
   fi
