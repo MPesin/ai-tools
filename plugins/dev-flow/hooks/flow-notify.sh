@@ -4,15 +4,18 @@
 # needs-decision.md or violations.md), show a terminal message and
 # send a desktop notification once per state. The `finished` pointer (written by the
 # final report) notifies "done" and is then removed with the run's marker files.
+# A planning pointer left behind by a plan past draft/diagnosing is removed here
+# (stale_exit in lib.sh), with a message; one naming a missing folder is only named.
 HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
 [ -f "$HERE/lib.sh" ] || HERE="${CLAUDE_PLUGIN_ROOT}/hooks"
 source "$HERE/lib.sh"
+HOOK_EVENT=Stop
 load_task_folder "current planning finished"
 [ -z "$AGENT_TYPE" ] || exit 0
 
 finish_cleanup() {
   [ "$POINTER_NAME" = finished ] || return 0
-  rm -f "$POINTER" "$FLOW_DIR/notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/claim-* 2>/dev/null
+  rm -f "$POINTER" "$FLOW_DIR/notified" "$FLOW_DIR/stale-notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/claim-* 2>/dev/null
 }
 
 status=$(frontmatter_value status)

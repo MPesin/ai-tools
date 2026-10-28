@@ -138,13 +138,16 @@ find_flow_pointer() {
 
 # Sets POINTER, POINTER_NAME, FLOW_DIR, PROJECT_DIR, GIT_ROOT, TASK_FOLDER,
 # AGENT_TYPE (bare name, plugin prefix stripped), AGENT_ID, SESSION_ID.
-# Exits 0 (hook inactive) when no pointer or the task folder is gone.
+# Exits 0 (hook inactive) when no pointer or the task folder is gone, and when
+# the pointer found is a stale planning one (stale_exit says so first).
 load_task_folder() {
   POINTER_NAMES=${1:-"current planning"}
   POINTER=$(find_flow_pointer) || exit 0
   POINTER_NAME=${POINTER##*/}
   FLOW_DIR=${POINTER%/*}
   PROJECT_DIR=${FLOW_DIR%/.claude/flow}
+  SESSION_ID=$(json_field session_id)
+  if [ "$POINTER_NAME" = planning ] && planning_stale "$POINTER"; then stale_exit; fi
   TASK_FOLDER=$(normalize_path "$(head -n 1 "$POINTER" | tr -d '\r')")
   [ -n "$TASK_FOLDER" ] && [ -d "$TASK_FOLDER" ] || exit 0
   GIT_ROOT=$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)
@@ -152,12 +155,68 @@ load_task_folder() {
   AGENT_TYPE=$(json_field agent_type)
   AGENT_TYPE=${AGENT_TYPE##*:}
   AGENT_ID=$(json_field agent_id)
-  SESSION_ID=$(json_field session_id)
+}
+
+# Statuses of a plan still being planned or diagnosed (plan-format.md): the
+# planning pointer belongs to them. Empty is a plan.md not written yet (dev-plan
+# and dev-debug write the pointer first).
+is_planning_status() {
+  case $1 in diagnosing|draft|'') return 0 ;; esac
+  return 1
+}
+
+# planning_stale PATH: true when the planning pointer at PATH was left behind.
+# The skills delete it on approval, on diagnosis-only and on abandonment, so one
+# whose plan.md has a later status, or whose folder is gone, guards nothing.
+# Sets STALE_FOLDER, STALE_STATUS (empty when the folder is gone), STALE_NOTICE
+# (what is wrong and the command that removes it) and STALE_RESUME (how the task
+# itself goes on, when it does).
+planning_stale() {
+  local why
+  STALE_STATUS=''; STALE_NOTICE=''; STALE_RESUME=''
+  STALE_FOLDER=$(normalize_path "$(head -n 1 "$1" 2>/dev/null | tr -d '\r')")
+  if [ -z "$STALE_FOLDER" ] || [ ! -d "$STALE_FOLDER" ]; then
+    why="it names '${STALE_FOLDER:-nothing}', which is not a folder, so it guards nothing. Remove it: rm \"$1\" (or write the task folder's absolute path as its only line)."
+  else
+    STALE_STATUS=$(frontmatter_value status "$STALE_FOLDER/plan.md")
+    is_planning_status "$STALE_STATUS" && return 1
+    why="it points at $STALE_FOLDER, whose plan.md has status: $STALE_STATUS, past planning (the pointer is deleted on approval), so it guards nothing. The Stop hook removes it at the end of the turn; to remove it now: rm \"$1\"."
+    [ "$STALE_STATUS" = done ] || STALE_RESUME=" The task itself continues with /dev-flow:dev-implement $STALE_FOLDER/plan.md (its Intake writes ${1%/*}/current)."
+  fi
+  STALE_NOTICE="dev-flow: stale pointer $1: $why"
+  return 0
+}
+
+# A stale planning pointer switches the hooks off like no pointer. The hooks that
+# reach the user (HOOK_EVENT set by the script) say so: SessionStart every time,
+# PreToolUse once per session (stale-notified beside the pointer), Stop by
+# removing the pointer when plan.md proves it stale (a dangling one is only named).
+stale_exit() {
+  local marker="$FLOW_DIR/stale-notified" key="$POINTER|$STALE_STATUS|$SESSION_ID" msg
+  case $HOOK_EVENT in
+    SessionStart) emit_context SessionStart "$STALE_NOTICE$STALE_RESUME" ;;
+    Stop)
+      if [ -n "$STALE_STATUS" ]; then
+        rm -f "$POINTER" "$marker"
+        msg="dev-flow: removed stale pointer $POINTER (it pointed at $STALE_FOLDER, whose plan.md has status: $STALE_STATUS; nothing was being planned)."
+        printf '{"systemMessage":"%s"}\n' "$(json_escape "$msg")"
+      elif [ "$(cat "$marker" 2>/dev/null)" != "$key" ]; then
+        printf '%s' "$key" > "$marker"
+        printf '{"systemMessage":"%s"}\n' "$(json_escape "$STALE_NOTICE")"
+      fi ;;
+    PreToolUse)
+      if [ "$(cat "$marker" 2>/dev/null)" != "$key" ]; then
+        printf '%s' "$key" > "$marker"
+        printf '{"systemMessage":"%s","hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"%s"}}\n' \
+          "$(json_escape "$STALE_NOTICE")" "$(json_escape "$STALE_NOTICE$STALE_RESUME")"
+      fi ;;
+  esac
+  exit 0
 }
 
 # Value of a frontmatter key; CR, trailing spaces and surrounding quotes removed.
-frontmatter_value() {
-  sed -n '/^---/,/^---/p' "$TASK_FOLDER/plan.md" 2>/dev/null | tr -d '\r' \
+frontmatter_value() {   # KEY [PLAN_PATH]
+  sed -n '/^---/,/^---/p' "${2:-$TASK_FOLDER/plan.md}" 2>/dev/null | tr -d '\r' \
     | sed -n "s/^$1:[[:space:]]*//p" | head -n 1 | sed 's/[[:space:]]*$//' \
     | sed "s/^\"\(.*\)\"\$/\1/; s/^'\(.*\)'\$/\1/"
 }

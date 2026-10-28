@@ -1,6 +1,6 @@
 {
   "name": "dev-flow-panel",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "A band above the prompt for the dev-flow and dev-debug plugins, two rows while a task is active: buttons that start /dev-flow:dev-plan, /dev-debug:dev-debug, /dev-flow:dev-implement and /dev-flow:dev-qa-impact, and a colour-coded view of the current stage read from the task folder: planning, approved, implementing, Claude review, your review, QA impact, done, blocked for a feature; diagnosing, confirm cause, approved and the same implementing steps for a bug from dev-debug.",
   "author": {
     "name": "Michael Pesin"

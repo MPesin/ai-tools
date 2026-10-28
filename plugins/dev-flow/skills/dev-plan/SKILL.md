@@ -66,4 +66,14 @@ Never spawn `dev-implementer` or edit source from this skill. The hooks refuse t
 2. Delete `<project>/.claude/flow/planning`.
 3. Print the absolute path of `plan.md` and tell the user to run `/dev-flow:dev-implement <plan path>`.
 
-If the user abandons planning, delete `.claude/flow/planning` as well. It must be removed on every exit path.
+## Already done on the branch
+
+When exploring shows that a commit after `base` (or an uncommitted change) already does what the task asks, there is nothing to plan. Say so with the commit, record it under `## Context` in `plan.md`, set `status: done`, delete `<project>/.claude/flow/planning`, and point at `/dev-flow:dev-qa-impact <task folder>` for the QA note on that change. If only part of the task is done, plan the rest and list the existing commit under `## Verified facts`.
+
+## Exits: the pointer checklist
+
+`<project>/.claude/flow/planning` belongs to `status: draft` only. Every exit of this skill ends with its deletion; a pointer left behind at a later status makes the hooks report it as stale (they stop enforcing it, and the Stop hook removes it), but the skill does not rely on that. The terminal states, each with the pointer step spelled out:
+
+1. Approved: `status: approved`, **delete the pointer**, print the plan path (or invoke `dev-flow:dev-implement` when approval and implementation came in one reply).
+2. Already done on the branch: `status: done`, **delete the pointer**.
+3. Abandoned (the user drops the task): leave `status: draft`, **delete the pointer**.

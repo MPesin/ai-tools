@@ -189,11 +189,13 @@ const titleOf = (f: FlowState) =>
 
 const IN_PROGRESS = ['implementing', 'reviewing', 'qa-impact', 'blocked']
 
-// Implement waits for an approved plan. While the planning pointer exists, or
-// plan.md is still a draft, the button is drawn dim and a press says why instead
-// of running the skill, which would only refuse the unapproved plan (and the
-// dev-flow guard refuses to spawn an implementer at that stage anyway).
-const implementBlocked = (f: FlowState) => f.pointer === 'planning' || f.status === 'draft' || f.status === 'diagnosing'
+// Implement waits for an approved plan. While plan.md is still a draft or a
+// diagnosis (a planning pointer with no plan.md yet reads as draft), the button is
+// drawn dim and a press says why instead of running the skill, which would only
+// refuse the unapproved plan (and the dev-flow guard refuses to spawn an
+// implementer at that stage anyway). The pointer itself does not decide: one left
+// behind by a plan that moved on is stale, and the hooks ignore it too.
+const implementBlocked = (f: FlowState) => f.status === 'draft' || f.status === 'diagnosing'
 const NOT_APPROVED = 'Implement needs an approved plan: answer the critique and approve it in chat first.'
 const NOT_DIAGNOSED = 'Implement waits for the diagnosis: confirm the root cause in chat (reply fix) and the fix plan starts.'
 

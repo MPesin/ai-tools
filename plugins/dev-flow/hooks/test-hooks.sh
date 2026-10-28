@@ -403,19 +403,76 @@ expect_deny  "git commit while planning"               flow-guard.sh "$(bash_jso
 expect_deny  "critic writes src while planning"        flow-guard.sh "$(write_json dev-flow:dev-plan-critic "$T/src/foo/alpha.txt")"
 expect_deny  "spawn dev-implementer while planning"    flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 assert "deny says to finish dev-plan and run dev-implement" 'case $err in *dev-plan*dev-implement*) true;; *) false;; esac'
+assert "deny at draft names the status" 'case $err in *"planning exists"*"status: draft"*) true;; *) false;; esac'
 expect_deny  "spawn dev-fixer while planning"          flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
 expect_allow "spawn dev-plan-critic while planning"    flow-guard.sh "$(agent_json dev-flow:dev-plan-critic)"
 expect_allow "spawn dev-planner while planning"        flow-guard.sh "$(agent_json dev-flow:dev-planner)"
 expect_allow "spawn dev-debugger while planning"       flow-guard.sh "$(agent_json dev-debug:dev-debugger)"
 expect_allow "spawn dev-qa-impact while planning"      flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
-# planning written while a current task is parked: current wins the lookup, planning still gates.
+rm task/plan.md
+expect_deny  "no plan.md yet (dev-plan just started): main session edits src" flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+expect_deny  "no plan.md yet: spawn dev-implementer"   flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+assert "deny says no status yet" 'case $err in *"status: none yet"*) true;; *) false;; esac'
+printf -- '---\ntask: t\nsource: dev-debug\nstatus: diagnosing\n---\n' > task/plan.md
+expect_deny  "diagnosing: main session edits src"      flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+expect_deny  "diagnosing: git commit"                  flow-guard.sh "$(bash_json '' 'git commit -m x')"
+expect_deny  "diagnosing: spawn dev-implementer"       flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+assert "deny names status diagnosing and dev-debug" 'case $err in *"status: diagnosing"*"/dev-debug:dev-debug"*) true;; *) false;; esac'
+expect_allow "diagnosing: spawn dev-debugger"          flow-guard.sh "$(agent_json dev-debug:dev-debugger)"
+run flow-notify.sh "$(main_stop_json)"
+assert "Stop keeps a genuine planning pointer (diagnosing)" '[ -f .claude/flow/planning ]'
+plan draft
+run flow-notify.sh "$(main_stop_json)"
+assert "Stop keeps a genuine planning pointer (draft)" '[ -f .claude/flow/planning ]'
+# planning for a second task written while a current task is parked: current wins
+# the lookup, the second task's genuine planning pointer still gates.
 plan human-review; hp "$T/task" > .claude/flow/current
+mkdir -p task2; printf -- '---\ntask: t2\nstatus: draft\n---\n' > task2/plan.md; hp "$T/task2" > .claude/flow/planning
 expect_deny  "planning beside current: spawn dev-fixer"   flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
-assert "deny is the dev-plan message, not the status one" 'case $err in *"planning exists"*) true;; *) false;; esac'
+assert "deny is the dev-plan message with the second plan's status" 'case $err in *"planning exists"*"task2/plan.md has status: draft"*) true;; *) false;; esac'
 expect_deny  "planning beside current: spawn dev-review-triager" flow-guard.sh "$(agent_json dev-flow:dev-review-triager)"
-rm .claude/flow/current; plan draft
+rm .claude/flow/current; hp "$T/task" > .claude/flow/planning; plan draft
 expect_out   "planner start gets context"              flow-context.sh "$(start_json p1 dev-flow:dev-planner)" "status: draft"
 expect_pass  "verify-stop: planner with no changes passes" flow-verify-stop.sh "$(stop_json p1 dev-flow:dev-planner)"
+
+echo "== stale planning pointer: a plan past planning switches the guards off, with a notice"
+rm -f .claude/flow/current .claude/flow/stale-notified .claude/flow/notified
+plan implementing
+expect_allow "stale (implementing): main session edits src"   flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+assert "notice names the pointer, the status and rm" 'case $out in *"systemMessage"*"stale pointer"*"/.claude/flow/planning"*"status: implementing"*"rm "*"additionalContext"*"/dev-flow:dev-implement"*) true;; *) false;; esac'
+expect_allow "stale (implementing): git commit passes"        flow-guard.sh "$(bash_json '' 'git commit -m x')"
+assert "the notice is given once per session" '[ -z "$out" ]'
+expect_allow "stale (implementing): mcp create_pull_request"  flow-guard.sh "$(mcp_json mcp__github__create_pull_request)"
+expect_deny  "stale (implementing): dev-implementer still needs current" flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+assert "deny names the stale pointer, its status and dev-implement" 'case $err in *"stale pointer"*"status: implementing"*"/dev-flow:dev-implement"*) true;; *) false;; esac'
+hp "$T/task" > .claude/flow/current
+expect_allow "stale planning beside current: spawn dev-implementer" flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+expect_allow "stale planning beside current: main session edits src" flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+rm .claude/flow/current
+printf -- '---\ntask: t\nsource: dev-debug\nstatus: implementing\n---\n' > task/plan.md
+expect_out  "SessionStart reports the pointer as stale"      flow-session.sh "$(session_json startup)" "stale pointer"
+assert "no 'in progress' claim, resume hint names dev-implement" 'case $out in *"in progress"*) false;; *"status: implementing"*"/dev-flow:dev-implement"*) true;; *) false;; esac'
+expect_out  "Stop removes the stale pointer and says so"     flow-notify.sh "$(main_stop_json)" "removed stale pointer"
+assert "pointer and marker gone, plan.md untouched" '[ ! -f .claude/flow/planning ] && [ ! -f .claude/flow/stale-notified ] && grep -q "status: implementing" task/plan.md'
+hp "$T/task" > .claude/flow/planning; plan approved
+expect_allow "stale (approved, pointer not deleted): main session edits src" flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+expect_deny  "stale (approved): spawn dev-implementer"       flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+assert "deny names status approved" 'case $err in *"stale pointer"*"status: approved"*) true;; *) false;; esac'
+run flow-notify.sh "$(main_stop_json)"
+assert "Stop removes it at approved too" '[ ! -f .claude/flow/planning ]'
+hp "$T/task" > .claude/flow/planning; plan done
+expect_out  "SessionStart at done: no resume hint"           flow-session.sh "$(session_json resume)" "status: done"
+assert "done offers nothing to resume" 'case $out in *"/dev-flow:dev-implement"*) false;; *) true;; esac'
+run flow-notify.sh "$(main_stop_json)"
+printf '/nowhere/at/all\n' > .claude/flow/planning
+expect_allow "dangling planning: main session edits src"     flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+assert "notice says not a folder and names rm" 'case $out in *"stale pointer"*"/nowhere/at/all"*"not a folder"*"rm "*) true;; *) false;; esac'
+expect_deny  "dangling planning: spawn dev-implementer"      flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+assert "deny says not a folder" 'case $err in *"not a folder"*"/dev-flow:dev-implement"*) true;; *) false;; esac'
+expect_out  "SessionStart reports the dangling pointer"      flow-session.sh "$(session_json resume)" "not a folder"
+expect_out  "Stop names a dangling pointer"                  flow-notify.sh "$(main_stop_json)" "not a folder"
+assert "but leaves it for the user to fix or remove" '[ -f .claude/flow/planning ]'
+rm -f .claude/flow/planning .claude/flow/stale-notified
 
 echo
 printf '%d passed, %d failed\n' "$pass" "$fail"

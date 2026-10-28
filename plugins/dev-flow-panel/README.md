@@ -37,7 +37,7 @@ The stage list runs across, wrapping onto a second row in a narrow column, with 
 |---|---|
 | Plan | `/dev-flow:dev-plan` |
 | Debug | `/dev-debug:dev-debug` (the dev-debug plugin), with the active task folder while it is diagnosing, so a press brings the diagnosis gate back. Primary at that stage. |
-| Implement / Resume | `/dev-flow:dev-implement <plan.md of the active task>`. Dim while the plan is still a draft or a diagnosis is in progress (the `planning` pointer exists): a press then shows why instead of running the skill, since the plan has to be approved in chat first. |
+| Implement / Resume | `/dev-flow:dev-implement <plan.md of the active task>`. Dim while the plan is still a draft or a diagnosis is in progress (`plan.md` at `draft` or `diagnosing`): a press then shows why instead of running the skill, since the plan has to be approved in chat first. A `planning` pointer left behind by a plan at a later status does not dim it; the dev-flow hooks treat such a pointer as stale too. |
 | QA impact | `/dev-flow:dev-qa-impact <task folder>` |
 | ↻ refresh | re-reads the task folder now |
 | more ▾ / less ▴ | expands or folds the band |

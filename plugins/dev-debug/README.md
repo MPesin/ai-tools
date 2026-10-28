@@ -8,7 +8,7 @@ Find the cause of a bug before anyone changes code. A clean-slate, read-only deb
 
 ## Skill
 
-- `/dev-debug:dev-debug` - intake the bug report (pasted text, stack trace, failing test, log excerpt or a work item ID, saved verbatim under the task folder's `specs/`), run the debugger, stop at the **diagnosis gate**, and on `fix` write the fix plan and invoke `/dev-flow:dev-implement`. At the gate you can also add facts ("it also happens when ..."), ask for a `second opinion` (a fresh debugger that knows nothing of the first, writing `diagnosis-2.md`; offered when confidence is below High), or stop with `diagnosis only`. A bug whose cause is already confirmed does not need this plugin: `/dev-flow:dev-plan` plans the fix directly.
+- `/dev-debug:dev-debug` - intake the bug report (pasted text, stack trace, failing test, log excerpt or a work item ID, saved verbatim under the task folder's `specs/`), run the debugger, stop at the **diagnosis gate**, and on `fix` write the fix plan and invoke `/dev-flow:dev-implement`. At the gate you can also add facts ("it also happens when ..."), ask for a `second opinion` (a fresh debugger that knows nothing of the first, writing `diagnosis-2.md`; offered when confidence is below High), stop with `diagnosis only`, or close with `already fixed` when the fix is already on the branch (the diagnosis records the commit; the QA note and the regression test are then planned from it, since the implement flow starts at Implement). Every exit deletes the `planning` pointer. A bug whose cause is already confirmed does not need this plugin: `/dev-flow:dev-plan` plans the fix directly.
 
 The diagnosis headings, the task folder, the specs intake, the fix plan contract and the pointer file are defined in `skills/dev-debug/diagnosis-format.md`.
 
@@ -37,7 +37,7 @@ It never edits source, not even to add a print statement. The only files it writ
 The task folder layout, the plan format and the `.claude/flow/planning` pointer are dev-flow's. With `dev-flow` installed:
 
 - its hooks guard the run: `dev-debugger` may write only `diagnosis*.md` and `debug/`, any other change to the working tree is reported in `violations.md`, the main session may write only the task folder, and commit, push and posting are blocked;
-- its Stop hook sends a desktop notification at the diagnosis gate (`waiting for you (confirm-cause)`), and a restarted session is pointed back at `/dev-debug:dev-debug <task folder>`;
+- its Stop hook sends a desktop notification at the diagnosis gate (`waiting for you (confirm-cause)`), and a restarted session is pointed back at `/dev-debug:dev-debug <task folder>`; a `planning` pointer left behind once `plan.md` is past `diagnosing`/`draft` is reported as stale, not enforced, and removed at the next Stop;
 - `/dev-flow:dev-implement` runs the fix plan: the implementer writes the regression test first and appends its failing run to `verify.log` before fixing, the reviewer checks cause over symptom, the QA note lists the reported scenario as the first regression test;
 - the `dev-flow-panel` band gives a bug task its own stage list (Diagnosing, Confirm cause, Approved, then the implementing steps) and its Debug button starts or resumes this skill.
 
@@ -81,6 +81,9 @@ sequenceDiagram
     else diagnosis only
         U-->>M: "diagnosis only"
         M->>F: status done, delete .claude/flow/planning
+    else already fixed (the fix is on the branch)
+        U-->>M: "already fixed"
+        M->>F: commit noted in plan.md, status done, delete .claude/flow/planning
     end
 
     U-->>M: "fix" (confirms the cause and approves the fix plan)
