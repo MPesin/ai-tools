@@ -110,7 +110,9 @@ const lineage = (root: string) => {
   return dirs
 }
 
-// The first pointer file found, nearest directory first.
+// The first pointer file found, nearest directory first. Like the hooks, the walk
+// ends at the first directory holding a .git (a file in a worktree): a session in
+// a worktree under <repo>/.claude/worktrees/ must not show the main checkout's task.
 async function findPointer($: EngineInterface, root: string) {
   for (const dir of lineage(root)) {
     const flowDir = join(join(dir, '.claude'), 'flow')
@@ -118,6 +120,7 @@ async function findPointer($: EngineInterface, root: string) {
       const pointerPath = join(flowDir, pointer)
       if (await $.fs.exists(pointerPath)) return { pointer, pointerPath }
     }
+    if (await $.fs.exists(join(dir, '.git'))) return undefined
   }
   return undefined
 }

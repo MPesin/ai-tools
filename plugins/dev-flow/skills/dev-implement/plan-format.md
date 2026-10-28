@@ -64,6 +64,8 @@ Hooks use these to decide whether anything is active. Each contains the absolute
 - `<project>/.claude/flow/planning` — written by `dev-plan` (or the `dev-debug` plugin) at start, deleted on approval or abandonment.
 - `<project>/.claude/flow/finished` — makes the Stop hook send the "done" notification; the hook then deletes it.
 
+`<project>` is the first directory at or above the working directory that holds a pointer, and the lookup never crosses a `.git` (directory or file): a git worktree, Claude Code's included (`<repo>/.claude/worktrees/<name>`), is its own project with its own `.claude/flow/`, and does not see the main checkout's pointer.
+
 The hooks keep their own marker files beside them (`start-*`, `snap-*`, `claim-*`, `notified`); they are removed at `finished`. Deleting the pointer switches every guard off, except that the stage agents (implementer, reviewer, fixer, triager) cannot be spawned until `dev-implement` Intake writes `current` again.
 
 ## Specs intake

@@ -368,6 +368,31 @@ mv .claude/flow/planning .claude/flow/current
 rm .claude/flow/current
 expect_pass "no pointer: silent"                           flow-session.sh "$(session_json startup)"
 
+echo "== pointer lookup stops at the checkout's .git"
+plan implementing; hp "$T/task" > .claude/flow/current
+# A subdirectory of the project finds the pointer at the root above it.
+sub_session() { printf '{"cwd":"%s","hook_event_name":"SessionStart","source":"startup"}' "$(jp "$T/src/foo")"; }
+expect_out "a subdirectory finds the pointer at the git root" flow-session.sh "$(sub_session)" "status: implementing"
+# A Claude Code worktree lives under <repo>/.claude/worktrees/<name>, below the
+# pointer's directory; a session there must not pick up the main checkout's flow.
+git worktree add -q "$T/.claude/worktrees/bug" -b bug >/dev/null 2>&1
+WT=$(jp "$T/.claude/worktrees/bug")
+wt_session() { printf '{"cwd":"%s","hook_event_name":"SessionStart","source":"startup"}' "$WT"; }
+wt_bash()    { printf '{"session_id":"s","cwd":"%s","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"%s","description":"d"}}' "$WT" "$1"; }
+wt_agent()   { printf '{"session_id":"s","cwd":"%s","tool_name":"Agent","tool_input":{"subagent_type":"%s","prompt":"x","description":"d"}}' "$WT" "$1"; }
+expect_pass  "worktree session: no flow re-injected"        flow-session.sh "$(wt_session)"
+expect_allow "worktree session: git commit is not guarded"  flow-guard.sh "$(wt_bash 'git commit -m x')"
+expect_deny  "worktree session: stage agent needs its own pointer" flow-guard.sh "$(wt_agent dev-flow:dev-implementer)"
+expect_out   "main checkout still sees its flow"            flow-session.sh "$(session_json startup)" "status: implementing"
+# A flow started inside the worktree is found from there and only there.
+mkdir -p "$T/.claude/worktrees/bug/.claude/flow" "$T/.claude/worktrees/bug/task"
+printf -- '---\ntask: bug\nstatus: reviewing\nmode: lite\nreview_round: 1\n---\n' > "$T/.claude/worktrees/bug/task/plan.md"
+hp "$T/.claude/worktrees/bug/task" > "$T/.claude/worktrees/bug/.claude/flow/current"
+expect_out   "worktree session sees the worktree's own flow" flow-session.sh "$(wt_session)" "status: reviewing"
+expect_out   "main checkout keeps its own"                   flow-session.sh "$(session_json startup)" "status: implementing"
+git worktree remove --force "$T/.claude/worktrees/bug" >/dev/null 2>&1; git branch -q -D bug >/dev/null 2>&1
+rm .claude/flow/current
+
 echo "== planning pointer"
 hp "$T/task" > .claude/flow/planning
 plan draft
