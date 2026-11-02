@@ -51,6 +51,7 @@ specs:            # files in the task folder's specs/ dir (see Specs intake)
   - specs/hld.md
   - specs/work-item-12345.md
 base: <base branch or commit for diffs>
+commits: on | off   # set at Intake; on: the main session commits after each stage
 ---
 ```
 

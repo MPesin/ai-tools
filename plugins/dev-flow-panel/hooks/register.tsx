@@ -28,7 +28,7 @@ type Stage = { key: string; status: string; label: string; color: Color; hint: s
 const IMPLEMENTING: readonly Stage[] = [
   { key: 'implementing', status: 'implementing', label: 'Implementing', color: 'claude', hint: 'Implementer subagents are working through the plan.' },
   { key: 'reviewing', status: 'reviewing', label: 'Claude review', color: 'permission', hint: 'Reviewer and fixer are iterating; the loop ends on a review.' },
-  { key: 'human-review', status: 'human-review', label: 'Your review', color: 'warning', hint: 'Waiting for you: review the diff, commit, open the PR, then continue.' },
+  { key: 'human-review', status: 'human-review', label: 'Your review', color: 'warning', hint: 'Waiting for you: review the commits, push, open the PR, then continue.' },
   { key: 'qa-impact', status: 'qa-impact', label: 'QA impact', color: 'ide', hint: 'Writing the QA impact note from the template.' },
   { key: 'done', status: 'done', label: 'Done', color: 'success', hint: 'Finished: plan, reviews and the QA note are in the task folder.' },
 ]
@@ -320,7 +320,7 @@ export const register: Register = on => {
   //   ▎ ✓ Planning  ✓ Approved  ✓ Implementing  ✓ Claude review  ◉ Your review  ○ QA impact  ○ Done
   // A bug task (source: dev-debug) has its own list and track:
   //   ▎ ✓ Diagnosing  ◉ Confirm cause  ○ Approved  ○ Implementing  ○ Claude review  ○ Your review  ○ QA impact  ○ Done
-  //   ▎   Waiting for you: review the diff, commit, open the PR, then continue.
+  //   ▎   Waiting for you: review the commits, push, open the PR, then continue.
   //   ▎ ⚠ needs-decision.md  findings wait for your decision
   // An accent bar in the stage's colour runs down every row; the track at the
   // right end of the first row is what gives way first when the column is narrow.

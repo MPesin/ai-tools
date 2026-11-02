@@ -5,7 +5,7 @@
 # send a desktop notification once per state. The `finished` pointer (written by the
 # final report) notifies "done" and is then removed with the run's marker files; a
 # `current` left at status done (the rename skipped) is treated the same, or it
-# would keep commit and push blocked for good.
+# would keep push blocked for good.
 # A planning pointer left behind by a plan past draft/diagnosing is removed here
 # (stale_exit in lib.sh), with a message; one naming a missing folder is only named.
 HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
@@ -19,7 +19,7 @@ load_task_folder "planning current finished"
 
 finish_cleanup() {
   [ "$POINTER_NAME" = finished ] || [ "$status" = done ] || return 0
-  rm -f "$POINTER" "$FLOW_DIR/notified" "$FLOW_DIR/stale-notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/claim-* 2>/dev/null
+  rm -f "$POINTER" "$FLOW_DIR/notified" "$FLOW_DIR/stale-notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/.snap-* "$FLOW_DIR"/claim-* 2>/dev/null
 }
 
 status=$(frontmatter_value status)

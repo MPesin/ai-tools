@@ -27,5 +27,5 @@ Append the command line and the raw output of every build and test command you r
 
 - Surgical: touch only what the findings require. Do not refactor, reformat, or fix unrelated issues; mention them in your report.
 - Do not edit `plan.md`, `verify.log` or any review file; the hooks refuse it.
-- Never commit, push, stash, discard changes, or post anywhere; the hooks block these commands.
+- Never commit, push, stash, discard changes, or post anywhere; the hooks block these commands. Leave your changes uncommitted: the main session commits them after your run.
 - Report per finding ID (F1, F2, ...): fixed, disputed (with evidence), or deferred (with reason), plus the exact build/test commands run and their outcome. If something failed or was skipped, say so.

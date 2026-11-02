@@ -12,13 +12,23 @@ State between stages is files in the task folder, never chat summaries. Plan str
 ## Rules
 
 - Work in the current project. Do not assume a language, framework, repo layout, or hosting platform; discover them.
-- Never commit, push, or post to a PR/review system in any stage. The user does that.
+- Commit as the work goes, from the main session (see **Commits** below). Never push or post to a PR/review system in any stage: the user does that.
 - Hard rules live in the agent files. Spawn agents by their plugin-scoped names: `dev-flow:dev-implementer`, `dev-flow:dev-reviewer`, `dev-flow:dev-fixer`, `dev-flow:dev-review-triager`, `dev-flow:dev-planner`, `dev-flow:dev-qa-impact`. Prompts carry only task data and paths. If an agent is missing, fall back to `general-purpose` and paste that agent's rules into the prompt, and tell the user the hooks cannot then tell it apart from the main session. Do not use a review tool tied to a different hosting platform than the project uses.
 - Update `status` (and `review_round`) in `plan.md` frontmatter at every stage transition, before spawning the stage's agent. The hooks and the status panel read them, and the guard refuses to spawn an agent at the wrong status: `dev-implementer` needs `implementing`, `dev-reviewer` `reviewing`, `dev-fixer` `reviewing` or `human-review`, `dev-review-triager` `human-review`. None of these four can be spawned while `.claude/flow/planning` exists, while no pointer exists, or while `current` points at a missing folder or one without `plan.md`. `dev-qa-impact` is not gated (it also runs standalone).
 - Do not advance past a human gate without an explicit user reply.
-- Never run subagents with `isolation: "worktree"`: a subagent worktree starts from the default branch without the uncommitted changes of earlier waves, and nothing merges it back. All work happens in the one working tree.
-- After every subagent returns, check `violations.md` in the task folder. If it gained lines, show them to the user and stop; the user decides whether to keep or revert those changes.
-- The hooks: while `<project>/.claude/flow/current` exists, the plugin blocks commit/push/discard, posting and publishing (Bash, PowerShell and MCP tools), limits what each agent may write, refuses to let an implementer or fixer finish without this run's build/test output in `verify.log`, compares the working tree before and after each read-only agent, and notifies the user at the gates. If a guard blocks the main session wrongly, the user can delete the pointer file; the stage agents then cannot be spawned until Intake writes it again.
+- Never run subagents with `isolation: "worktree"`: a subagent worktree starts from the default branch without the work of earlier waves, and nothing merges it back. All work happens in the one working tree.
+- After every subagent returns, check `violations.md` in the task folder. If it gained lines, show them to the user and stop before committing; the user decides whether to keep or revert those changes.
+- The hooks: while `<project>/.claude/flow/current` exists, the plugin blocks push/discard, a commit from any subagent, `git commit --amend`, posting and publishing (Bash, PowerShell and MCP tools), limits what each agent may write, refuses to let an implementer or fixer finish without this run's build/test output in `verify.log`, compares the working tree before and after each read-only agent, and notifies the user at the gates. If a guard blocks the main session wrongly, the user can delete the pointer file; the stage agents then cannot be spawned until Intake writes it again.
+
+## Commits
+
+The flow commits each stage's work so the branch carries the history of the run; the user reviews the commits and pushes. Skip them only when `commits: off` (below).
+
+- **Who.** Only the main session commits. Subagents leave their changes uncommitted and the hooks refuse a commit from one: parallel implementers share one index, so one's `git add` would sweep in another's half-done files.
+- **When.** After each implementation package (one commit per package, wave by wave, the `Integration` package last) or after the single implementer; after each `dev-fixer` run in stage 3 and in stage 5. Review, triage and QA change no source and commit nothing. Only while no dev-flow agent is running (wait for the whole wave, and for any agent running in the background), never before a stage's `violations.md` lines are settled with the user, and never a stage that changed nothing.
+- **What.** Only the files the stage changed, named twice: `git add -- <paths>` (so new files are known to git), then `git commit -m "<message>" -- <paths>`. The paths after `--` make the commit hold exactly those files, whatever else is staged (by the user before the run, or by an agent's `git add`); a plain `git commit` would take the whole index. Never `git add -A`, `git add .` or `git commit -a`, which would take in the user's own uncommitted work. For a package, its changed files are the ones matching its `Owns`; otherwise `git status --porcelain` now, minus the paths listed under `## Context` as left out (Intake). Never the task folder or `.claude/flow/` (Intake excludes `.claude/plans/` and `.claude/flow/` from git status).
+- **Message.** The project's convention (`git log --oneline -20`, and CLAUDE.md or contributing guidance); otherwise `<task>: <package or step title>` for implementation, `<task>: fix review-<N> F1, F3` for a fix round, `<task>: address review comments` for stage 5.
+- **Never** `--amend` or `git reset --soft` (the hooks refuse both), `--no-verify`, or a push. When the commit fails (a pre-commit hook, a signing prompt), show its output and stop; the user decides.
 
 ## Stages
 
@@ -30,6 +40,7 @@ Input is a plan path or task folder, or a PR/review reference (which jumps to st
 - Validate `plan.md` against `plan-format.md`. If `source: manual` has gaps, list them, then either ask the user to fill them or, if they agree, spawn `dev-planner` in harden mode (adds paths, verification, and facts without changing decisions). Write `<project>/.claude/flow/current` (below) before spawning it, so the hooks confine it to the task folder and compare the working tree; if the user then does not re-approve, delete `current` again. The user re-approves.
 - Require `status: approved` (or a later status when resuming). At `status: draft`, or while `<project>/.claude/flow/planning` exists, never set `approved` yourself, whatever started this skill (the panel's Implement button included): approval is an explicit user reply inside `/dev-flow:dev-plan`. Say the plan is not approved, point at the open findings in `plan-critique.md` if it exists, and stop.
 - Set `mode` from the lite criteria unless the user forced one. Set `base` to the merge-base with the default branch if it is empty.
+- Commits: unless `commits:` is already set, set `commits: on`, or `off` when the user asked for no commits. With `on`, run `git status --porcelain`; when it lists anything outside the task folder and `.claude/flow/`, that is the user's own uncommitted work: ask once whether to commit it first as their own commit (then commit exactly those paths with their message), leave it out of the flow's commits, or set `commits: off`. Left-out paths go under `## Context` in `plan.md` as `Uncommitted before the flow, left out of its commits: <paths>`. If a stage later changes one of them, ask before committing it.
 - Create missing folder files (`notes.md`) and write the absolute task folder path as the only line of `<project>/.claude/flow/current` (create the directory). From here on the hooks are active.
 - Resume: continue from the frontmatter's `status` and `review_round`. At `blocked`, stop and let the user decide: more fix rounds, fixing by hand, or ending the run. To continue, set `status: reviewing` first (the guard refuses reviewer and fixer at `blocked`) and count fix rounds from the allowance the user gave.
 
@@ -37,9 +48,9 @@ Input is a plan path or task folder, or a PR/review reference (which jumps to st
 
 Set `status: implementing` in `plan.md` before the first Agent call; the guard refuses to spawn `dev-implementer` at any other status.
 
-If the plan has work packages, run them in waves: all packages whose dependencies are done start together as parallel `dev-implementer` subagents (several Agent calls in one message). Each prompt contains only the task folder path, project root, plan path, and its package id. The hooks hand each implementer the path of its claim file at start and refuse edits outside its package's `Owns`; you pass nothing else. Wait for the whole wave before starting the next. After each wave read the `[Pn]` lines in `notes.md`, tick the matching `- [x]` boxes in `plan.md` yourself, check `violations.md`, and stop on any package that reported a blocked step or a file it does not own. The `Integration` package runs last, alone.
+If the plan has work packages, run them in waves: all packages whose dependencies are done start together as parallel `dev-implementer` subagents (several Agent calls in one message). Each prompt contains only the task folder path, project root, plan path, and its package id. The hooks hand each implementer the path of its claim file at start and refuse edits outside its package's `Owns`; you pass nothing else. Wait for the whole wave before starting the next. After each wave read the `[Pn]` lines in `notes.md`, tick the matching `- [x]` boxes in `plan.md` yourself, check `violations.md`, and stop on any package that reported a blocked step or a file it does not own. Then commit each finished package of the wave on its own (**Commits**), before the next wave starts. The `Integration` package runs last, alone.
 
-Plans without packages run as one implementer whose prompt contains only the task folder path, project root and plan path. It ticks `plan.md` itself. A bug-fix plan (`source: dev-debug`) is always sequential: the implementer writes the regression test first and appends its failing run to `verify.log` before fixing; if it reports that the test passed before the fix, stop and show the user, since the diagnosis or the test is wrong.
+Plans without packages run as one implementer whose prompt contains only the task folder path, project root and plan path. It ticks `plan.md` itself; commit its changes when it returns. A bug-fix plan (`source: dev-debug`) is always sequential: the implementer writes the regression test first and appends its failing run to `verify.log` before fixing; if it reports that the test passed before the fix, stop and show the user, since the diagnosis or the test is wrong.
 
 The implementer takes a test baseline first, implements, runs the project's build and test commands and appends them with their raw output to `verify.log`, and writes discrepancies to `notes.md`.
 
@@ -51,20 +62,20 @@ Set `status: reviewing`. Rounds alternate review → fix → review; the loop al
 2. Read `review-N.md`. A finding is *previously disputed* when `notes.md` holds a `DISPUTED` line from the fixer for the same file within a few lines, or for the same issue, from an earlier round. Append those to `needs-decision.md` in the task folder (the notify hook alerts the user) and leave them out of the fix list.
 3. If no Critical/Major/Mid findings remain to fix, go to stage 4.
 4. If the number of fix rounds so far equals the cap (3 in full mode, 1 in lite mode), set `status: blocked`, report the open findings, and stop.
-5. Spawn `dev-fixer` with the `review-N.md` path and the IDs to fix. It fixes them, or disputes them with evidence in `notes.md`, and returns per-ID outcomes. Go to 1.
+5. Spawn `dev-fixer` with the `review-N.md` path and the IDs to fix. It fixes them, or disputes them with evidence in `notes.md`, and returns per-ID outcomes. Commit the fixes (`<task>: fix review-N F1, F3`, the fixed IDs). Go to 1.
 6. Low findings are listed for the user, not fixed.
 
 ### 4. Human review (gate)
 
-Set `status: human-review`. Report changed files, the `verify.log` tail, the round count, Low findings, and disputed findings. Offer a PR description and commit message drafted from `plan.md` and the diff (text only; never commit). Stop. The notify hook alerts the user.
+Set `status: human-review`. Report the run's commits (`git log --oneline <base>..HEAD`) and anything left uncommitted, the `verify.log` tail, the round count, Low findings, and disputed findings. Offer a PR description drafted from `plan.md` and `git diff <base>...HEAD` (text only). The user reviews the commits, pushes and opens the PR. Stop. The notify hook alerts the user.
 
 ### 5. Fix human findings (`dev-review-triager`, then `dev-fixer`)
 
 1. `dev-review-triager` fetches unresolved comments (PR reference) with the session's read-only tools for the project's hosting platform, or uses pasted comments, and writes `human-review.md`: each item `fix` or `reply-only` with reasons, draft replies, and a `## Proposed checklist additions` section. It never posts.
-2. `dev-fixer` gets the `human-review.md` path and applies the `fix` items.
+2. `dev-fixer` gets the `human-review.md` path and applies the `fix` items. Commit them (`<task>: address review comments`).
 3. Show the proposed checklist additions and append only the ones the user confirms to the project's `review-checklist.md` (the location named in project guidance, otherwise `.claude/review-checklist.md`).
 
-Report the fixes and the draft replies. The user commits, pushes, and replies.
+Report the fixes, their commit and the draft replies. The user pushes and replies.
 
 ### 6. QA impact (`dev-qa-impact`)
 
@@ -72,4 +83,4 @@ The last stage that writes, so it describes the final code. Set `status: qa-impa
 
 ## Final report
 
-Show the task folder path, a per-stage summary, the evidence quoted from `verify.log`, unresolved items, and the next human action. Set `status: done` and rename `<project>/.claude/flow/current` to `<project>/.claude/flow/finished` (the Stop hook sends the "done" notification and removes it together with the run's marker files).
+Show the task folder path, a per-stage summary, the run's commits (`git log --oneline <base>..HEAD`), the evidence quoted from `verify.log`, unresolved items, and the next human action (push, when not done yet). Set `status: done` and rename `<project>/.claude/flow/current` to `<project>/.claude/flow/finished` (the Stop hook sends the "done" notification and removes it together with the run's marker files).

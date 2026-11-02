@@ -124,28 +124,69 @@ check_simple() {
   return 0
 }
 
+# The text of a word: a Q<n> placeholder resolves to its quoted contents.
+word_text() {
+  local w=$1 re='^q([0-9]+)$'
+  [[ $w =~ $re ]] && w=${QS[${BASH_REMATCH[1]}]}
+  printf '%s' "$w"
+}
+
+# git subcommands that are never an alias and need no check, so the common
+# commands do not pay for a `git config` lookup.
+GIT_PLAIN_SUBS=' status diff log show blame add branch fetch grep ls-files ls-tree rev-parse rev-list config describe remote tag init worktree mv rm notes reflog shortlog cat-file for-each-ref symbolic-ref hash-object check-ignore var version help apply diff-tree diff-files diff-index name-rev merge-base show-ref count-objects fsck gc archive bisect submodule sparse-checkout lfs '
+
 check_git() {
-  local -a a=("$@") rest
-  local i=0 n=$# sub x
+  local -a a=("$@") rest words
+  local i=0 n=$# sub x v alias
+  GIT_ALIAS_DEPTH=${GIT_ALIAS_DEPTH:-0}
   while [ $i -lt $n ]; do
     case ${a[$i]} in
-      -c|-C|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix|--config-env|--attr-source) i=$((i+2)); continue ;;
+      -c|--config-env)
+        # An alias defined on the command line could run any subcommand.
+        v=$(word_text "${a[$((i+1))]-}")
+        case $v in alias.*) deny "git ${a[$i]} alias.* is not allowed during the flow: run the git command itself." ;; esac
+        i=$((i+2)); continue ;;
+      --config-env=alias.*) deny "git --config-env alias.* is not allowed during the flow: run the git command itself." ;;
+      -C|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix|--attr-source) i=$((i+2)); continue ;;
       -*) i=$((i+1)); continue ;;
       *) break ;;
     esac
   done
   [ $i -lt $n ] || return 0
-  sub=${a[$i]}
+  sub=$(word_text "${a[$i]}")
   rest=("${a[@]:$((i+1))}")
   case $sub in
-    commit|push|checkout|restore|clean|rebase|merge|cherry-pick|revert|am|switch|filter-branch|filter-repo)
-      deny "git $sub is not allowed during the flow: the user commits, pushes and discards changes. Delete $POINTER to switch the guards off." ;;
+    commit)
+      # The main session commits after each stage. A subagent does not: parallel
+      # implementers share one index, so one's `git add` would sweep in another's
+      # half-done files. --amend would rewrite a commit made before the flow, or
+      # one a reviewer already saw; git takes any prefix of it (--am, --amen).
+      [ -n "${AGENT_TYPE-}" ] && deny "git commit is not allowed in a subagent ($AGENT_TYPE): the main session commits each stage's files after the stage. Leave your changes uncommitted and report them."
+      for x in "${rest[@]}"; do
+        case $x in --am|--am=*|--ame|--ame=*|--amen|--amen=*|--amend|--amend=*) deny "git commit --amend is not allowed during the flow: it rewrites an existing commit. Make a new commit." ;; esac
+      done ;;
+    push|pull|checkout|restore|clean|rebase|merge|cherry-pick|revert|am|switch|filter-branch|filter-repo|commit-tree|update-ref|replace)
+      deny "git $sub is not allowed during the flow: the user pushes, pulls, switches branches, rewrites history and discards changes. Delete $POINTER to switch the guards off." ;;
     stash)
       case ${rest[0]-} in list|show) ;; *) deny "git stash is not allowed during the flow (uncommitted work is the deliverable)." ;; esac ;;
     reset)
-      for x in "${rest[@]}"; do case $x in --hard|--merge|--keep) deny "git reset $x is not allowed during the flow." ;; esac; done ;;
+      # --soft followed by a commit rewrites the last commit like --amend.
+      for x in "${rest[@]}"; do case $x in --hard|--merge|--keep|--soft) deny "git reset $x is not allowed during the flow." ;; esac; done ;;
     branch)
       for x in "${rest[@]}"; do case $x in -d|-D|-f|-m|-M|--delete|--force|--move) deny "git branch $x is not allowed during the flow." ;; esac; done ;;
+    *)
+      # An alias from git config (`git ci` for commit): check what it runs.
+      case $GIT_PLAIN_SUBS in *" $sub "*) return 0 ;; esac
+      [ "$GIT_ALIAS_DEPTH" -lt 3 ] || return 0
+      alias=$(git -C "${GIT_ROOT:-.}" config --get "alias.$sub" 2>/dev/null) || return 0
+      [ -n "$alias" ] || return 0
+      alias=$(lower "$alias")
+      GIT_ALIAS_DEPTH=$((GIT_ALIAS_DEPTH + 1))
+      case $alias in
+        '!'*) check_command "${alias#!}" 1 ;;   # a shell alias: read it as a command
+        *) read -r -a words <<< "$alias"; check_git "${words[@]}" "${rest[@]}" ;;
+      esac
+      GIT_ALIAS_DEPTH=$((GIT_ALIAS_DEPTH - 1)) ;;
   esac
   return 0
 }

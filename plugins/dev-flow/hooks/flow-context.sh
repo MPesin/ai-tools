@@ -9,7 +9,10 @@ load_task_folder
 case $AGENT_TYPE in dev-*) ;; *) exit 0 ;; esac
 
 ensure_git_exclude
-[ -n "$AGENT_ID" ] && tree_snapshot > "$FLOW_DIR/snap-$AGENT_ID"
+# Written aside and moved into place: a run cut off by the hook timeout leaves no
+# snapshot (SubagentStop then skips the comparison) rather than a partial one that
+# would make every file left out of it look changed.
+[ -n "$AGENT_ID" ] && tree_snapshot > "$FLOW_DIR/snap-$AGENT_ID.tmp" && mv -f "$FLOW_DIR/snap-$AGENT_ID.tmp" "$FLOW_DIR/snap-$AGENT_ID"
 
 branch=$(git -C "$GIT_ROOT" symbolic-ref --short HEAD 2>/dev/null || echo unknown)
 context="Dev-flow is active. Task folder: $TASK_FOLDER. Project root: $GIT_ROOT. Branch: $branch. status: $(frontmatter_value status). mode: $(frontmatter_value mode). review_round: $(frontmatter_value review_round). base: $(frontmatter_value base)."
