@@ -165,7 +165,7 @@ sequenceDiagram
     M->>U: final report (task folder, per-stage summary, evidence, next action)
 ```
 
-Reading the diagrams: the task folder is the only channel between stages (every subagent prompt carries paths, not content, so the reviewer never sees the implementer's account); the dashed arrows from Hooks are the guards the harness runs, not instructions in the skill text; the `planning` and `current` pointer files switch all of them on and off (except the Agent gate, which then refuses the stage agents until Intake writes `current` again); and only two places wait for you, the approval and the human-review gate, plus anything `needs-decision.md` or `violations.md` raises.
+Reading the diagrams: the task folder is the only channel between stages (every subagent prompt carries paths, not content, so the reviewer never sees the implementer's account); the dashed arrows from Hooks are the guards the harness runs, not instructions in the skill text; the `planning` and `current` pointer files switch all of them on and off (except the stage gate, which then refuses the stage agents until Intake writes `current` again; see [Guards](#guards)); and only two places wait for you, the approval and the human-review gate, plus anything `needs-decision.md` or `violations.md` raises.
 
 ## Agents
 
@@ -203,24 +203,143 @@ The plugin knows no language, framework, build tool, tracker or hosting platform
 
 Where the rules file is silent, the agents ask or say so; they do not fall back on defaults of their own.
 
-## Hooks
+## Guards
 
-Active only while `<project>/.claude/flow/current` (implementing) or `planning` (planning or debugging) exists, except the Agent gate below, which also refuses to start a stage agent when no pointer exists. Delete the pointer file to switch the rest off. A `planning` pointer left behind by a plan that moved on (`plan.md` at `approved` or later, or its folder gone) is stale: the hooks do not enforce it, they say so once per session with the `rm` command, and the Stop hook removes it once `plan.md` shows the later status (a pointer at `draft` or `diagnosing` is never touched; one naming a missing folder is only named). A `current` left at `status: done` (the final report's rename to `finished` skipped) is finished by the Stop hook the same way as `finished`, so it cannot keep commit and push blocked. When `planning` stands beside a parked `current` (a task waiting at human-review while a second one is planned or diagnosed), the planner, critic and debugger are keyed on `planning` and the stage agents on `current`; the Stop hook announces the planning task's gate and SessionStart re-injects it, naming the parked task too. The pointer is looked up from the working directory upwards and the lookup stops at the first directory holding a `.git`, so a session started in a subdirectory finds the project's flow, while a git worktree (Claude Code creates them under `<repo>/.claude/worktrees/<name>`, with a `.git` file at their root) is its own project: it neither sees nor is guarded by the main checkout's flow, and a flow started inside it stays there.
+The skills tell each agent what it may and may not do. The guards are hooks (`hooks/hooks.json`) that enforce those rules regardless of what an agent decides, so a prompt that drifts cannot push a branch, post to a PR, or let a reviewer "quickly fix" the code it reviews.
 
-| Hook | What it does |
+A refused tool call never runs. Claude Code shows the agent the reason, for example `dev-flow guard: git push is not allowed during the flow`, and the agent adapts: it reports the problem instead of retrying around it. The checks that run when an agent finishes block it once, with the list of what is missing, and the agent then reports. They never loop.
+
+### When the guards are on
+
+The guards follow a **pointer file** in `<project>/.claude/flow/`. Each pointer holds the absolute path of the task folder as its only line.
+
+| Pointer | Written by | Means |
+|---|---|---|
+| `planning` | `/dev-flow:dev-plan`, `/dev-debug:dev-debug` | a plan is being written or a bug diagnosed (`status: draft` or `diagnosing`) |
+| `current` | `/dev-flow:dev-implement` Intake | a plan is being implemented, reviewed or QA'd |
+| `finished` | the final report (renamed from `current`) | the run is done; the Stop hook notifies you and removes it |
+
+- **No pointer, no guards.** The one exception is the stage gate (below), which also refuses to start a stage agent when there is no pointer.
+- **To switch the guards off, delete the pointer file.** The stage agents then cannot be spawned until `/dev-flow:dev-implement` writes `current` again.
+- **Lookup.** The pointer is searched from the working directory upwards and the search stops at the first directory holding a `.git`. A session started in a subdirectory still finds the project's flow. A git worktree (Claude Code makes them under `<repo>/.claude/worktrees/<name>`) is its own project: it neither sees nor is guarded by the main checkout's flow.
+- **A stale `planning` pointer is not enforced.** That is one left behind once `plan.md` moved past planning (`approved` or later) or whose folder is gone. The hooks say so once per session, with the `rm` command, and the Stop hook removes it once `plan.md` shows the later status. One naming a missing folder is only named, never removed. A pointer at `draft` or `diagnosing` is never touched.
+- **A `current` left at `status: done`** (the final rename to `finished` skipped) is finished by the Stop hook all the same, so it cannot leave push blocked for good.
+- **Two tasks at once.** A second task can be planned or diagnosed (`planning`) while the first waits at human review (`current`). The planner, critic and debugger then belong to `planning` and the stage agents to `current`.
+- **Who is who.** The hooks tell the main session from a subagent, and one subagent from another, by the agent type Claude Code reports. An agent spawned as `general-purpose` (the fallback when a dev-flow agent is missing) counts as a subagent of no known kind: it gets no per-agent write limits, but it still cannot commit.
+
+### 1. Commands (Bash and PowerShell)
+
+Every Bash and PowerShell command is read before it runs.
+
+**git**
+
+| Allowed | Refused |
 |---|---|
-| PreToolUse on Bash and PowerShell | Blocks `git push/checkout/restore/stash/clean/rebase/merge/reset --hard`, `git commit` from any subagent and `git commit --amend` (the main session commits each stage's files: see the dev-implement skill's Commits section), `gh`/`glab`/`az` commands that post or change anything, publishing (`dotnet nuget push`, `npm publish`, `docker push`, ...). Parses the command (quotes, `&&`, `;`, `$()`, wrappers like `sudo`/`timeout`, `bash -c "..."`, `cmd /c "..."`, `wsl`), so `grep "git commit"` passes and `git -C "my repo" push` does not. |
-| PreToolUse on `mcp__*` | Blocks MCP tools whose names read like writes (`create_pull_request`, `wit_update_work_item`, `add_issue_comment`, ...). |
-| PreToolUse on Edit/Write/NotebookEdit | Reviewer, plan critic, QA and triager may write only their own file in the task folder; the debugger only `diagnosis*.md` and files under `debug/` there (never source, not even to instrument it); the planner only inside the task folder; implementers in package mode only inside their package's `Owns` (globs with `*` and `{a,b}`, after writing a claim file) and never `plan.md`; the main session, while planning, only the task folder. |
-| PreToolUse on Agent | Implementer, reviewer, fixer and triager are spawned only at their own plan status (`implementing`; `reviewing`; `reviewing` or `human-review`; `human-review`), and refused while a genuine `planning` exists (the refusal names the plan's status and the skill to finish), when no pointer exists, or when `current` names a missing folder or one without `plan.md`, so a flow cannot run with the guards off and the status panel stale. A stale `planning` does not gate, but `current` is still needed. This one runs even without a pointer. Planner, critic, debugger and QA are not gated: the debugger and QA also run standalone. |
-| SubagentStart | Injects the flow state; snapshots the working tree (every changed and untracked path with a content hash, up to 5,000 paths, in a fixed number of processes however many there are); excludes `.claude/flow/` and `.claude/plans/` from `git status` via `.git/info/exclude`. Runs with a 120 s timeout, so a slow machine cannot hold the agent's start for the 600 s default; a snapshot cut off by it is not written, and the stop then skips the comparison. |
-| SubagentStop | Compares the tree with the snapshot: a read-only agent that changed anything, or an implementer that changed files outside every package's `Owns`, is blocked once with the list and the change is appended to `violations.md`. Implementers and fixers must have appended this run's build/test output to `verify.log` (a `[Pn]` block in package mode) and their notes. |
-| Stop | At `diagnosing` (once at intake, again as `confirm-cause` when `diagnosis.md` exists), `draft`, `human-review`, `blocked`, `done`, or when `needs-decision.md` / `violations.md` appear: a terminal message and one desktop notification per state (PowerShell toast on Windows and WSL, `osascript` on macOS, `notify-send` on Linux; `DEV_FLOW_NOTIFY_CMD="<program>"` overrides, called with title and message). Removes a stale `planning` pointer whose `plan.md` is past planning, with a message; finishes a `current` left at `done` like `finished`. |
-| SessionStart (startup, resume, compact) | Re-injects the active task folder, status and how to continue (the task being planned first, with the parked `current` task named beside it); warns when the pointer is older than two days; reports a stale `planning` pointer as stale (with the status found and how the task itself continues) instead of as planning or debugging in progress. |
+| everything that reads: `status`, `diff`, `log`, `show`, `blame`, `branch` (list), `stash list/show`, ... | `push` |
+| `add`, and `reset <path>` (unstage) | `checkout`, `switch`, `restore`, `clean`, `stash` (anything but list/show), `reset --hard/--merge/--keep` |
+| `commit` from the **main session**, which commits each package and fix round (see the dev-implement skill's Commits section) | `commit` from **any subagent**: parallel implementers share one index, so one's `git add` would sweep in another's half-done files |
+| | `commit --amend`: it rewrites a commit from before the flow, or one a reviewer already saw |
+| | `rebase`, `merge`, `cherry-pick`, `revert`, `am`, `filter-branch`, `filter-repo`; `branch -d/-D/-m/-M/-f` |
 
-The hooks are bash (3.2 or newer, so macOS's `/bin/bash` and Git Bash both work) and need no `jq`. `bash hooks/test-hooks.sh` runs the assertion suite on any of the three systems.
+**Hosting platforms and publishing**
 
-A large untracked, unignored folder (a generated cache such as `graphify-out/`) is snapshotted like source. It is fast, but past 5,000 paths the snapshot is cut off, and untracked files beyond the cut are not compared (`git status` lists changed tracked files first, so those are always kept). Ignore such a folder in `.gitignore`, or locally in `.git/info/exclude`, to keep it out of the comparison.
+| Tool | Allowed | Refused |
+|---|---|---|
+| `gh` | `pr view/list/diff/checks/status`, `issue view/list`, `repo view/clone`, `run view/watch`, other `list`/`view`; `api` with a plain GET | everything that creates, edits, comments, merges, approves or deletes; `api` with `-X POST/PATCH/...`, `-f`/`-F` fields or `--input` |
+| `glab` | `mr view/list/diff`, `issue view/list`, `ci view/list/status/lint/trace`, ...; `api` GET | the same writes as `gh` |
+| `az` | `repos pr list/show`, `boards work-item show`, other list/show; `devops invoke` GET | creating or updating PRs, work items, repos, pipeline runs, builds, releases, variables |
+| package and image publishing | building, testing, restoring packages | `dotnet nuget push/delete`, `nuget push`, `npm publish/unpublish/deprecate`, `yarn`/`pnpm publish`, `docker push`, `cargo publish`, `twine upload`, `gem push`, `helm push`, `mvn deploy`, `gradle publish*` |
+
+**How a command is read.** A command is split into simple commands at `;`, `&&`, `|`, `$(...)`, backticks and newlines. Quoted text stays an argument, heredoc bodies are skipped, and case is ignored. Wrappers (`sudo`, `env X=1`, `timeout`, `nohup`, `xargs`, `Start-Process`, ...) are looked through, and so is a quoted or Windows path to the program (`"C:\Program Files\Git\bin\git.exe"`). Commands handed to another shell (`bash -c "..."`, `cmd /c "..."`, `pwsh -Command "..."`, `wsl ...`, `eval`) are read too, two levels deep. So:
+
+- `grep -rn "git push" docs/`, `echo remember to git push` and a heredoc that mentions `git push` all pass;
+- `git -C "my repo" push`, `npm test && git push`, `sudo env X=1 git push` and `cmd /c "git push"` are all refused.
+
+### 2. MCP tools
+
+An MCP tool (`mcp__<server>__<tool>`) is refused when its name reads like a write to an outside system. That means a name with a word such as `create`, `update`, `delete`, `add`, `post`, `comment`, `reply`, `resolve`, `merge`, `push`, `submit`, `approve`, `assign`, `close`, `edit`, `set`, `transition`, `publish`, `upload`, `send`, `move` or `archive`, for example `create_pull_request`, `add_issue_comment` or `wit_update_work_item`. Tools that read (`get_pull_request`, `search_code`, `list_issues`) pass. The check goes by name only, so a read tool with a write-like word in its name is refused too. Read the same data through `git`, `gh` or `az` instead, or switch the guards off.
+
+### 3. File writes (Edit, Write, NotebookEdit)
+
+Each agent may write only what its stage produces. "Task folder" is the folder the pointer names.
+
+| Agent | May write | Notes |
+|---|---|---|
+| main session, while planning (`planning`) | the task folder and `.claude/flow/` | planning never touches source |
+| main session, while implementing (`current`) | anything | it orchestrates; it ticks `plan.md` boxes and commits |
+| `dev-planner` | the task folder | |
+| `dev-plan-critic` | `plan-critique.md` | |
+| `dev-reviewer` | `review-*.md` | never fixes what it reviews |
+| `dev-review-triager` | `human-review.md` | |
+| `dev-qa-impact` | `qa-impact.md` | |
+| `dev-debugger` | `diagnosis*.md` and files under `debug/` | never source, not even to instrument it |
+| `dev-implementer`, plan without packages | anything except other stages' files (below) | ticks `plan.md` itself |
+| `dev-implementer`, plan with packages | its package's `Owns` paths, plus the task folder (claim `all`: anything) | must first write its package id (`P2`, or `all`) to the claim file it is given; never edits `plan.md` (the main session ticks it); appends to `notes.md` with `>>`, so parallel appends cannot overwrite each other |
+| `dev-fixer` | anything except other stages' files and `plan.md` | |
+
+The **other stages' files** are `verify.log`, `review-*.md`, `plan-critique.md`, `qa-impact.md`, `human-review.md`, `needs-decision.md` and `violations.md`. An implementer or fixer may not change them with Edit/Write. `verify.log` is only appended to, with a shell `>>`, so earlier evidence cannot be rewritten.
+
+This guard sees the Edit/Write tools only. A file written by a shell command (`echo x > src/a.cs`, a build that rewrites a lock file) is caught afterwards by the working-tree check (5).
+
+### 4. Stage gate (spawning agents)
+
+`/dev-flow:dev-implement` sets `status` in `plan.md` before each stage. The hooks and the status panel read that status, and the gate keeps it truthful: a stage agent can be spawned only at its own status.
+
+| Agent | Spawned only at `status` |
+|---|---|
+| `dev-implementer` | `implementing` |
+| `dev-reviewer` | `reviewing` |
+| `dev-fixer` | `reviewing` or `human-review` |
+| `dev-review-triager` | `human-review` |
+
+They are also refused:
+- when there is no pointer at all (run `/dev-flow:dev-implement <plan>`, not the agent directly);
+- while a genuine `planning` pointer exists (the refusal names the plan's status and the skill to finish first; a plan at `diagnosing` points at `/dev-debug:dev-debug`);
+- when `current` names a missing folder or a folder without `plan.md`.
+
+`dev-planner`, `dev-plan-critic`, `dev-debugger` and `dev-qa-impact` are not gated. They run during planning, standalone, or under another task's pointer, and their writes are limited by guard 3.
+
+### 5. Working-tree check (agent start and stop)
+
+When a dev-flow agent starts, the hooks take a snapshot of the working tree: every changed and untracked path with a hash of its content. When the agent stops, they take another and compare the two. This catches changes made by any means, including shell commands and build side effects.
+
+| Agent | A changed file is a violation when |
+|---|---|
+| read-only agents (planner, critic, reviewer, triager, QA, debugger) | any file outside the task folder and `.claude/flow/` changed |
+| `dev-implementer` in a package | it is outside **every** package's `Owns` (a parallel package's file is not a violation) |
+| single `dev-implementer`, `dev-fixer` | never (they may change any source file) |
+
+A violation is appended to `violations.md` in the task folder with the agent and the files. The agent is blocked once with the list and told to report exactly what it changed and why, not to revert it. The main session then stops and shows it to you, and you decide whether to keep or revert the changes. Nothing is reverted automatically.
+
+Limits: the snapshot holds the first 5,000 changed and untracked paths. `git status` lists changed tracked files first, so those are always included; untracked files past the limit are not compared. Keep generated caches (for example `graphify-out/`) out of it with `.gitignore` or `.git/info/exclude`. The snapshot hook has a 120 s timeout. If it is cut off, no snapshot is written and the stop skips the comparison rather than reporting false changes.
+
+### 6. Evidence check (implementer and fixer stop)
+
+An implementer or fixer cannot finish without proof that it built and tested its own work. At its stop it is blocked once, with what is missing, when:
+
+- `verify.log` is missing or empty, or was not appended to during this run (an implementer with no build or test to run appends one line saying so and why);
+- in package mode, `verify.log` has no `[Pn]` block for its package, or `notes.md` has no `[Pn]` lines;
+- a single implementer leaves unchecked `- [ ]` steps in `plan.md` with nothing in `notes.md` explaining them.
+
+### 7. Notifications and session restore
+
+These do not refuse anything; they keep you and a restarted session informed.
+
+- **Stop.** When the flow waits for you, you get a terminal line and one desktop notification per state. That covers the diagnosis (`diagnosing`, then `confirm-cause`), plan approval (`draft`), `human-review`, `blocked`, `done`, and whenever `needs-decision.md` or `violations.md` has entries. Notifications use a PowerShell toast on Windows and WSL, `osascript` on macOS and `notify-send` on Linux. Set `DEV_FLOW_NOTIFY_CMD="<program>"` to use your own; it is called with the title and message. The Stop hook also removes a stale `planning` pointer and finishes a `finished` (or `done`) run, removing its marker files.
+- **SessionStart** (startup, resume, compact). It puts the active task folder, status, mode, review round and base back into context with how to continue, and names a parked second task. It warns when the pointer is more than two days old (the flow may be abandoned) and when `needs-decision.md` or `violations.md` have items.
+- **SubagentStart.** It gives each dev-flow agent the task folder, project root, branch and plan status, and tells it its own allowance (the claim file for a package implementer, `verify.log` for writing agents). It also adds `.claude/flow/` and `.claude/plans/` to `.git/info/exclude`, so the flow's own files stay out of `git status` and out of commits.
+
+### What the guards do not cover
+
+- **Scripts are not read.** `./release.sh` that runs `git push` inside is not refused; only the command line itself is read.
+- **The main session is not write-limited while implementing.** It is the orchestrator; only its commands are checked.
+- **A single implementer and the fixer may change any source file.** Package implementers are held to their `Owns`.
+- **Shell writes are detected, not prevented.** A read-only agent that writes with a shell command is reported when it stops, not stopped when it writes.
+- **No pointer, no guards** (except the stage gate). Deleting the pointer is the deliberate way out when a guard is wrong.
+
+### Running the tests
+
+The hooks are bash (3.2 or newer, so macOS's `/bin/bash` and Git Bash on Windows both work) and need no `jq`. `bash hooks/test-hooks.sh` runs the assertion suite on Linux, macOS and Windows.
 
 ## Do not also keep copies in `~/.claude`
 
