@@ -9,7 +9,7 @@ Plan, implement, review, and QA-impact flow for any project, run by subagents an
 ## Skills
 
 - `/dev-flow:dev-plan` - produce an approved plan (interactive with you, or drafted by a planner subagent), reviewed by a plan critic. Never implements.
-- `/dev-flow:dev-implement <plan path>` - implement an approved plan, run the Claude review/fix loop, stop for human review, fix human findings, then produce the QA impact note. State lives as files in the task folder; a run resumes from `status` and `review_round`.
+- `/dev-flow:dev-implement <plan path>` - implement an approved plan (committing each package and each fix round as it goes; you push), run the Claude review/fix loop, stop for human review, fix human findings, then produce the QA impact note. State lives as files in the task folder; a run resumes from `status` and `review_round`.
 - `/dev-flow:dev-qa-impact` - a fixed-template note for QA engineers who do not read code: what changed for users, which regression tests to run, what was built differently from the requirements. Works from a branch, diff, or PR; no plan needed.
 
 Plans are designed as work packages (disjoint file ownership, explicit dependencies, parallel-safe builds) so `/dev-flow:dev-implement` can run independent packages in parallel subagents, wave by wave.
@@ -34,7 +34,7 @@ sequenceDiagram
 
     U->>M: /dev-flow:dev-plan "task"
     M->>F: create folder, write .claude/flow/planning
-    Note over H: planning pointer exists -> main session may write only the task folder,<br/>git commit/push/discard, posting and publishing are blocked
+    Note over H: planning pointer exists -> main session may write only the task folder,<br/>git push/discard, posting and publishing are blocked
     M->>U: Paste PRD/HLD or a work-item ref? Plan interactively or let a planner draft?
     U-->>M: specs + mode
     M->>F: specs/*.md (verbatim, with source line)
@@ -89,7 +89,8 @@ sequenceDiagram
     participant Q as dev-qa-impact
 
     U->>M: /dev-flow:dev-implement plan.md
-    M->>F: validate plan (status approved), set base, status implementing
+    M->>F: validate plan (status approved), set base, commits on/off, status implementing
+    M->>U: your own uncommitted work? commit it first / leave it out / no commits
     M->>F: write .claude/flow/current
     Note over H: current pointer exists -> guards on for every tool call
 
@@ -107,6 +108,7 @@ sequenceDiagram
             I-->>M: changed files, commands run, outcome
         end
         M->>F: tick - [x] in plan.md, read violations.md
+        M->>M: git add -- <package's files>; git commit, one per package
     end
     end
 
@@ -125,6 +127,7 @@ sequenceDiagram
             X->>F: fixes, notes.md (fixed / DISPUTED Fn evidence), verify.log
             H-->>X: SubagentStop: verify.log updated this run?
             X-->>M: per-ID outcome
+            M->>M: git add -- <fixed files>; git commit "fix review-N F1, F3"
         end
     end
     Note over M,F: a disputed finding raised again -> needs-decision.md (notifies you)
@@ -132,8 +135,8 @@ sequenceDiagram
 
     M->>F: status human-review
     H-->>U: Stop: desktop notification + terminal line "waiting for you (human-review)"
-    M->>U: changed files, verify.log tail, Low findings, draft PR text and commit message
-    U->>U: review the diff, commit, push, open the PR, collect reviewer comments
+    M->>U: the run's commits, verify.log tail, Low findings, draft PR text
+    U->>U: review the commits, push, open the PR, collect reviewer comments
 
     rect rgb(255, 245, 230)
     Note over M,X: Stage 5 - Human findings
@@ -143,8 +146,9 @@ sequenceDiagram
     T->>F: human-review.md (fix / reply-only, draft replies, proposed checklist additions)
     M->>X: human-review.md
     X->>F: fixes for the fix items, notes.md, verify.log
-    M->>U: fixes, draft replies, checklist additions to confirm
-    U->>U: commit, push, reply on the PR
+    M->>M: git commit "address review comments"
+    M->>U: fixes (committed), draft replies, checklist additions to confirm
+    U->>U: push, reply on the PR
     end
 
     rect rgb(235, 255, 235)
@@ -205,7 +209,7 @@ Active only while `<project>/.claude/flow/current` (implementing) or `planning` 
 
 | Hook | What it does |
 |---|---|
-| PreToolUse on Bash and PowerShell | Blocks `git commit/push/checkout/restore/stash/clean/rebase/merge/reset --hard`, `gh`/`glab`/`az` commands that post or change anything, publishing (`dotnet nuget push`, `npm publish`, `docker push`, ...). Parses the command (quotes, `&&`, `;`, `$()`, wrappers like `sudo`/`timeout`, `bash -c "..."`, `cmd /c "..."`, `wsl`), so `grep "git commit"` passes and `git -C "my repo" push` does not. |
+| PreToolUse on Bash and PowerShell | Blocks `git push/checkout/restore/stash/clean/rebase/merge/reset --hard`, `git commit` from any subagent and `git commit --amend` (the main session commits each stage's files: see the dev-implement skill's Commits section), `gh`/`glab`/`az` commands that post or change anything, publishing (`dotnet nuget push`, `npm publish`, `docker push`, ...). Parses the command (quotes, `&&`, `;`, `$()`, wrappers like `sudo`/`timeout`, `bash -c "..."`, `cmd /c "..."`, `wsl`), so `grep "git commit"` passes and `git -C "my repo" push` does not. |
 | PreToolUse on `mcp__*` | Blocks MCP tools whose names read like writes (`create_pull_request`, `wit_update_work_item`, `add_issue_comment`, ...). |
 | PreToolUse on Edit/Write/NotebookEdit | Reviewer, plan critic, QA and triager may write only their own file in the task folder; the debugger only `diagnosis*.md` and files under `debug/` there (never source, not even to instrument it); the planner only inside the task folder; implementers in package mode only inside their package's `Owns` (globs with `*` and `{a,b}`, after writing a claim file) and never `plan.md`; the main session, while planning, only the task folder. |
 | PreToolUse on Agent | Implementer, reviewer, fixer and triager are spawned only at their own plan status (`implementing`; `reviewing`; `reviewing` or `human-review`; `human-review`), and refused while a genuine `planning` exists (the refusal names the plan's status and the skill to finish), when no pointer exists, or when `current` names a missing folder or one without `plan.md`, so a flow cannot run with the guards off and the status panel stale. A stale `planning` does not gate, but `current` is still needed. This one runs even without a pointer. Planner, critic, debugger and QA are not gated: the debugger and QA also run standalone. |

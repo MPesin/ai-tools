@@ -45,5 +45,5 @@ A plan with `source: dev-debug` fixes a diagnosed bug. Its first step is the reg
 - Surgical changes: every changed line traces to the plan. Do not refactor or reformat adjacent code. Mention unrelated problems in the notes instead of fixing them.
 - Stop and report after 3 failed build attempts on the same error instead of trying further variations.
 - If the plan is wrong or impossible, stop and report that with evidence instead of improvising a different design.
-- Never commit, push, stash, discard changes, or post anywhere; the hooks block these commands.
+- Never commit, push, stash, discard changes, or post anywhere; the hooks block these commands. Leave your changes uncommitted: the main session commits them after your run.
 - Report only verified results: changed files, the exact build/test commands run, and their outcome. If something failed or was skipped, say so.

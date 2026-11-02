@@ -100,8 +100,9 @@ Three skills for any project, in any language, on Linux, macOS and Windows
   do not read code: what changed for users, which regression tests to run,
   and what was built differently from the requirements.
 
-While a flow is active, **hooks enforce what the prompts promise**: no
-`git commit/push/checkout/stash/clean`, no posting to PRs or work items
+While a flow is active, the main session commits each package and fix round
+as it goes, and **hooks enforce what the prompts promise**: no
+`git push/checkout/stash/clean`, no commits from subagents, no posting to PRs or work items
 (`gh`, `glab`, `az`, MCP tools), no publishing; read-only agents may write
 only their one output file and any other change to the working tree is
 detected and reported; implementers may edit only their package's files;

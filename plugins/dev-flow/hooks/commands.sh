@@ -138,8 +138,17 @@ check_git() {
   sub=${a[$i]}
   rest=("${a[@]:$((i+1))}")
   case $sub in
-    commit|push|checkout|restore|clean|rebase|merge|cherry-pick|revert|am|switch|filter-branch|filter-repo)
-      deny "git $sub is not allowed during the flow: the user commits, pushes and discards changes. Delete $POINTER to switch the guards off." ;;
+    commit)
+      # The main session commits after each stage. A subagent does not: parallel
+      # implementers share one index, so one's `git add` would sweep in another's
+      # half-done files. --amend would rewrite a commit made before the flow, or
+      # one a reviewer already saw.
+      [ -n "${AGENT_TYPE-}" ] && deny "git commit is not allowed in a subagent ($AGENT_TYPE): the main session commits each stage's files after the stage. Leave your changes uncommitted and report them."
+      for x in "${rest[@]}"; do
+        case $x in --amend|--amend=*) deny "git commit --amend is not allowed during the flow: it rewrites an existing commit. Make a new commit." ;; esac
+      done ;;
+    push|checkout|restore|clean|rebase|merge|cherry-pick|revert|am|switch|filter-branch|filter-repo)
+      deny "git $sub is not allowed during the flow: the user pushes, switches branches, rewrites history and discards changes. Delete $POINTER to switch the guards off." ;;
     stash)
       case ${rest[0]-} in list|show) ;; *) deny "git stash is not allowed during the flow (uncommitted work is the deliverable)." ;; esac ;;
     reset)

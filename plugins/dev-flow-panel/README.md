@@ -26,7 +26,7 @@ The stage is a chip on a block of its theme colour, and an accent bar in the sam
 ```
 ▎ Your review   ⚠ needs decision  login fix · round 2 · full · base main        ●─●─●─●─◉─○─○
 ▎ ✓ Planning  ✓ Approved  ✓ Implementing  ✓ Claude review  ◉ Your review  ○ QA impact  ○ Done
-▎   Waiting for you: review the diff, commit, open the PR, then continue.
+▎   Waiting for you: review the commits, push, open the PR, then continue.
 ▎ ⚠ needs-decision.md  findings wait for your decision
 ▎ [ Plan ] [ Debug ] [ Implement ] [ QA impact ]   ↻ refresh   less ▴
 ```
