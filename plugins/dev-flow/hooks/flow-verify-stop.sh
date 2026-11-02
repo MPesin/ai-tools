@@ -21,11 +21,18 @@ if json_bool_true stop_hook_active; then cleanup; exit 0; fi
 
 problems=()
 violation=''
+notice=''
 claim=$(head -n 1 "$claim_file" 2>/dev/null | tr -d '\r[:space:]')
 
-if [ -f "$snap" ]; then
+if [ ! -f "$snap" ]; then
+  # The start hook was cut off by its timeout (or had no agent id): say so
+  # rather than skip the check silently.
+  if is_readonly_agent "$AGENT_TYPE" || { [ "$AGENT_TYPE" = dev-implementer ] && plan_has_packages && [ -n "$claim" ] && [ "$claim" != all ]; }; then
+    notice="dev-flow: the working-tree check did not run for $AGENT_TYPE ($AGENT_ID): no snapshot was taken when it started (the start hook timed out). Check its changes yourself with git status and git diff."
+  fi
+else
   tree_snapshot > "$snap.now"
-  changed=$(snapshot_diff "$snap" "$snap.now")
+  changed=$(snapshot_changes "$snap" "$snap.now")
   if [ -n "$changed" ]; then
     if is_readonly_agent "$AGENT_TYPE"; then
       violation=$changed
@@ -64,7 +71,15 @@ if is_writing_agent "$AGENT_TYPE"; then
   fi
 fi
 
-if [ ${#problems[@]} -eq 0 ]; then cleanup; exit 0; fi
+if [ ${#problems[@]} -eq 0 ]; then
+  cleanup
+  [ -n "$notice" ] && printf '{"systemMessage":"%s"}\n' "$(json_escape "$notice")"
+  exit 0
+fi
 reason=$(printf '%s; ' "${problems[@]}")
-printf '{"decision":"block","reason":"%s"}\n' "$(json_escape "$reason")"
+if [ -n "$notice" ]; then
+  printf '{"decision":"block","reason":"%s","systemMessage":"%s"}\n' "$(json_escape "$reason")" "$(json_escape "$notice")"
+else
+  printf '{"decision":"block","reason":"%s"}\n' "$(json_escape "$reason")"
+fi
 exit 0

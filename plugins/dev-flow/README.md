@@ -235,11 +235,12 @@ Every Bash and PowerShell command is read before it runs.
 
 | Allowed | Refused |
 |---|---|
-| everything that reads: `status`, `diff`, `log`, `show`, `blame`, `branch` (list), `stash list/show`, ... | `push` |
-| `add`, and `reset <path>` (unstage) | `checkout`, `switch`, `restore`, `clean`, `stash` (anything but list/show), `reset --hard/--merge/--keep` |
+| everything that reads: `status`, `diff`, `log`, `show`, `blame`, `branch` (list), `stash list/show`, ... | `push`, `pull` |
+| `add`, and `reset <path>` (unstage) | `checkout`, `switch`, `restore`, `clean`, `stash` (anything but list/show), `reset --hard/--merge/--keep/--soft` |
 | `commit` from the **main session**, which commits each package and fix round (see the dev-implement skill's Commits section) | `commit` from **any subagent**: parallel implementers share one index, so one's `git add` would sweep in another's half-done files |
-| | `commit --amend`: it rewrites a commit from before the flow, or one a reviewer already saw |
-| | `rebase`, `merge`, `cherry-pick`, `revert`, `am`, `filter-branch`, `filter-repo`; `branch -d/-D/-m/-M/-f` |
+| | `commit --amend` (and its abbreviations `--am`, `--ame`, `--amen`), and `reset --soft`, which amends in two steps: they rewrite a commit from before the flow, or one a reviewer already saw |
+| | `rebase`, `merge`, `cherry-pick`, `revert`, `am`, `filter-branch`, `filter-repo`, `commit-tree`, `update-ref`, `replace`; `branch -d/-D/-m/-M/-f` |
+| | `-c alias.<name>=...` on the command line. An alias from git config (`git ci`) is looked up and checked as what it runs, so `ci = commit` from a subagent and `pp = !git push` are refused |
 
 **Hosting platforms and publishing**
 
@@ -301,7 +302,7 @@ They are also refused:
 
 ### 5. Working-tree check (agent start and stop)
 
-When a dev-flow agent starts, the hooks take a snapshot of the working tree: every changed and untracked path with a hash of its content. When the agent stops, they take another and compare the two. This catches changes made by any means, including shell commands and build side effects.
+When a dev-flow agent starts, the hooks take a snapshot of the working tree: every changed and untracked path with a hash of its content. When the agent stops, they take another and compare the two. This catches changes made by any means, including shell commands and build side effects. A path listed differently at stop is checked against the file itself, so a file whose content did not change is never reported. That covers files committed meanwhile, and files pushed out of a listing longer than the limit.
 
 | Agent | A changed file is a violation when |
 |---|---|
@@ -311,7 +312,10 @@ When a dev-flow agent starts, the hooks take a snapshot of the working tree: eve
 
 A violation is appended to `violations.md` in the task folder with the agent and the files. The agent is blocked once with the list and told to report exactly what it changed and why, not to revert it. The main session then stops and shows it to you, and you decide whether to keep or revert the changes. Nothing is reverted automatically.
 
-Limits: the snapshot holds the first 5,000 changed and untracked paths. `git status` lists changed tracked files first, so those are always included; untracked files past the limit are not compared. Keep generated caches (for example `graphify-out/`) out of it with `.gitignore` or `.git/info/exclude`. The snapshot hook has a 120 s timeout. If it is cut off, no snapshot is written and the stop skips the comparison rather than reporting false changes.
+Limits:
+- The snapshot holds the first 5,000 changed and untracked paths. `git status` lists changed tracked files first, so those are always included. An existing untracked file past the limit that the agent changes is caught only by its modification time (it counts when modified after the start snapshot). Keep generated caches (for example `graphify-out/`) out of the listing with `.gitignore` or `.git/info/exclude`.
+- A path with a newline in its name is not supported.
+- The snapshot hook has a 120 s timeout. If it is cut off, no snapshot is written. The stop then skips the comparison and tells you in the terminal that the check did not run for that agent, so you can check its changes with `git status` and `git diff`.
 
 ### 6. Evidence check (implementer and fixer stop)
 
@@ -331,7 +335,7 @@ These do not refuse anything; they keep you and a restarted session informed.
 
 ### What the guards do not cover
 
-- **Scripts are not read.** `./release.sh` that runs `git push` inside is not refused; only the command line itself is read.
+- **Scripts are not read.** `./release.sh` that runs `git push` inside is not refused; only the command line itself (and the git aliases it uses) is read.
 - **The main session is not write-limited while implementing.** It is the orchestrator; only its commands are checked.
 - **A single implementer and the fixer may change any source file.** Package implementers are held to their `Owns`.
 - **Shell writes are detected, not prevented.** A read-only agent that writes with a shell command is reported when it stops, not stopped when it writes.

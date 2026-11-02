@@ -105,6 +105,21 @@ expect_deny  "git push"                         flow-guard.sh "$(bash_json '' 'g
 expect_deny  "git --no-pager push"              flow-guard.sh "$(bash_json '' 'git --no-pager push')"
 expect_deny  "git -C \"my repo\" push"          flow-guard.sh "$(bash_json '' 'git -C \"my repo\" push')"
 expect_deny  "git -c x=y commit --amend"        flow-guard.sh "$(bash_json '' 'git -c user.name=x commit --amend -m y')"
+expect_deny  "git commit --amen (prefix of --amend)" flow-guard.sh "$(bash_json '' 'git commit --amen -m y')"
+expect_deny  "git commit --am"                  flow-guard.sh "$(bash_json '' 'git commit --am --no-edit')"
+expect_allow "git commit --author (not --amend)" flow-guard.sh "$(bash_json '' 'git commit --author=\"a <a@b>\" -m y')"
+expect_deny  "subagent: git -c alias.c=commit c" flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git -c alias.c=commit c -m x')"
+expect_deny  "git -c \"alias.p=push\" p"        flow-guard.sh "$(bash_json '' 'git -c \"alias.p=push\" p')"
+git config alias.ci commit; git config alias.pp '!git push origin'; git config alias.st status
+expect_deny  "subagent: config alias ci = commit" flow-guard.sh "$(bash_json dev-flow:dev-fixer 'git ci -m x')"
+expect_allow "main session: config alias ci = commit" flow-guard.sh "$(bash_json '' 'git ci -m x')"
+expect_deny  "shell alias pp = !git push"       flow-guard.sh "$(bash_json '' 'git pp')"
+expect_allow "alias st = status"                flow-guard.sh "$(bash_json '' 'git st')"
+git config --unset alias.ci; git config --unset alias.pp; git config --unset alias.st
+expect_deny  "git commit-tree"                  flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git commit-tree HEAD^{tree} -m x')"
+expect_deny  "git update-ref"                   flow-guard.sh "$(bash_json '' 'git update-ref refs/heads/main HEAD~1')"
+expect_deny  "git reset --soft"                 flow-guard.sh "$(bash_json '' 'git reset --soft HEAD~1')"
+expect_deny  "git pull"                         flow-guard.sh "$(bash_json '' 'git pull --rebase')"
 expect_deny  "git reset --hard"                 flow-guard.sh "$(bash_json '' 'git reset --hard HEAD~1')"
 expect_deny  "git checkout -- ."                flow-guard.sh "$(bash_json '' 'git checkout -- .')"
 expect_deny  "git restore ."                    flow-guard.sh "$(bash_json '' 'git restore .')"
@@ -331,21 +346,64 @@ git checkout -q -- src; rm -f src/stray.txt task/violations.md task/notes.md
 echo "== SubagentStart/Stop: a tree with thousands of untracked files"
 # An untracked, unignored cache (graphify-out and the like) once made the snapshot
 # spawn a process per file: over 600 s on Windows, and the agent stalled. Start and
-# stop now take a fixed number of processes.
+# stop now take a fixed number of git processes, counted through a shim on PATH.
 mkdir -p cache/out; i=0; while [ $i -lt 2000 ]; do printf '{"n":%d}' $i > cache/out/$i.json; i=$((i+1)); done
-t0=$SECONDS
-run flow-context.sh "$(start_json r5 dev-flow:dev-reviewer)"
+REAL_GIT=$(command -v git)
+mkdir -p "$T/shim"
+printf '#!/bin/sh\necho x >> "%s/git-calls"\nexec "%s" "$@"\n' "$T" "$REAL_GIT" > "$T/shim/git"; chmod +x "$T/shim/git"
+: > "$T/git-calls"
+PATH="$T/shim:$PATH" run flow-context.sh "$(start_json r5 dev-flow:dev-reviewer)"
 assert "every untracked file is in the snapshot, hashed" '[ "$(grep -c " cache/out/" .claude/flow/snap-r5)" -eq 2000 ] && ! grep -q -e "^unreadable" -e "^gone" .claude/flow/snap-r5'
-assert "no scratch or partial snapshot files left" '[ -z "$(ls -A .claude/flow | grep -e "^\.snap-" -e "\.tmp$")" ]'
+assert "no scratch or partial snapshot files left" '[ -z "$(ls -A .claude/flow | grep -e "^\.snap-" -e "^\.cmp-" -e "\.tmp$")" ]'
 printf 'changed\n' > cache/out/1234.json
-expect_block "reviewer changed one untracked file among thousands" flow-verify-stop.sh "$(stop_json r5 dev-flow:dev-reviewer)"
+PATH="$T/shim:$PATH" expect_block "reviewer changed one untracked file among thousands" flow-verify-stop.sh "$(stop_json r5 dev-flow:dev-reviewer)"
 assert "only that file is named" 'case $out in *"cache/out/1234.json"*) case $out in *"cache/out/1235.json"*) false;; *) true;; esac;; *) false;; esac'
-assert "start and stop took under 20 s together" '[ $((SECONDS - t0)) -lt 20 ]'
-rm -f task/violations.md
-run flow-context.sh "$(start_json r6 dev-flow:dev-reviewer)"; rm -f .claude/flow/snap-r6
-printf 'changed again\n' > cache/out/1234.json
-expect_pass "no snapshot (start hook cut off by its timeout): stop does not compare" flow-verify-stop.sh "$(stop_json r6 dev-flow:dev-reviewer)"
+assert "start and stop ran a handful of git processes, not one per file" '[ "$(wc -l < "$T/git-calls")" -lt 20 ]'
 rm -rf cache task/violations.md
+# git that cannot hash at all: the snapshot gives up after a bounded number of
+# retries instead of one process per file.
+mkdir -p cache; i=0; while [ $i -lt 100 ]; do printf '%d\n' $i > cache/$i.json; i=$((i+1)); done
+mkdir -p "$T/badgit"
+printf '#!/bin/sh\necho x >> "%s/git-calls"\ncase "$*" in *hash-object*) exit 128 ;; esac\nexec "%s" "$@"\n' "$T" "$REAL_GIT" > "$T/badgit/git"; chmod +x "$T/badgit/git"
+: > "$T/git-calls"
+PATH="$T/badgit:$PATH" run flow-context.sh "$(start_json r10 dev-flow:dev-reviewer)"
+assert "a failing hasher marks files unreadable" '[ "$(grep -c "^unreadable cache/" .claude/flow/snap-r10)" -eq 100 ]'
+assert "and stops retrying after a few attempts" '[ "$(wc -l < "$T/git-calls")" -lt 30 ]'
+rm -rf cache .claude/flow/snap-r10 .claude/flow/start-r10
+run flow-context.sh "$(start_json r6 dev-flow:dev-reviewer)"; rm -f .claude/flow/snap-r6
+printf 'changed\n' >> src/foo/alpha.txt
+expect_out  "no snapshot (start hook cut off by its timeout): stop says the check did not run" flow-verify-stop.sh "$(stop_json r6 dev-flow:dev-reviewer)" "working-tree check did not run"
+git checkout -q -- src
+
+echo "== SubagentStart/Stop: paths with spaces, commits meanwhile, the snapshot limit"
+BASE_SHA=$(git rev-parse HEAD)
+mkdir -p "src/with space"; printf 'base\n' > "src/with space/f g.txt"; git add -A src; git commit -q -m spaced
+printf 'uncommitted before the run\n' >> "src/with space/f g.txt"
+run flow-context.sh "$(start_json r7 dev-flow:dev-reviewer)"
+printf 'reviewer edit\n' >> "src/with space/f g.txt"
+expect_block "reviewer changed an already-modified file whose path has spaces" flow-verify-stop.sh "$(stop_json r7 dev-flow:dev-reviewer)"
+assert "the path is named unquoted" 'case $out in *"src/with space/f g.txt"*) true;; *) false;; esac'
+git checkout -q -- src; rm -f task/violations.md
+printf 'new\n' > src/committed.txt; printf 'more\n' >> src/shared.txt
+run flow-context.sh "$(start_json r8 dev-flow:dev-reviewer)"
+git add -- src/committed.txt src/shared.txt; git commit -q -m "main session commits meanwhile"
+expect_pass "files committed by the main session during a run are not a change" flow-verify-stop.sh "$(stop_json r8 dev-flow:dev-reviewer)"
+git reset -q --hard "$BASE_SHA"; rm -rf "src/with space"
+# Limit 20 with 40 untracked files: an implementer's edit to a tracked file pushes
+# the last untracked file out of the listing; that file did not change.
+mkdir -p cache; i=10; while [ $i -lt 50 ]; do printf '%d\n' $i > cache/$i.json; i=$((i+1)); done
+plan implementing 1; printf 'P1\n' > .claude/flow/claim-i5
+export DEV_FLOW_SNAPSHOT_LIMIT=20
+run flow-context.sh "$(start_json i5 dev-flow:dev-implementer)"
+printf 'p1 edit\n' >> src/foo/alpha.txt
+printf '[P1] $ make\nok\n' >> task/verify.log; printf '[P1] done\n' >> task/notes.md
+expect_pass "past the limit: a path pushed out of the listing is not a change" flow-verify-stop.sh "$(stop_json i5 dev-flow:dev-implementer)"
+run flow-context.sh "$(start_json r9 dev-flow:dev-reviewer)"; sleep 1.1
+printf 'new\n' > cache/00-new.json
+expect_block "past the limit: a file the agent created is still a change" flow-verify-stop.sh "$(stop_json r9 dev-flow:dev-reviewer)"
+assert "it is named, nothing else" 'case $out in *"cache/00-new.json"*) case $out in *"cache/4"*) false;; *) true;; esac;; *) false;; esac'
+unset DEV_FLOW_SNAPSHOT_LIMIT
+git checkout -q -- src; rm -rf cache task/violations.md task/notes.md; plan implementing
 
 echo "== Stop: notifications"
 cat > "$T/fake-notify.sh" <<NEOF

@@ -308,55 +308,120 @@ rel_to_root() {
   if path_under "$t" "$r"; then printf '%s' "${t:$((${#r}+1))}"; else printf '%s' "$t"; fi
 }
 
-# A line per changed/untracked path with a content hash, flow files excluded.
-# Comparing two snapshots names exactly the files that changed in between.
+SNAPSHOT_LIMIT=${DEV_FLOW_SNAPSHOT_LIMIT:-5000}   # override for tests only
+
+# hash_paths LIST OUT: a "hash path" line in OUT for every path in LIST (paths
+# relative to GIT_ROOT, files that exist), in LIST's order. One
+# `git hash-object --stdin-paths` for all of them. It stops at a file it cannot
+# read (deleted meanwhile, locked on Windows): that one is `unreadable` and
+# hashing goes on after it. After 20 such stops git is failing for another
+# reason, and the rest are marked unreadable rather than spawning a process per
+# file.
+hash_paths() {
+  local list=$1 out=$2 rest="$1.rest" next="$1.next" n_before n_done fails=0
+  : > "$out.h"
+  cp "$list" "$rest"
+  while [ -s "$rest" ]; do
+    n_before=$(wc -l < "$out.h")
+    git -C "$GIT_ROOT" hash-object --stdin-paths < "$rest" >> "$out.h" 2>/dev/null && break
+    n_done=$(( $(wc -l < "$out.h") - n_before ))
+    fails=$((fails + 1))
+    if [ $fails -ge 20 ]; then
+      tail -n +$((n_done + 1)) "$rest" | sed 's/.*/unreadable/' >> "$out.h"
+      break
+    fi
+    printf 'unreadable\n' >> "$out.h"
+    tail -n +$((n_done + 2)) "$rest" > "$next"
+    mv -f "$next" "$rest"
+  done
+  paste -d' ' "$out.h" "$list" > "$out"
+  rm -f "$out.h" "$rest" "$next"
+}
+
+# A line per changed/untracked path with a content hash ("gone <path>" for a
+# path that no longer exists), flow files excluded, at most SNAPSHOT_LIMIT
+# lines. Comparing two snapshots (snapshot_changes) names the files that
+# changed in between.
 #
 # The process count is fixed, not one per path: one `git status`, one awk that
-# drops the flow's own files (.claude/flow, the task folder), one
-# `git hash-object --stdin-paths` for every file. A process per path (before
-# 2.3.1) took more than 600 s for 5,000 untracked files on Windows, where a fork
-# costs tens of milliseconds, and the agent sat stalled until the hook was killed.
-# Scratch files live beside the snapshot in FLOW_DIR and are removed at the end.
+# drops the flow's own files (.claude/flow, the task folder), one hash_paths.
+# A process per path (before 2.3.1) took more than 600 s for 5,000 untracked
+# files on Windows, where a fork costs tens of milliseconds, and the agent sat
+# stalled until the hook was killed. `-z` keeps paths unquoted (porcelain
+# quotes a path with a space); a path with a newline in its name is not
+# supported. Scratch files live beside the snapshot in FLOW_DIR.
 tree_snapshot() {
-  local task_rel='' ci=0 work="$FLOW_DIR/.snap-$$" path n_before n_done
+  local task_rel='' ci=0 work="$FLOW_DIR/.snap-$$" path
   [ "$FLOW_OS" = windows ] && ci=1
   if path_under "$TASK_FOLDER" "$GIT_ROOT"; then
     task_rel=$(rel_to_root "$TASK_FOLDER")
     [ $ci = 1 ] && task_rel=$(lower "$task_rel")
   fi
-  git -C "$GIT_ROOT" --no-optional-locks -c core.quotePath=false status --porcelain -uall 2>/dev/null \
+  # -z: "XY path" records; a rename or copy is followed by a record holding
+  # its source path, which is skipped (the new path is the one that exists).
+  git -C "$GIT_ROOT" --no-optional-locks status --porcelain -z -uall 2>/dev/null \
+    | tr '\000' '\n' \
     | awk -v task="$task_rel" -v ci=$ci '
-        { p = substr($0, 4)
-          while ((i = index(p, " -> ")) > 0) p = substr(p, i + 4)
+        skip { skip = 0; next }
+        { xy = substr($0, 1, 2); p = substr($0, 4)
+          if (xy ~ /[RC]/) skip = 1
           k = ci ? tolower(p) : p
           if (k == ".claude/flow" || index(k, ".claude/flow/") == 1) next
           if (task != "" && (k == task || index(k, task "/") == 1)) next
-          print p }' | head -n 5000 > "$work.all"
+          print p }' | head -n "$SNAPSHOT_LIMIT" > "$work.all"
   # Files that exist go to the hasher; the rest are gone (`[ -f ]` is a builtin).
   while IFS= read -r path; do
     if [ -f "$GIT_ROOT/$path" ]; then printf '%s\n' "$path" >&3; else printf 'gone %s\n' "$path"; fi
   done < "$work.all" > "$work.out" 3> "$work.files"
-  # --stdin-paths stops at a file it cannot read (deleted meanwhile, locked on
-  # Windows): that one is unreadable and hashing goes on after it, one more
-  # process per such file.
-  : > "$work.hashes"
-  cp "$work.files" "$work.rest"
-  while [ -s "$work.rest" ]; do
-    n_before=$(wc -l < "$work.hashes")
-    git -C "$GIT_ROOT" hash-object --stdin-paths < "$work.rest" >> "$work.hashes" 2>/dev/null && break
-    n_done=$(( $(wc -l < "$work.hashes") - n_before ))
-    printf 'unreadable\n' >> "$work.hashes"
-    tail -n +$((n_done + 2)) "$work.rest" > "$work.next"
-    mv -f "$work.next" "$work.rest"
-  done
-  paste -d' ' "$work.hashes" "$work.files" >> "$work.out"
+  [ -s "$work.files" ] && hash_paths "$work.files" "$work.hashed" && cat "$work.hashed" >> "$work.out"
   sort "$work.out"
-  rm -f "$work.all" "$work.out" "$work.files" "$work.hashes" "$work.rest" "$work.next"
+  rm -f "$work.all" "$work.out" "$work.files" "$work.hashed"
 }
 
 # Paths present in exactly one of two snapshot files.
 snapshot_diff() {   # OLD NEW
   cat "$1" "$2" | sort | uniq -u | cut -d' ' -f2- | sort -u
+}
+
+# snapshot_changes OLD NEW: the paths whose content really changed between the
+# two snapshots. A path listed differently in the two is checked against the
+# file as it is now, because a listing can change while the file does not:
+#   - a commit made meanwhile (the main session commits each stage) drops its
+#     files from `git status` unchanged;
+#   - with more than SNAPSHOT_LIMIT paths, one path added early in the listing
+#     pushes another past the end of it.
+# A path recorded in OLD changed when its current hash (or `gone`) differs
+# from the recorded one. A path missing from OLD is new when OLD was complete;
+# when OLD was cut at the limit it may only have been past the cut, so it
+# counts when the file was modified after OLD was written or no longer exists.
+snapshot_changes() {
+  local old=$1 new=$2 work="$FLOW_DIR/.cmp-$$" path full=1
+  [ "$(wc -l < "$old")" -ge "$SNAPSHOT_LIMIT" ] && full=0
+  snapshot_diff "$old" "$new" > "$work.cand"
+  if [ -s "$work.cand" ]; then
+    : > "$work.files"; : > "$work.newer"
+    while IFS= read -r path; do
+      [ -f "$GIT_ROOT/$path" ] || continue
+      printf '%s\n' "$path" >> "$work.files"
+      [ "$GIT_ROOT/$path" -nt "$old" ] && printf '%s\n' "$path" >> "$work.newer"
+    done < "$work.cand"
+    : > "$work.cur"
+    [ -s "$work.files" ] && hash_paths "$work.files" "$work.cur"
+    awk -v full=$full '
+      function rest(line, r) { return substr(line, length(r) + 2) }
+      FILENAME == ARGV[1] { cand[$0] = 1; next }
+      FILENAME == ARGV[2] { p = rest($0, $1); if (p in cand) was[p] = $1; next }
+      FILENAME == ARGV[3] { now[rest($0, $1)] = $1; next }
+      FILENAME == ARGV[4] { newer[$0] = 1; next }
+      END {
+        for (p in cand) {
+          cur = (p in now) ? now[p] : "gone"
+          if (p in was) { if (was[p] != cur) print p }
+          else if (full || cur == "gone" || (p in newer)) print p
+        }
+      }' "$work.cand" "$old" "$work.cur" "$work.newer" | sort
+  fi
+  rm -f "$work.cand" "$work.files" "$work.newer" "$work.cur"
 }
 
 # Keep the flow's own files out of `git status` so the reviewer and QA agents
