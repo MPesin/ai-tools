@@ -322,6 +322,25 @@ expect_block "implementer: file outside every Owns is reported" flow-verify-stop
 assert "only the stray file is named" 'case $out in *src/stray.txt*) case $out in *src/bar/beta.txt*) false;; *) true;; esac;; *) false;; esac'
 git checkout -q -- src; rm -f src/stray.txt task/violations.md task/notes.md
 
+echo "== SubagentStart/Stop: a tree with thousands of untracked files"
+# An untracked, unignored cache (graphify-out and the like) once made the snapshot
+# spawn a process per file: over 600 s on Windows, and the agent stalled. Start and
+# stop now take a fixed number of processes.
+mkdir -p cache/out; i=0; while [ $i -lt 2000 ]; do printf '{"n":%d}' $i > cache/out/$i.json; i=$((i+1)); done
+t0=$SECONDS
+run flow-context.sh "$(start_json r5 dev-flow:dev-reviewer)"
+assert "every untracked file is in the snapshot, hashed" '[ "$(grep -c " cache/out/" .claude/flow/snap-r5)" -eq 2000 ] && ! grep -q -e "^unreadable" -e "^gone" .claude/flow/snap-r5'
+assert "no scratch or partial snapshot files left" '[ -z "$(ls -A .claude/flow | grep -e "^\.snap-" -e "\.tmp$")" ]'
+printf 'changed\n' > cache/out/1234.json
+expect_block "reviewer changed one untracked file among thousands" flow-verify-stop.sh "$(stop_json r5 dev-flow:dev-reviewer)"
+assert "only that file is named" 'case $out in *"cache/out/1234.json"*) case $out in *"cache/out/1235.json"*) false;; *) true;; esac;; *) false;; esac'
+assert "start and stop took under 20 s together" '[ $((SECONDS - t0)) -lt 20 ]'
+rm -f task/violations.md
+run flow-context.sh "$(start_json r6 dev-flow:dev-reviewer)"; rm -f .claude/flow/snap-r6
+printf 'changed again\n' > cache/out/1234.json
+expect_pass "no snapshot (start hook cut off by its timeout): stop does not compare" flow-verify-stop.sh "$(stop_json r6 dev-flow:dev-reviewer)"
+rm -rf cache task/violations.md
+
 echo "== Stop: notifications"
 cat > "$T/fake-notify.sh" <<NEOF
 #!/usr/bin/env bash

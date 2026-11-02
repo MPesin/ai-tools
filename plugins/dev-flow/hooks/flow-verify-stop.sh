@@ -15,7 +15,7 @@ case $AGENT_TYPE in dev-*) ;; *) exit 0 ;; esac
 snap="$FLOW_DIR/snap-$AGENT_ID"
 marker="$FLOW_DIR/start-$AGENT_ID"
 claim_file="$FLOW_DIR/claim-$AGENT_ID"
-cleanup() { rm -f "$snap" "$snap.now" "$marker" "$claim_file"; }
+cleanup() { rm -f "$snap" "$snap.tmp" "$snap.now" "$marker" "$claim_file"; }
 
 if json_bool_true stop_hook_active; then cleanup; exit 0; fi
 
@@ -23,7 +23,7 @@ problems=()
 violation=''
 claim=$(head -n 1 "$claim_file" 2>/dev/null | tr -d '\r[:space:]')
 
-if [ -s "$snap" ] || [ -f "$snap" ]; then
+if [ -f "$snap" ]; then
   tree_snapshot > "$snap.now"
   changed=$(snapshot_diff "$snap" "$snap.now")
   if [ -n "$changed" ]; then

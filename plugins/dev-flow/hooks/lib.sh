@@ -308,33 +308,50 @@ rel_to_root() {
   if path_under "$t" "$r"; then printf '%s' "${t:$((${#r}+1))}"; else printf '%s' "$t"; fi
 }
 
-# Files the flow itself writes; never a violation.
-is_flow_path() {   # REL_PATH relative to GIT_ROOT
-  local p
-  p=$(path_key "$1")
-  case $p in .claude/flow|.claude/flow/*) return 0 ;; esac
-  if path_under "$TASK_FOLDER" "$GIT_ROOT"; then
-    path_under "$GIT_ROOT/$1" "$TASK_FOLDER" && return 0
-  fi
-  return 1
-}
-
 # A line per changed/untracked path with a content hash, flow files excluded.
 # Comparing two snapshots names exactly the files that changed in between.
+#
+# The process count is fixed, not one per path: one `git status`, one awk that
+# drops the flow's own files (.claude/flow, the task folder), one
+# `git hash-object --stdin-paths` for every file. A process per path (before
+# 2.3.1) took more than 600 s for 5,000 untracked files on Windows, where a fork
+# costs tens of milliseconds, and the agent sat stalled until the hook was killed.
+# Scratch files live beside the snapshot in FLOW_DIR and are removed at the end.
 tree_snapshot() {
-  local line path hash
+  local task_rel='' ci=0 work="$FLOW_DIR/.snap-$$" path n_before n_done
+  [ "$FLOW_OS" = windows ] && ci=1
+  if path_under "$TASK_FOLDER" "$GIT_ROOT"; then
+    task_rel=$(rel_to_root "$TASK_FOLDER")
+    [ $ci = 1 ] && task_rel=$(lower "$task_rel")
+  fi
   git -C "$GIT_ROOT" --no-optional-locks -c core.quotePath=false status --porcelain -uall 2>/dev/null \
-    | head -n 5000 | while IFS= read -r line; do
-      path=${line:3}
-      case $path in *" -> "*) path=${path##* -> } ;; esac
-      is_flow_path "$path" && continue
-      if [ -f "$GIT_ROOT/$path" ]; then
-        hash=$(git -C "$GIT_ROOT" hash-object -- "$path" 2>/dev/null)
-        printf '%s %s\n' "${hash:-unreadable}" "$path"
-      else
-        printf 'gone %s\n' "$path"
-      fi
-    done | sort
+    | awk -v task="$task_rel" -v ci=$ci '
+        { p = substr($0, 4)
+          while ((i = index(p, " -> ")) > 0) p = substr(p, i + 4)
+          k = ci ? tolower(p) : p
+          if (k == ".claude/flow" || index(k, ".claude/flow/") == 1) next
+          if (task != "" && (k == task || index(k, task "/") == 1)) next
+          print p }' | head -n 5000 > "$work.all"
+  # Files that exist go to the hasher; the rest are gone (`[ -f ]` is a builtin).
+  while IFS= read -r path; do
+    if [ -f "$GIT_ROOT/$path" ]; then printf '%s\n' "$path" >&3; else printf 'gone %s\n' "$path"; fi
+  done < "$work.all" > "$work.out" 3> "$work.files"
+  # --stdin-paths stops at a file it cannot read (deleted meanwhile, locked on
+  # Windows): that one is unreadable and hashing goes on after it, one more
+  # process per such file.
+  : > "$work.hashes"
+  cp "$work.files" "$work.rest"
+  while [ -s "$work.rest" ]; do
+    n_before=$(wc -l < "$work.hashes")
+    git -C "$GIT_ROOT" hash-object --stdin-paths < "$work.rest" >> "$work.hashes" 2>/dev/null && break
+    n_done=$(( $(wc -l < "$work.hashes") - n_before ))
+    printf 'unreadable\n' >> "$work.hashes"
+    tail -n +$((n_done + 2)) "$work.rest" > "$work.next"
+    mv -f "$work.next" "$work.rest"
+  done
+  paste -d' ' "$work.hashes" "$work.files" >> "$work.out"
+  sort "$work.out"
+  rm -f "$work.all" "$work.out" "$work.files" "$work.hashes" "$work.rest" "$work.next"
 }
 
 # Paths present in exactly one of two snapshot files.

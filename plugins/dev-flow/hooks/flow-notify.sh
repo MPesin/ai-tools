@@ -19,7 +19,7 @@ load_task_folder "planning current finished"
 
 finish_cleanup() {
   [ "$POINTER_NAME" = finished ] || [ "$status" = done ] || return 0
-  rm -f "$POINTER" "$FLOW_DIR/notified" "$FLOW_DIR/stale-notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/claim-* 2>/dev/null
+  rm -f "$POINTER" "$FLOW_DIR/notified" "$FLOW_DIR/stale-notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/.snap-* "$FLOW_DIR"/claim-* 2>/dev/null
 }
 
 status=$(frontmatter_value status)
