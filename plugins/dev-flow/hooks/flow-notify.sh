@@ -25,6 +25,9 @@ sweep_foreign_done() {
   for name in current finished; do
     p="$FLOW_DIR/$name"
     [ -f "$p" ] || continue
+    # Only a pointer that names another session: one with no session line may
+    # be a legacy owner's own run, whose Stop should still announce it.
+    [ -n "$(pointer_owner "$p")" ] || continue
     pointer_mine "$p" && continue
     folder=$(normalize_path "$(head -n 1 "$p" | tr -d '\r')")
     if [ "$name" = finished ] || [ "$(frontmatter_value status "$folder/plan.md")" = done ]; then rm -f "$p"; fi
@@ -40,6 +43,7 @@ sweep_foreign_done() {
 # the Stop hook prints no second JSON line this turn.
 notice_unclaimed() {
   local name p folder marker msg
+  [ -n "$SESSION_ID" ] || return 0   # no session ids: every pointer guards, nothing to say
   POINTER_NAMES="current planning"
   find_flow_dir || return 0
   for name in $POINTER_NAMES; do

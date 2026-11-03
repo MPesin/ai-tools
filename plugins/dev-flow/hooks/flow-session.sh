@@ -28,8 +28,13 @@ other_session_note() {   # NAME
   local p="$FLOW_DIR/$1" folder
   [ -f "$p" ] && ! pointer_mine "$p" || return 0
   folder=$(normalize_path "$(head -n 1 "$p" | tr -d '\r')")
-  printf ' %s: task folder %s at status: %s; the two sessions do not guard or interrupt each other, and that task is not this session'"'"'s to touch.' \
-    "$(foreign_notice "$p")" "$folder" "$(frontmatter_value status "$folder/plan.md")"
+  if [ -n "$(pointer_owner "$p")" ]; then
+    printf ' %s: task folder %s at status: %s; the two sessions do not guard or interrupt each other, and that task is not this session'"'"'s to touch.' \
+      "$(foreign_notice "$p")" "$folder" "$(frontmatter_value status "$folder/plan.md")"
+  else
+    printf ' %s: task folder %s at status: %s; /dev-flow:load-flow %s claims it for this session.' \
+      "$(foreign_notice "$p")" "$folder" "$(frontmatter_value status "$folder/plan.md")" "$folder"
+  fi
 }
 
 if [ "$POINTER_MINE" != 1 ]; then

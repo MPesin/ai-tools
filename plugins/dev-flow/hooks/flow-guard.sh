@@ -77,9 +77,14 @@ stage_gate() {
 # session's uncommitted work. Said once per session, as context and a terminal
 # line; nothing is blocked, since sessions are kept apart on purpose.
 cross_session_warning() {
-  local re marker folder msg
-  re='(^|[^a-z0-9_])git([[:space:]]+[^[:space:]]+){0,3}[[:space:]]+(checkout|switch|restore|reset|stash|clean|rebase|merge|cherry-pick|revert|pull|worktree)([[:space:]]|$)'
-  [[ $(lower "${1:0:4000}") =~ $re ]] || return 0
+  local re ro marker folder msg cmd
+  re='(^|[^a-z0-9_])git([[:space:]]+[^[:space:]]+){0,3}[[:space:]]+(checkout|switch|restore|clean|rebase|merge|cherry-pick|revert|pull|stash|worktree|reset)([[:space:]]|$)'
+  # The read-only forms of those subcommands, and `reset <path>` (an unstage):
+  # they move nothing.
+  ro='(stash[[:space:]]+(list|show)|worktree[[:space:]]+(list|lock|unlock)|reset([[:space:]]+-q)?[[:space:]]+[^-])'
+  cmd=$(lower "${1:0:4000}")
+  [[ $cmd =~ $re ]] || return 0
+  [[ $cmd =~ $ro ]] && return 0
   AGENT_ID=$(json_field agent_id)
   POINTER_NAMES="current planning"
   find_flow_pointer || return 0

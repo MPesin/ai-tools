@@ -726,6 +726,10 @@ ptr finished "$T/task" o; ptr planning "$T/task2" s; mkdir -p task2; printf -- '
 run flow-notify.sh "$(main_stop_json)"
 assert "Stop: another session's finished pointer is swept; this session's planning and the markers stay" '[ ! -f .claude/flow/finished ] && [ -f .claude/flow/planning ] && [ -f .claude/flow/snap-yy ]'
 rm -rf task2 .claude/flow/planning .claude/flow/snap-yy .claude/flow/notified
+hp "$T/task" > .claude/flow/finished            # unclaimed: may be a legacy owner's own run
+SID=o; run flow-notify.sh "$(main_stop_json)"; SID=s
+assert "Stop: an unclaimed finished pointer is not swept by another session" '[ -f .claude/flow/finished ]'
+rm -f .claude/flow/finished .claude/flow/unclaimed-notified
 
 echo "== session scoping: an agent that started under the flow stays guarded after a take-over"
 plan implementing; ptr current "$T/task" o
@@ -765,6 +769,13 @@ expect_allow "git checkout: allowed, with a warning"              flow-guard.sh 
 assert "a terminal line and context, no decision" 'case $out in *"systemMessage"*"belongs to another Claude Code session (o)"*"uncommitted work"*"additionalContext"*) case $out in *"decision"*) false;; *) true;; esac;; *) false;; esac'
 expect_allow "git stash: allowed, silent the second time"         flow-guard.sh "$(bash_json '' 'git stash')"
 assert "silent" '[ -z "$out" ]'
+rm -f .claude/flow/cross-notified
+expect_allow "git stash list: a read, no warning"                 flow-guard.sh "$(bash_json '' 'git stash list')"
+assert "silent" '[ -z "$out" ]'
+expect_allow "git reset <path> (unstage): no warning"             flow-guard.sh "$(bash_json '' 'git reset src/foo/alpha.txt')"
+assert "silent" '[ -z "$out" ]'
+expect_allow "git reset --hard: warned"                           flow-guard.sh "$(bash_json '' 'git reset --hard HEAD~1')"
+assert "warned" 'case $out in *"uncommitted work"*) true;; *) false;; esac'
 SID=o
 expect_deny  "the owner session: git checkout is still refused"   flow-guard.sh "$(bash_json '' 'git checkout -- src')"
 SID=s
@@ -784,6 +795,10 @@ out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-list.sh" "$T/.claude/plans" all 2>&
 assert "list all: the done task is listed, without a pointer" 'case $out in *"| 3 | 2026-01-01-a | A done | done | manual | lite | 1 | - |"*) true;; *) false;; esac'
 out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-list.sh" "$T/nowhere" 2>&1)
 assert "list: a missing plans folder is said, not an error" 'case $out in *"No plans folder at"*"/nowhere"*) true;; *) false;; esac'
+mkdir -p "$T/my plans/2026-02-01-sp"; printf -- '---\ntask: spaced\nstatus: approved\n---\n' > "$T/my plans/2026-02-01-sp/plan.md"
+out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-list.sh" "$T/my plans" 2>&1)
+assert "list: a plans path with a space lists its tasks" 'case $out in *"| 1 | 2026-02-01-sp | spaced | approved |"*) true;; *) false;; esac'
+rm -rf "$T/my plans"
 touch .claude/flow/start-q .claude/flow/notified
 out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-clear.sh" 2>&1); rc=$?
 assert "clear: removes this session's pointer, keeps the other session's, says so" '[ $rc -eq 0 ] && [ ! -f .claude/flow/current ] && [ -f .claude/flow/planning ] && case $out in *"removed "*"/current"*"status: human-review"*"kept "*"/planning"*"(o;"*"clear-flow all"*"guards are off in this session"*) true;; *) false;; esac'

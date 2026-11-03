@@ -128,7 +128,19 @@ SESSION_ID=$(json_field session_id)
 # without the line (written by hand, or by an older dev-flow) belongs to no
 # session until one claims it by writing it again.
 pointer_owner() {   # PATH -> the session id on its `session:` line, or nothing
-  tr -d '\r' < "$1" 2>/dev/null | sed -n 's/^[Ss][Ee][Ss][Ss][Ii][Oo][Nn]:[[:space:]]*//p' | head -n 1 | tr -d '[:space:]'
+  # Pure bash: this runs for every pointer on every hook event, and a process
+  # per call adds up on Windows.
+  local line
+  [ -f "$1" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    case $line in
+      [Ss][Ee][Ss][Ss][Ii][Oo][Nn]:*)
+        line=${line#*:}
+        printf '%s' "${line//[[:space:]]/}"
+        return 0 ;;
+    esac
+  done < "$1"
+  return 0
 }
 
 # pointer_mine PATH: the pointer belongs to this session. A hook input without a
@@ -229,13 +241,13 @@ load_task_folder() {
   find_flow_pointer || exit 0
   POINTER_NAME=${POINTER##*/}
   PROJECT_DIR=${FLOW_DIR%/.claude/flow}
-  GIT_ROOT=$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)
-  GIT_ROOT=$(normalize_path "${GIT_ROOT:-$PROJECT_DIR}")
   if [ "$POINTER_MINE" != 1 ]; then
     [ "$HOOK_EVENT" = SessionStart ] || exit 0
     TASK_FOLDER=$(normalize_path "$(head -n 1 "$POINTER" | tr -d '\r')")
     return 0
   fi
+  GIT_ROOT=$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)
+  GIT_ROOT=$(normalize_path "${GIT_ROOT:-$PROJECT_DIR}")
   if [ "$POINTER_NAME" = planning ] && planning_stale "$POINTER"; then
     # Beside a current pointer of this session the parked task carries on; the
     # Stop hook sweeps.

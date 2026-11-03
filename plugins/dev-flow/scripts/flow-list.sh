@@ -48,7 +48,10 @@ cell() { printf '%s' "$1" | tr -d '\r' | sed 's/|/\\|/g'; }
 
 printf '| # | folder | task | status | source | mode | round | pointer |\n|---|---|---|---|---|---|---|---|\n'
 n=0; hidden=0
-for dir in $(ls -1d "$plans"/*/ 2>/dev/null | sort -r); do
+# Newest first by folder name (YYYY-MM-DD-<task>); read line by line, so a path
+# with a space (a Windows user folder) stays whole.
+while IFS= read -r dir || [ -n "$dir" ]; do
+  [ -n "$dir" ] || continue
   dir=${dir%/}
   [ -f "$dir/plan.md" ] || continue
   status=$(frontmatter_value status "$dir/plan.md")
@@ -57,7 +60,9 @@ for dir in $(ls -1d "$plans"/*/ 2>/dev/null | sort -r); do
   printf '| %d | %s | %s | %s | %s | %s | %s | %s |\n' "$n" "$(cell "${dir##*/}")" "$(cell "$(frontmatter_value task "$dir/plan.md")")" \
     "$(cell "${status:-none}")" "$(cell "$(frontmatter_value source "$dir/plan.md")")" "$(cell "$(frontmatter_value mode "$dir/plan.md")")" \
     "$(cell "$(frontmatter_value review_round "$dir/plan.md")")" "$(pointer_of "$dir")"
-done
+done <<EOF
+$(ls -1d "$plans"/*/ 2>/dev/null | sort -r)
+EOF
 [ $n -gt 0 ] || printf '| - | (no task folders with a plan.md) | | | | | | |\n'
 printf '\nplans: %s\n' "$plans"
 [ $hidden -gt 0 ] && printf '%d finished task(s) hidden; add `all` to list them.\n' "$hidden"
