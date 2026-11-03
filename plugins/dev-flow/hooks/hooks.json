@@ -6,6 +6,12 @@
         "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/flow-guard.sh\"" }]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Edit|Write|NotebookEdit",
+        "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/flow-claim.sh\"" }]
+      }
+    ],
     "SubagentStart": [
       {
         "matcher": "(^|:)dev-(planner|plan-critic|implementer|reviewer|fixer|review-triager|qa-impact|debugger)$",
@@ -23,7 +29,7 @@
     ],
     "SessionStart": [
       {
-        "matcher": "startup|resume|compact",
+        "matcher": "startup|resume|clear|compact",
         "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/flow-session.sh\"" }]
       }
     ]

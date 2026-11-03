@@ -9,7 +9,7 @@ Produce a plan that satisfies `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-f
 
 ## Hard rules
 
-- Never edit source code. The only files you write are in the task folder and `.claude/flow/planning`. While the `planning` pointer exists the hooks refuse every other write from the main session.
+- Never edit source code. The only files you write are in the task folder and `.claude/flow/planning`. While the `planning` pointer exists and belongs to this session (the hooks stamp it with the session that wrote it, as `session: <id>` on its second line) they refuse every other write from the main session; another Claude Code session on the same checkout is not affected by it.
 - Never commit, push, or post anywhere.
 - Read the project's own guidance (CLAUDE.md, AGENTS.md, README, instruction files) first; project rules override this skill. Check the project's plans/handoffs/notes locations for existing work on the task ID.
 - A bug whose cause is not yet known is not planned here: suggest `/dev-debug:dev-debug` (the dev-debug plugin), which finds and verifies the cause first and then writes the fix plan. Plan a bug here only when the cause is already confirmed.
@@ -17,7 +17,7 @@ Produce a plan that satisfies `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-f
 
 ## Start
 
-1. Create the task folder and write its absolute path as the only line of `<project>/.claude/flow/planning` (create the directory).
+1. If `<project>/.claude/flow/planning` already exists, read it first: another plan or diagnosis is in progress, in this session or in another one on this checkout (its second line names the session). Ask whether to continue that one (`/dev-flow:dev-plan`, or `/dev-debug:dev-debug <its folder>`), abandon it (delete the pointer), or plan the new task in a git worktree; never overwrite it unasked. Then create the task folder and write its absolute path as the only line of `<project>/.claude/flow/planning` (create the directory); the hooks add the session line. To continue a plan started in an earlier session, write the pointer again the same way: one stamped by another session guards nothing here.
 2. Ask once: "Paste the relevant PRD/HLD sections, or give a work item / ticket reference (or say none)." Save them per **Specs intake** in `plan-format.md` and list them in `specs:`. The user can add specs at any point; append them the same way.
 3. Choose the mode.
 

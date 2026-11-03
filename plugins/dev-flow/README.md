@@ -211,7 +211,7 @@ A refused tool call never runs. Claude Code shows the agent the reason, for exam
 
 ### When the guards are on
 
-The guards follow a **pointer file** in `<project>/.claude/flow/`. Each pointer holds the absolute path of the task folder as its only line.
+The guards follow a **pointer file** in `<project>/.claude/flow/`. Each pointer holds the absolute path of the task folder on its first line and, from 2.5.0, `session: <id>` on the second: the Claude Code session that wrote it.
 
 | Pointer | Written by | Means |
 |---|---|---|
@@ -220,6 +220,7 @@ The guards follow a **pointer file** in `<project>/.claude/flow/`. Each pointer 
 | `finished` | the final report (renamed from `current`) | the run is done; the Stop hook notifies you and removes it |
 
 - **No pointer, no guards.** The one exception is the stage gate (below), which also refuses to start a stage agent when there is no pointer.
+- **One session.** The skills write the pointer's first line; a PostToolUse hook in the session that ran that tool call adds the session line right after. The flow then belongs to that session: the guards, the notifications and the session restore apply to it and to the subagents it spawns (their hooks carry the parent session's id), and to nothing else. Another Claude Code session on the same checkout, even in the same folder on the same branch, sees the pointer as absent: it pushes, commits and edits as usual, its own subagents are held to nothing, and it cannot spawn the flow's stage agents (the refusal names the owning session). At start it is told that the flow exists and how to run it from there: `/dev-flow:dev-implement <plan>` (or `/dev-flow:dev-plan` and `/dev-debug:dev-debug <task folder>` for a task being planned or diagnosed) writes the pointer again, which hands the flow to that session and ends it in the other. A pointer without the line (written by hand, or by dev-flow before 2.5.0) belongs to no session until one claims it the same way. A resumed session (`claude --resume`) keeps its id and its flow; a fork, or a fresh session in the same folder, is another session.
 - **To switch the guards off, delete the pointer file.** The stage agents then cannot be spawned until `/dev-flow:dev-implement` writes `current` again.
 - **Lookup.** The pointer is searched from the working directory upwards and the search stops at the first directory holding a `.git`. A session started in a subdirectory still finds the project's flow. A git worktree (Claude Code makes them under `<repo>/.claude/worktrees/<name>`) is its own project: it neither sees nor is guarded by the main checkout's flow.
 - **A stale `planning` pointer is not enforced.** That is one left behind once `plan.md` moved past planning (`approved` or later) or whose folder is gone. The hooks say so once per session, with the `rm` command, and the Stop hook removes it once `plan.md` shows the later status. One naming a missing folder is only named, never removed. A pointer at `draft` or `diagnosing` is never touched.
@@ -330,7 +331,8 @@ An implementer or fixer cannot finish without proof that it built and tested its
 These do not refuse anything; they keep you and a restarted session informed.
 
 - **Stop.** When the flow waits for you, you get a terminal line and one desktop notification per state. That covers the diagnosis (`diagnosing`, then `confirm-cause`), plan approval (`draft`), `human-review`, `blocked`, `done`, and whenever `needs-decision.md` or `violations.md` has entries. Notifications use a PowerShell toast on Windows and WSL, `osascript` on macOS and `notify-send` on Linux. Set `DEV_FLOW_NOTIFY_CMD="<program>"` to use your own; it is called with the title and message. The Stop hook also removes a stale `planning` pointer and finishes a `finished` (or `done`) run, removing its marker files.
-- **SessionStart** (startup, resume, compact). It puts the active task folder, status, mode, review round and base back into context with how to continue, and names a parked second task. It warns when the pointer is more than two days old (the flow may be abandoned) and when `needs-decision.md` or `violations.md` have items.
+- **SessionStart** (startup, resume, clear, compact). It puts this session's active task folder, status, mode, review round and base back into context with how to continue, and names a parked second task. It warns when the pointer is more than two days old (the flow may be abandoned) and when `needs-decision.md` or `violations.md` have items. A pointer of another session, or one no session has claimed, is named instead, with the skill that runs that flow from this session and the `rm` that clears a leftover.
+- **PostToolUse** (Bash, PowerShell, Write, Edit, NotebookEdit; main session only). After a tool call that names the flow directory, a pointer without a session line gets this session's: that is the moment a flow becomes this session's, right after the skill writes the pointer. A pointer that already names a session is left alone.
 - **SubagentStart.** It gives each dev-flow agent the task folder, project root, branch and plan status, and tells it its own allowance (the claim file for a package implementer, `verify.log` for writing agents). It also adds `.claude/flow/` and `.claude/plans/` to `.git/info/exclude`, so the flow's own files stay out of `git status` and out of commits.
 
 ### What the guards do not cover
@@ -340,6 +342,7 @@ These do not refuse anything; they keep you and a restarted session informed.
 - **A single implementer and the fixer may change any source file.** Package implementers are held to their `Owns`.
 - **Shell writes are detected, not prevented.** A read-only agent that writes with a shell command is reported when it stops, not stopped when it writes.
 - **No pointer, no guards** (except the stage gate). Deleting the pointer is the deliberate way out when a guard is wrong.
+- **Other sessions are not guarded.** A flow in one session does not stop another Claude Code session on the same checkout from pushing or changing the branch the flow works on. Sessions are kept apart on purpose; two flows that must not share a working tree belong in separate git worktrees.
 
 ### Running the tests
 

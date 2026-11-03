@@ -33,23 +33,37 @@ expect_pass()  { run "$2" "$3"; if [ $rc -eq 0 ] && [ -z "$out" ]; then ok; else
 expect_out()   { run "$2" "$3"; if [ $rc -eq 0 ] && case $out in *"$4"*) true ;; *) false ;; esac; then ok; else bad "$1 (expected output containing: $4)"; fi; }
 assert() { if eval "$2"; then ok; else fail=$((fail+1)); printf 'FAIL: %s\n' "$1"; fi; }
 
-# JSON builders
+# JSON builders. Every hook input carries the session id Claude Code sends; a
+# subagent's carries its parent session's. SID is the session the input comes
+# from: s, the session that owns the test flow, unless a case sets another.
+SID=s
 bash_json() { # AGENT_TYPE COMMAND [DESCRIPTION] [TOOL]
   local a=''; [ -n "$1" ] && a='"agent_type":"'$1'","agent_id":"x",'
-  printf '{"session_id":"s","cwd":"%s",%s"hook_event_name":"PreToolUse","tool_name":"%s","tool_input":{"command":"%s","description":"%s"}}' "$CW" "$a" "${4:-Bash}" "$2" "${3:-}"
+  printf '{"session_id":"%s","cwd":"%s",%s"hook_event_name":"PreToolUse","tool_name":"%s","tool_input":{"command":"%s","description":"%s"}}' "$SID" "$CW" "$a" "${4:-Bash}" "$2" "${3:-}"
 }
 write_json() { # AGENT_TYPE PATH [TOOL] [AGENT_ID]
   local a=''; [ -n "$1" ] && a='"agent_type":"'$1'","agent_id":"'${4:-x}'",'
   local key=file_path; [ "${3:-}" = NotebookEdit ] && key=notebook_path
-  printf '{"session_id":"s","cwd":"%s",%s"tool_name":"%s","tool_input":{"%s":"%s","content":"x"}}' "$CW" "$a" "${3:-Write}" "$key" "$(jp "$2")"
+  printf '{"session_id":"%s","cwd":"%s",%s"tool_name":"%s","tool_input":{"%s":"%s","content":"x"}}' "$SID" "$CW" "$a" "${3:-Write}" "$key" "$(jp "$2")"
 }
-mcp_json() { printf '{"cwd":"%s","tool_name":"%s","tool_input":{"x":1}}' "$CW" "$1"; }
-agent_json() { printf '{"session_id":"s","cwd":"%s","tool_name":"%s","tool_input":{"subagent_type":"%s","prompt":"x","description":"d"}}' "$CW" "${2:-Agent}" "$1"; }
-agent_json_untyped() { printf '{"session_id":"s","cwd":"%s","tool_name":"Agent","tool_input":{"prompt":"x","description":"d"}}' "$CW"; }
-start_json() { printf '{"cwd":"%s","hook_event_name":"SubagentStart","agent_id":"%s","agent_type":"%s"}' "$CW" "$1" "$2"; }
-stop_json()  { printf '{"cwd":"%s","hook_event_name":"SubagentStop","agent_id":"%s","agent_type":"%s","stop_hook_active":%s}' "$CW" "$1" "$2" "${3:-false}"; }
-main_stop_json() { printf '{"cwd":"%s","hook_event_name":"Stop","stop_hook_active":false}' "$CW"; }
-session_json()   { printf '{"cwd":"%s","hook_event_name":"SessionStart","source":"%s"}' "$CW" "$1"; }
+post_json() { # AGENT_TYPE TOOL TEXT  (PostToolUse: TEXT is the command, or the path for the file tools)
+  local a='' key=command; [ -n "$1" ] && a='"agent_type":"'$1'","agent_id":"x",'
+  case $2 in Edit|Write) key=file_path ;; NotebookEdit) key=notebook_path ;; esac
+  printf '{"session_id":"%s","cwd":"%s",%s"hook_event_name":"PostToolUse","tool_name":"%s","tool_input":{"%s":"%s"},"tool_response":{"ok":true}}' "$SID" "$CW" "$a" "$2" "$key" "$3"
+}
+mcp_json() { printf '{"session_id":"%s","cwd":"%s","tool_name":"%s","tool_input":{"x":1}}' "$SID" "$CW" "$1"; }
+agent_json() { printf '{"session_id":"%s","cwd":"%s","tool_name":"%s","tool_input":{"subagent_type":"%s","prompt":"x","description":"d"}}' "$SID" "$CW" "${2:-Agent}" "$1"; }
+agent_json_untyped() { printf '{"session_id":"%s","cwd":"%s","tool_name":"Agent","tool_input":{"prompt":"x","description":"d"}}' "$SID" "$CW"; }
+start_json() { printf '{"session_id":"%s","cwd":"%s","hook_event_name":"SubagentStart","agent_id":"%s","agent_type":"%s"}' "$SID" "$CW" "$1" "$2"; }
+stop_json()  { printf '{"session_id":"%s","cwd":"%s","hook_event_name":"SubagentStop","agent_id":"%s","agent_type":"%s","stop_hook_active":%s}' "$SID" "$CW" "$1" "$2" "${3:-false}"; }
+main_stop_json() { printf '{"session_id":"%s","cwd":"%s","hook_event_name":"Stop","stop_hook_active":false}' "$SID" "$CW"; }
+session_json()   { printf '{"session_id":"%s","cwd":"%s","hook_event_name":"SessionStart","source":"%s"}' "$SID" "$CW" "$1"; }
+
+# A pointer as the skills and the claim hook leave it: the task folder's path,
+# then the session it belongs to (s unless given).
+ptr() { # NAME FOLDER [SESSION]
+  printf '%s\nsession: %s\n' "$(hp "$2")" "${3:-s}" > ".claude/flow/$1"
+}
 
 plan() { # STATUS [PACKAGES=0|1]
   if [ "${2:-0}" = 1 ]; then
@@ -81,17 +95,18 @@ expect_allow "no pointer: general-purpose agent"                    flow-guard.s
 expect_allow "no pointer: Agent call without subagent_type"         flow-guard.sh "$(agent_json_untyped)"
 
 echo "== guard: a pointer that names no task is a finding, not an off switch"
-printf '/nowhere/at/all\n' > .claude/flow/current
+ptr current /nowhere/at/all
 expect_deny  "dangling current: spawn dev-implementer"   flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 assert "deny names the pointer and the folder" 'case $err in *".claude/flow/current"*"/nowhere/at/all"*) true;; *) false;; esac'
 expect_allow "dangling current: dev-qa-impact not gated" flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
-: > .claude/flow/current
+ptr current ''
 expect_deny  "empty current: spawn dev-fixer"            flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
-mkdir -p noplan; hp "$T/noplan" > .claude/flow/current
+assert "deny says it names nothing" 'case $err in *"names '"'"'nothing'"'"'"*) true;; *) false;; esac'
+mkdir -p noplan; ptr current "$T/noplan"
 expect_deny  "current folder without plan.md: spawn dev-reviewer" flow-guard.sh "$(agent_json dev-flow:dev-reviewer)"
 assert "deny names plan.md" 'case $err in *"no plan.md"*) true;; *) false;; esac'
 
-hp "$T/task" > .claude/flow/current
+ptr current "$T/task"
 
 echo "== guard: git"
 expect_allow "main session: git commit"         flow-guard.sh "$(bash_json '' 'git commit -m x')"
@@ -430,13 +445,13 @@ rm -f task/needs-decision.md
 mv .claude/flow/current .claude/flow/finished; touch .claude/flow/start-zz .claude/flow/snap-zz
 expect_out  "finished pointer notifies done"     flow-notify.sh "$(main_stop_json)" "(done)"
 assert "finished pointer and markers removed"    '[ ! -f .claude/flow/finished ] && [ ! -f .claude/flow/start-zz ] && [ ! -f .claude/flow/snap-zz ] && [ ! -f .claude/flow/notified ]'
-plan done; hp "$T/task" > .claude/flow/current; touch .claude/flow/start-yy
+plan done; ptr current "$T/task"; touch .claude/flow/start-yy
 expect_out  "current left at done (rename skipped) is finished too" flow-notify.sh "$(main_stop_json)" "(done)"
 assert "current pointer and markers removed"     '[ ! -f .claude/flow/current ] && [ ! -f .claude/flow/start-yy ] && [ ! -f .claude/flow/notified ]'
 unset DEV_FLOW_NOTIFY_CMD
 
 echo "== Stop: notification text is never spliced into a script"
-hp "$T/task" > .claude/flow/current
+ptr current "$T/task"
 mkdir -p "$T/bin"
 printf '#!/bin/sh\necho MINGW64_NT\n' > "$T/bin/uname"
 printf '#!/bin/sh\nprintf "%%s\\n" "$4" > "%s/ps.txt"\nprintf "%%s|%%s\\n" "$DEV_FLOW_TITLE" "$DEV_FLOW_MESSAGE" > "%s/ps-env.txt"\n' "$T" "$T" > "$T/bin/powershell.exe"
@@ -467,15 +482,15 @@ rm .claude/flow/current
 expect_pass "no pointer: silent"                           flow-session.sh "$(session_json startup)"
 
 echo "== pointer lookup stops at the checkout's .git"
-plan implementing; hp "$T/task" > .claude/flow/current
+plan implementing; ptr current "$T/task"
 # A subdirectory of the project finds the pointer at the root above it.
-sub_session() { printf '{"cwd":"%s","hook_event_name":"SessionStart","source":"startup"}' "$(jp "$T/src/foo")"; }
+sub_session() { printf '{"session_id":"s","cwd":"%s","hook_event_name":"SessionStart","source":"startup"}' "$(jp "$T/src/foo")"; }
 expect_out "a subdirectory finds the pointer at the git root" flow-session.sh "$(sub_session)" "status: implementing"
 # A Claude Code worktree lives under <repo>/.claude/worktrees/<name>, below the
 # pointer's directory; a session there must not pick up the main checkout's flow.
 git worktree add -q "$T/.claude/worktrees/bug" -b bug >/dev/null 2>&1
 WT=$(jp "$T/.claude/worktrees/bug")
-wt_session() { printf '{"cwd":"%s","hook_event_name":"SessionStart","source":"startup"}' "$WT"; }
+wt_session() { printf '{"session_id":"s","cwd":"%s","hook_event_name":"SessionStart","source":"startup"}' "$WT"; }
 wt_bash()    { printf '{"session_id":"s","cwd":"%s","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"%s","description":"d"}}' "$WT" "$1"; }
 wt_agent()   { printf '{"session_id":"s","cwd":"%s","tool_name":"Agent","tool_input":{"subagent_type":"%s","prompt":"x","description":"d"}}' "$WT" "$1"; }
 expect_pass  "worktree session: no flow re-injected"        flow-session.sh "$(wt_session)"
@@ -485,14 +500,14 @@ expect_out   "main checkout still sees its flow"            flow-session.sh "$(s
 # A flow started inside the worktree is found from there and only there.
 mkdir -p "$T/.claude/worktrees/bug/.claude/flow" "$T/.claude/worktrees/bug/task"
 printf -- '---\ntask: bug\nstatus: reviewing\nmode: lite\nreview_round: 1\n---\n' > "$T/.claude/worktrees/bug/task/plan.md"
-hp "$T/.claude/worktrees/bug/task" > "$T/.claude/worktrees/bug/.claude/flow/current"
+printf '%s\nsession: s\n' "$(hp "$T/.claude/worktrees/bug/task")" > "$T/.claude/worktrees/bug/.claude/flow/current"
 expect_out   "worktree session sees the worktree's own flow" flow-session.sh "$(wt_session)" "status: reviewing"
 expect_out   "main checkout keeps its own"                   flow-session.sh "$(session_json startup)" "status: implementing"
 git worktree remove --force "$T/.claude/worktrees/bug" >/dev/null 2>&1; git branch -q -D bug >/dev/null 2>&1
 rm .claude/flow/current
 
 echo "== planning pointer"
-hp "$T/task" > .claude/flow/planning
+ptr planning "$T/task"
 plan draft
 expect_deny  "main session edits src while planning"   flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
 expect_allow "main session writes plan.md while planning" flow-guard.sh "$(write_json '' "$T/task/plan.md")"
@@ -526,8 +541,8 @@ run flow-notify.sh "$(main_stop_json)"
 assert "Stop keeps a genuine planning pointer (draft)" '[ -f .claude/flow/planning ]'
 # planning for a second task written while a current task is parked: current wins
 # the lookup, the second task's genuine planning pointer still gates.
-plan human-review; hp "$T/task" > .claude/flow/current
-mkdir -p task2; printf -- '---\ntask: t2\nstatus: draft\n---\n' > task2/plan.md; hp "$T/task2" > .claude/flow/planning
+plan human-review; ptr current "$T/task"
+mkdir -p task2; printf -- '---\ntask: t2\nstatus: draft\n---\n' > task2/plan.md; ptr planning "$T/task2"
 expect_deny  "planning beside current: spawn dev-fixer"   flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
 assert "deny is the dev-plan message with the second plan's status" 'case $err in *"planning exists"*"task2/plan.md has status: draft"*) true;; *) false;; esac'
 expect_deny  "planning beside current: spawn dev-review-triager" flow-guard.sh "$(agent_json dev-flow:dev-review-triager)"
@@ -553,8 +568,8 @@ expect_out   "stale planning beside current: SessionStart re-injects the current
 expect_allow "stale planning beside current: debugger falls back to current"    flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task/diagnosis.md")"
 expect_out   "stale planning beside current: Stop sweeps it"                   flow-notify.sh "$(main_stop_json)" "removed stale pointer"
 assert "current untouched" '[ -f .claude/flow/current ] && [ ! -f .claude/flow/planning ]'
-mkdir -p task2; printf -- '---\ntask: t2\nstatus: draft\n---\n' > task2/plan.md; hp "$T/task2" > .claude/flow/planning
-rm .claude/flow/current; hp "$T/task" > .claude/flow/planning; plan draft
+mkdir -p task2; printf -- '---\ntask: t2\nstatus: draft\n---\n' > task2/plan.md; ptr planning "$T/task2"
+rm .claude/flow/current; ptr planning "$T/task"; plan draft
 expect_out   "planner start gets context"              flow-context.sh "$(start_json p1 dev-flow:dev-planner)" "status: draft"
 expect_pass  "verify-stop: planner with no changes passes" flow-verify-stop.sh "$(stop_json p1 dev-flow:dev-planner)"
 
@@ -568,7 +583,7 @@ assert "the notice is given once per session" '[ -z "$out" ]'
 expect_allow "stale (implementing): mcp create_pull_request"  flow-guard.sh "$(mcp_json mcp__github__create_pull_request)"
 expect_deny  "stale (implementing): dev-implementer still needs current" flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 assert "deny names the stale pointer, its status and dev-implement" 'case $err in *"stale pointer"*"status: implementing"*"/dev-flow:dev-implement"*) true;; *) false;; esac'
-hp "$T/task" > .claude/flow/current
+ptr current "$T/task"
 expect_allow "stale planning beside current: spawn dev-implementer" flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 expect_allow "stale planning beside current: main session edits src" flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
 rm .claude/flow/current
@@ -577,25 +592,111 @@ expect_out  "SessionStart reports the pointer as stale"      flow-session.sh "$(
 assert "no 'in progress' claim, resume hint names dev-implement" 'case $out in *"in progress"*) false;; *"status: implementing"*"/dev-flow:dev-implement"*) true;; *) false;; esac'
 expect_out  "Stop removes the stale pointer and says so"     flow-notify.sh "$(main_stop_json)" "removed stale pointer"
 assert "pointer and marker gone, plan.md untouched" '[ ! -f .claude/flow/planning ] && [ ! -f .claude/flow/stale-notified ] && grep -q "status: implementing" task/plan.md'
-hp "$T/task" > .claude/flow/planning; plan approved
+ptr planning "$T/task"; plan approved
 expect_allow "stale (approved, pointer not deleted): main session edits src" flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
 expect_deny  "stale (approved): spawn dev-implementer"       flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 assert "deny names status approved" 'case $err in *"stale pointer"*"status: approved"*) true;; *) false;; esac'
 run flow-notify.sh "$(main_stop_json)"
 assert "Stop removes it at approved too" '[ ! -f .claude/flow/planning ]'
-hp "$T/task" > .claude/flow/planning; plan done
+ptr planning "$T/task"; plan done
 expect_out  "SessionStart at done: no resume hint"           flow-session.sh "$(session_json resume)" "status: done"
 assert "done offers nothing to resume" 'case $out in *"/dev-flow:dev-implement"*) false;; *) true;; esac'
 run flow-notify.sh "$(main_stop_json)"
-printf '/nowhere/at/all\n' > .claude/flow/planning
+ptr planning /nowhere/at/all
 expect_allow "dangling planning: main session edits src"     flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
 assert "notice says not a folder and names rm" 'case $out in *"stale pointer"*"/nowhere/at/all"*"not a folder"*"rm "*) true;; *) false;; esac'
 expect_deny  "dangling planning: spawn dev-implementer"      flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 assert "deny says not a folder" 'case $err in *"not a folder"*"/dev-flow:dev-implement"*) true;; *) false;; esac'
 expect_out  "SessionStart reports the dangling pointer"      flow-session.sh "$(session_json resume)" "not a folder"
+rm -f .claude/flow/stale-notified   # the notice is given once per session; PreToolUse gave it above
 expect_out  "Stop names a dangling pointer"                  flow-notify.sh "$(main_stop_json)" "not a folder"
 assert "but leaves it for the user to fix or remove" '[ -f .claude/flow/planning ]'
 rm -f .claude/flow/planning .claude/flow/stale-notified
+
+echo "== session scoping: a flow guards only the session that owns it"
+# Session s runs the flow; session o works in the same checkout, on the same branch.
+rm -f .claude/flow/planning .claude/flow/current .claude/flow/notified .claude/flow/stale-notified
+plan human-review; ptr current "$T/task"
+SID=o
+expect_allow "another session: git push passes"                      flow-guard.sh "$(bash_json '' 'git push origin main')"
+expect_allow "another session: git commit --amend passes"            flow-guard.sh "$(bash_json '' 'git commit --amend --no-edit')"
+expect_allow "another session: mcp create_pull_request passes"       flow-guard.sh "$(mcp_json mcp__github__create_pull_request)"
+expect_allow "another session: a subagent of its own commits"        flow-guard.sh "$(bash_json general-purpose 'git commit -m x')"
+expect_allow "another session: its reviewer-typed agent writes src"  flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/src/foo/alpha.txt")"
+expect_allow "another session: main session edits src"               flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+expect_deny  "another session: a stage agent needs a flow of its own" flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
+assert "deny names the owning session and how to take the flow over" 'case $err in *"belongs to another Claude Code session (s)"*"/dev-flow:dev-implement"*) true;; *) false;; esac'
+expect_allow "another session: dev-qa-impact still not gated"        flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
+expect_pass  "another session: SubagentStart is silent"              flow-context.sh "$(start_json o1 dev-flow:dev-reviewer)"
+assert "no snapshot or marker for it" '[ ! -f .claude/flow/snap-o1 ] && [ ! -f .claude/flow/start-o1 ]'
+expect_pass  "another session: SubagentStop is silent"               flow-verify-stop.sh "$(stop_json o1 dev-flow:dev-implementer)"
+expect_pass  "another session: Stop sends no notification"           flow-notify.sh "$(main_stop_json)"
+assert "nothing recorded as notified" '[ ! -f .claude/flow/notified ]'
+expect_out   "another session: SessionStart names the owner, the task and how to run it here" flow-session.sh "$(session_json startup)" "belongs to another Claude Code session (s)"
+assert "it names the task folder, the status, dev-implement and rm" 'case $out in *"/task, status: human-review"*"/dev-flow:dev-implement "*"/task/plan.md"*"rm "*) true;; *) false;; esac'
+assert "and does not describe the flow as this session's" 'case $out in *"flow of this session"*) false;; *) true;; esac'
+SID=s
+expect_deny  "owner session: git push is still refused"              flow-guard.sh "$(bash_json '' 'git push')"
+expect_deny  "owner session: its reviewer may not write src"         flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/src/foo/alpha.txt")"
+expect_allow "owner session: spawn dev-fixer at human-review"        flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
+expect_out   "owner session: Stop notifies"                          flow-notify.sh "$(main_stop_json)" "(human-review)"
+expect_out   "owner session: SessionStart (a resumed session keeps its id) re-injects the flow" flow-session.sh "$(session_json resume)" "flow of this session"
+assert "and says the guards hold in this session only" 'case $out in *"this session and its subagents only"*) true;; *) false;; esac'
+rm -f .claude/flow/notified
+# A hook input without a session id (an older harness) cannot tell sessions
+# apart: every pointer counts, as before 2.5.0.
+expect_deny  "no session id in the input: the pointer still guards"  flow-guard.sh "$(printf '{"cwd":"%s","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git push"}}' "$CW")"
+
+echo "== session scoping: an unclaimed pointer, and the claim right after the tool call that wrote it"
+hp "$T/task" > .claude/flow/current          # as the skill writes it: no session line yet
+expect_allow "unclaimed pointer: git push passes (no session owns it)"   flow-guard.sh "$(bash_json '' 'git push')"
+expect_deny  "unclaimed pointer: a stage agent is refused"              flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
+assert "deny says no session owns it" 'case $err in *"no session owns it yet"*) true;; *) false;; esac'
+expect_out   "unclaimed pointer: SessionStart says so"                  flow-session.sh "$(session_json startup)" "no session owns it yet"
+expect_pass  "claim: a command that does not name the flow dir claims nothing" flow-claim.sh "$(post_json '' Bash 'git status')"
+assert "pointer still unclaimed" '! grep -q "^session:" .claude/flow/current'
+expect_pass  "claim: a subagent never claims"                           flow-claim.sh "$(post_json dev-flow:dev-implementer Bash 'cat .claude/flow/current')"
+assert "pointer still unclaimed after the subagent" '! grep -q "^session:" .claude/flow/current'
+expect_out   "claim: the main session's command that wrote the pointer claims it" flow-claim.sh "$(post_json '' Bash 'mkdir -p .claude/flow && echo /x > .claude/flow/current')" "now owns"
+assert "pointer carries the task folder and the session line" '[ "$(head -n 1 .claude/flow/current)" = "$(hp "$T/task")" ] && grep -q -x "session: s" .claude/flow/current && [ "$(wc -l < .claude/flow/current)" -eq 2 ]'
+assert "the context names the pointer and says other sessions are unaffected" 'case $out in *"additionalContext"*".claude/flow/current"*"not affected"*) true;; *) false;; esac'
+expect_deny  "after the claim: git push is refused in the owner session" flow-guard.sh "$(bash_json '' 'git push')"
+SID=o
+expect_pass  "claim: another session's command leaves an owned pointer alone" flow-claim.sh "$(post_json '' Bash 'cat .claude/flow/current')"
+assert "owner unchanged" 'grep -q -x "session: s" .claude/flow/current'
+expect_allow "and that session is still not guarded by it"              flow-guard.sh "$(bash_json '' 'git push')"
+SID=s
+hp "$T/task2" > .claude/flow/planning
+expect_out   "claim: the Write tool on a pointer path claims it"        flow-claim.sh "$(post_json '' Write "$(jp "$T/.claude/flow/planning")")" "planning"
+assert "planning claimed, current untouched" 'grep -q -x "session: s" .claude/flow/planning && [ "$(wc -l < .claude/flow/current)" -eq 2 ]'
+expect_pass  "claim: nothing left to claim is silent"                   flow-claim.sh "$(post_json '' Write "$(jp "$T/.claude/flow/planning")")"
+rm -f .claude/flow/planning
+hp "$T/task" > .claude/flow/current
+expect_out   "claim: a PowerShell command naming the pointer (backslashes) claims it" flow-claim.sh "$(post_json '' PowerShell 'Set-Content -Path .claude\\flow\\current -Value x')" "now owns"
+assert "claimed" 'grep -q -x "session: s" .claude/flow/current'
+
+echo "== session scoping: two sessions, two tasks, one checkout"
+# Session s implements task (current); session o plans task2 (planning) beside it.
+plan implementing; ptr current "$T/task"
+mkdir -p task2; printf -- '---\ntask: t2\nstatus: draft\n---\n' > task2/plan.md; ptr planning "$T/task2" o
+expect_allow "s: another session's planning does not gate the stage agents"  flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+expect_allow "s: main session edits src while the other session plans"       flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+expect_out   "s: SessionStart re-injects its own flow"                       flow-session.sh "$(session_json resume)" "status: implementing"
+assert "and names the other task as another session's, not as parked" 'case $out in *"planning belongs to another Claude Code session (o)"*"/task2 at status: draft"*"do not guard"*) case $out in *parked*) false;; *) true;; esac;; *) false;; esac'
+SID=o
+expect_deny  "o: its own planning limits its main session to the task folder" flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+expect_allow "o: main session writes task2/plan.md"                          flow-guard.sh "$(write_json '' "$T/task2/plan.md")"
+expect_deny  "o: git push while planning"                                    flow-guard.sh "$(bash_json '' 'git push')"
+expect_deny  "o: no stage agent while its own plan is a draft"               flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+assert "deny says the plan is still being planned" 'case $err in *"still being planned"*"task2/plan.md has status: draft"*) true;; *) false;; esac'
+expect_out   "o: its planner start gets task2"                               flow-context.sh "$(start_json p7 dev-flow:dev-planner)" "task2. "
+expect_pass  "o: its planner stop compares against its own snapshot"         flow-verify-stop.sh "$(stop_json p7 dev-flow:dev-planner)"
+expect_out   "o: SessionStart re-injects its planning"                       flow-session.sh "$(session_json resume)" "/dev-flow:dev-plan"
+assert "and names the other session's task as not its own" 'case $out in *"current belongs to another Claude Code session (s)"*"/task at status: implementing"*"not yours to touch"*) true;; *) false;; esac'
+rm -f .claude/flow/notified
+expect_out   "o: Stop announces its own gate, not the other session's"       flow-notify.sh "$(main_stop_json)" "t2: waiting for you (draft)"
+SID=s
+rm -rf task2 .claude/flow/planning .claude/flow/current .claude/flow/notified .claude/flow/stale-notified
 
 echo
 printf '%d passed, %d failed\n' "$pass" "$fail"

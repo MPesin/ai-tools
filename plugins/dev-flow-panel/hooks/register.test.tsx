@@ -313,3 +313,54 @@ test('a session in a worktree under .claude/worktrees does not show the main che
   expect(await own.find({ type: 'Text', text: /crash on save/ })).toBeDefined()
   await own.unmount()
 })
+
+test('a task of another session on the same checkout is not this band\'s: it yields, and the expanded band only notes it', async ($, on) => {
+  // The dev-flow hooks stamp a pointer with the session that wrote it. Two
+  // sessions in the same folder on the same branch each see their own task.
+  const files: Record<string, string> = {
+    '/p/.claude/flow/current': '/p/.claude/plans/t\nsession: other-session\n',
+    '/p/.claude/plans/t/plan.md': PLAN,
+  }
+  on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
+  on('ui.status', () => ({ value: undefined }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.root', () => ({ value: '/p' }))
+  on('session.id', () => ({ value: 'this-session' }))
+  on('clock.now', () => ({ value: 1 }))
+  on('clock.every', () => ({ value: undefined }))
+  on('fs.exists', (_, e) => ({ value: e.path in files }))
+  on('fs.read', (_, e) => ({ value: files[e.path] ?? '' }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false } }))
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+
+  await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await band.find({ type: 'Text' }))?.text).toBe('engine')
+  await band.unmount()
+
+  // Expanded: no task of this session, the other session's named in a dim line.
+  await $.command.run({ command: 'dev-flow-panel', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  const full = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await full.find({ type: 'Text', text: /No active task/ })).toBeDefined()
+  expect(await full.find({ type: 'Text', text: /login fix · Your review · another session/ })).toBeDefined()
+  await full.unmount()
+
+  // The pointer stamped for this session is this band's task.
+  files['/p/.claude/flow/current'] = '/p/.claude/plans/t\nsession: this-session\n'
+  await $.command.run({ command: 'dev-flow-panel', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  const own = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await own.find({ type: 'Text', text: /login fix/ })).toBeDefined()
+  expect(await own.find({ type: 'Text', text: /another session/ })).toBeUndefined()
+  await own.unmount()
+
+  // One the hooks have not stamped yet (just written by a skill) belongs to no session: shown.
+  files['/p/.claude/flow/current'] = '/p/.claude/plans/t\n'
+  await $.command.run({ command: 'dev-flow-panel', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  const fresh = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await fresh.find({ type: 'Text', text: /login fix/ })).toBeDefined()
+  await fresh.unmount()
+})

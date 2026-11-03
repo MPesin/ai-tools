@@ -4,7 +4,9 @@
 // the hint. No pane: a docked pane runs the full height of the terminal, and
 // the band takes only the rows it draws. The stage comes from the same files
 // the dev-flow hooks read: <project>/.claude/flow/current|planning points at
-// the task folder, plan.md's frontmatter holds status/mode/round.
+// the task folder, plan.md's frontmatter holds status/mode/round. A pointer
+// also names the session it belongs to (its second line, stamped by the hooks);
+// a task of another session on the same checkout is not this band's.
 import { atom, read, update } from 'claude-code'
 import type { Color, Elements, EngineInterface, Register } from 'claude-code'
 
@@ -16,7 +18,7 @@ const POLL_MS = 4000
 const EMPTY: FlowState = { pointer: 'none', status: 'none', diagnosed: false, needsDecision: false, violations: false, checkedAt: 0 }
 // Bump the tag when FlowState's fields change: a value an earlier version stored
 // outlives a reload and is then read as EMPTY instead of as the old shape.
-const flow = atom({ plugin: 'dev-flow-panel', key: 'flow' } as const, EMPTY, { shape: 'flow-2' })
+const flow = atom({ plugin: 'dev-flow-panel', key: 'flow' } as const, EMPTY, { shape: 'flow-3' })
 const view = atom({ plugin: 'dev-flow-panel', key: 'view' } as const, 'auto' as PanelView)
 
 // A step of the track. `key` names the step; `status` is the plan.md status it
@@ -129,22 +131,56 @@ async function findPointers($: EngineInterface, root: string) {
 
 const PLANNING_STATUSES = ['draft', 'diagnosing', '']
 
+// The session this band belongs to. The dev-flow hooks stamp each pointer with
+// the session that wrote it (`session: <id>` on its second line), so that a flow
+// guards, notifies and shows itself in that session only. An engine that gives
+// no id cannot tell sessions apart: every pointer then counts, as before.
+const sessionId = async ($: EngineInterface) => {
+  const id = await $.session.id().catch(() => undefined)
+  return typeof id === 'string' && id ? id : undefined
+}
+
+// The session a pointer names, or none (written by hand, or not stamped yet).
+const ownerOf = (pointerText: string) => {
+  for (const line of pointerText.split(/\r?\n/).slice(1)) {
+    const m = /^session:[ \t]*(\S+)/i.exec(line)
+    if (m) return m[1]
+  }
+  return undefined
+}
+
+// How another session's task is noted: its name, its stage and whose it is.
+const elsewhereOf = (taskFolder: string, fm: Record<string, string>) => {
+  const title = fm.task || taskFolder.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || taskFolder
+  const stage = stageOf({ ...EMPTY, status: fm.status || 'draft', source: fm.source || undefined }).label
+  return `${title} · ${stage} · another session`
+}
+
 async function readFlow($: EngineInterface): Promise<FlowState> {
   const checkedAt = await $.clock.now()
+  const me = await sessionId($)
   // A planning pointer counts only while its plan is still being planned or
   // diagnosed; past that it is stale (the hooks ignore and remove it), and a
-  // current pointer beside it names the task that carries on.
+  // current pointer beside it names the task that carries on. A pointer of
+  // another session is not this band's task: it is only noted.
   let found: { pointer: 'planning' | 'current'; pointerPath: string; taskFolder: string; fm: Record<string, string> } | undefined
+  let elsewhere: string | undefined
   for (const { pointer, pointerPath } of await findPointers($, await $.session.root())) {
-    const taskFolder = (await readText($, pointerPath)).split(/\r?\n/)[0]?.trim() ?? ''
+    const text = await readText($, pointerPath)
+    const taskFolder = text.split(/\r?\n/)[0]?.trim() ?? ''
     const fm = taskFolder ? frontmatter(await readText($, join(taskFolder, 'plan.md'))) : {}
+    const owner = ownerOf(text)
+    if (me && owner && owner !== me) {
+      elsewhere ??= elsewhereOf(taskFolder, fm)
+      continue
+    }
     const candidate = { pointer, pointerPath, taskFolder, fm }
     if (pointer === 'current' || (taskFolder && PLANNING_STATUSES.includes(fm.status ?? ''))) { found = candidate; break }
     found ??= candidate
   }
   if (found) {
     const { pointer, taskFolder, fm } = found
-    if (!taskFolder) return { ...EMPTY, checkedAt }
+    if (!taskFolder) return { ...EMPTY, elsewhere, checkedAt }
     const planPath = join(taskFolder, 'plan.md')
     const round = Number(fm.review_round)
     return {
@@ -163,7 +199,7 @@ async function readFlow($: EngineInterface): Promise<FlowState> {
       checkedAt,
     }
   }
-  return { ...EMPTY, checkedAt }
+  return { ...EMPTY, elsewhere, checkedAt }
 }
 
 const statusLine = (f: FlowState) =>
@@ -347,7 +383,7 @@ export const register: Register = on => {
             {f.violations ? <Text color="error">{'  ✗ violations'}</Text> : null}
             {titleOf(f) ? <Text bold color="text">{'  '}{titleOf(f)}</Text> : null}
             {meta ? <Text dimColor>{' · '}{meta}</Text> : null}
-            {f.pointer === 'none' ? <Text dimColor>{'  no pointer in .claude/flow'}</Text> : null}
+            {f.pointer === 'none' ? <Text dimColor>{'  '}{f.elsewhere ?? 'no pointer of this session in .claude/flow'}</Text> : null}
           </Text>
           <Box flexShrink={0}>{track(els, f)}</Box>
         </Box>

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse guard. Active while <project>/.claude/flow/current or /planning exists
-# (a planning pointer left behind past draft/diagnosing is stale: named once, not enforced).
+# and belongs to this session (lib.sh: another session's pointer counts as absent;
+# a planning pointer left behind past draft/diagnosing is stale: named once, not enforced).
 #   Bash, PowerShell  -> no push/discard, no commit from a subagent or --amend,
 #                        no posting, no publishing (commands.sh)
 #   mcp__*            -> no MCP tools that write to external systems
@@ -37,15 +38,21 @@ stage_gate() {
     *) return 0 ;;
   esac
   POINTER_NAMES="current planning"
-  pointer=$(find_flow_pointer) \
+  find_flow_pointer \
     || deny "$agent runs inside /dev-flow:dev-implement, whose Intake writes <project>/.claude/flow/current and whose stages set status in plan.md before spawning. Run /dev-flow:dev-implement <plan path> instead of spawning $agent directly."
+  # Another session's flow is not this session's to run: its agents would work
+  # unguarded here, and its own session would lose track of them.
+  [ "$POINTER_MINE" = 1 ] \
+    || deny "$(foreign_notice "$POINTER"), and this session has no flow of its own, so $agent cannot run here. A checkout runs one flow at a time: continue that one in its session, or run it from this session with /dev-flow:dev-implement <plan path> (its Intake writes $POINTER again, which hands the flow to this session and stops it in the other one)."
+  pointer=$POINTER
   # planning is checked by name: find_flow_pointer prefers current when both exist.
   # Its plan's status decides whether it gates: a stale one is named, not obeyed.
-  planning="${pointer%/*}/planning"
-  if [ -f "$planning" ]; then
+  # Another session's planning pointer does not gate this session.
+  planning="$FLOW_DIR/planning"
+  if [ -f "$planning" ] && pointer_mine "$planning"; then
     if planning_stale "$planning"; then
-      [ -f "${pointer%/*}/current" ] \
-        || deny "$STALE_NOTICE $agent runs inside /dev-flow:dev-implement, whose Intake writes ${pointer%/*}/current and whose stages set status in plan.md before spawning; run /dev-flow:dev-implement <plan path>."
+      [ -f "$FLOW_DIR/current" ] && pointer_mine "$FLOW_DIR/current" \
+        || deny "$STALE_NOTICE $agent runs inside /dev-flow:dev-implement, whose Intake writes $FLOW_DIR/current and whose stages set status in plan.md before spawning; run /dev-flow:dev-implement <plan path>."
     elif [ "$STALE_STATUS" = diagnosing ]; then
       deny "the bug is still being diagnosed ($planning exists; $STALE_FOLDER/plan.md has status: diagnosing). Finish /dev-debug:dev-debug first: the user confirms the cause (reply fix), the skill writes the fix plan, sets status: approved, deletes the planning pointer, then invokes /dev-flow:dev-implement <plan path>. Never implement from dev-debug."
     else

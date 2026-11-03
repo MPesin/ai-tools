@@ -9,7 +9,7 @@ Find the cause of a bug before anyone changes code, then hand the fix to the imp
 
 ## Hard rules
 
-- Never edit source from this skill, and never fix by hand "because it is obvious": the fix goes through the plan and `/dev-flow:dev-implement`, so it gets a regression test, a review and a QA note. The only files you write are in the task folder and `.claude/flow/planning`. While that pointer exists and the `dev-flow` plugin is installed, its hooks refuse every other write from the main session and block push and posting.
+- Never edit source from this skill, and never fix by hand "because it is obvious": the fix goes through the plan and `/dev-flow:dev-implement`, so it gets a regression test, a review and a QA note. The only files you write are in the task folder and `.claude/flow/planning`. While that pointer exists, belongs to this session (dev-flow's hooks stamp it with the session that wrote it, as `session: <id>` on its second line) and the `dev-flow` plugin is installed, its hooks refuse every other write from the main session and block push and posting; another Claude Code session on the same checkout is not affected by it.
 - Never commit, push, or post anywhere. Never update the work item.
 - Read the project's own guidance first (CLAUDE.md, AGENTS.md, README, instruction files); project rules override this skill. Check the project's plans location for an existing task folder on the same bug ID before creating one.
 - The root cause is confirmed by an explicit user reply, and so is the fix plan. Never set `status: approved` without one.
@@ -17,7 +17,7 @@ Find the cause of a bug before anyone changes code, then hand the fix to the imp
 
 ## 1. Start
 
-1. Create the task folder `YYYY-MM-DD-<bug-id-or-topic>` in the plans location and write its absolute path as the only line of `<project>/.claude/flow/planning` (create the directory). In the same step, before asking anything, write `plan.md` with the frontmatter from `diagnosis-format.md` (`task`, `source: dev-debug`, `status: diagnosing`, `review_round: 0`, an empty `specs:`, `base` set to the merge-base with the default branch), `## Context` holding the bug in one paragraph from whatever the user has said so far, and the other required headings with `Pending diagnosis.` The dev-flow hooks and the dev-flow-panel read this file: without it the band shows Planning instead of Diagnosing.
+1. If `<project>/.claude/flow/planning` already exists, read it first: another plan or diagnosis is in progress, in this session or in another one on this checkout (its second line names the session). Ask whether to continue that one (`/dev-debug:dev-debug <its folder>`, or `/dev-flow:dev-plan`), abandon it (delete the pointer), or debug in a git worktree; never overwrite it unasked. Then create the task folder `YYYY-MM-DD-<bug-id-or-topic>` in the plans location and write its absolute path as the only line of `<project>/.claude/flow/planning` (create the directory; dev-flow's hooks add the session line). In the same step, before asking anything, write `plan.md` with the frontmatter from `diagnosis-format.md` (`task`, `source: dev-debug`, `status: diagnosing`, `review_round: 0`, an empty `specs:`, `base` set to the merge-base with the default branch), `## Context` holding the bug in one paragraph from whatever the user has said so far, and the other required headings with `Pending diagnosis.` The dev-flow hooks and the dev-flow-panel read this file: without it the band shows Planning instead of Diagnosing.
 2. Ask once, in one message: "Paste the bug report, stack trace, failing test name or log excerpt, or give a work item ID. If you know them, add: how to reproduce, the environment, and the last version or commit where it worked." Save everything per **Specs intake** in `diagnosis-format.md`. If the user gave the material in the message that started the skill, use that; do not ask again. The user can add material later; append it the same way.
 3. Update `plan.md`: list the saved files in `specs:` and refine `## Context` from the report. The status stays `diagnosing`.
 
@@ -58,7 +58,7 @@ Never spawn an implementer or edit source from this skill. With dev-flow install
 
 ## Resuming
 
-- `/dev-debug:dev-debug <task folder>` with an existing `diagnosis.md`: show the gate (**3**) again and continue from there; write the `planning` pointer first if it is missing.
+- `/dev-debug:dev-debug <task folder>` with an existing `diagnosis.md`: show the gate (**3**) again and continue from there; write the `planning` pointer again first (dev-flow's hooks stamp it for this session; one left by an earlier session guards nothing here).
 - A bug whose cause is already known and confirmed does not need this skill: `/dev-flow:dev-plan` plans the fix directly.
 
 ## Exits: the pointer checklist

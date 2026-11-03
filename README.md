@@ -107,7 +107,10 @@ as it goes, and **hooks enforce what the prompts promise**: no
 only their one output file and any other change to the working tree is
 detected and reported; implementers may edit only their package's files;
 implementers must leave their build/test output in `verify.log` before they
-may finish; desktop notifications at the human gates. The guards cover Bash,
+may finish; desktop notifications at the human gates. The guards follow the
+session that runs the flow: another Claude Code session on the same checkout,
+even in the same folder on the same branch, is not guarded, notified or
+blocked by it, and cannot run its stage agents. The guards cover Bash,
 PowerShell and MCP tools, run on bash 3.2+ without `jq`, and ship with an
 assertion test suite (`bash plugins/dev-flow/hooks/test-hooks.sh`).
 
