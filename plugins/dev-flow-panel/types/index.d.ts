@@ -1,5 +1,6 @@
 // The state contract of dev-flow-panel: what the pane draws, read from the
-// dev-flow task folder (<project>/.claude/flow/current|planning -> plan.md).
+// dev-flow task folder (<project>/.claude/flow/current|planning -> plan.md) of
+// the task that belongs to this session (the pointer's `session:` line).
 
 export type FlowPointer = 'none' | 'current' | 'planning'
 
@@ -23,6 +24,9 @@ export type FlowState = {
   base?: string
   needsDecision: boolean
   violations: boolean
+  /** a task of another Claude Code session on this checkout, as `<task> · <stage> · another session`;
+   *  never drawn as this band's task, only noted when this session has none */
+  elsewhere?: string
   checkedAt: number
 }
 

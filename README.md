@@ -99,6 +99,10 @@ Three skills for any project, in any language, on Linux, macOS and Windows
 - `/dev-flow:dev-qa-impact` writes a fixed-template note for QA engineers who
   do not read code: what changed for users, which regression tests to run,
   and what was built differently from the requirements.
+- `/dev-flow:load-flow` picks an existing task up in this session (it lists
+  the plans folder with each task's status and which session holds it, then
+  hands your choice to the skill its status needs); `/dev-flow:clear-flow`
+  switches this session's flow off and leaves the task folder as it is.
 
 While a flow is active, the main session commits each package and fix round
 as it goes, and **hooks enforce what the prompts promise**: no
@@ -107,7 +111,10 @@ as it goes, and **hooks enforce what the prompts promise**: no
 only their one output file and any other change to the working tree is
 detected and reported; implementers may edit only their package's files;
 implementers must leave their build/test output in `verify.log` before they
-may finish; desktop notifications at the human gates. The guards cover Bash,
+may finish; desktop notifications at the human gates. The guards follow the
+session that runs the flow: another Claude Code session on the same checkout,
+even in the same folder on the same branch, is not guarded, notified or
+blocked by it, and cannot run its stage agents. The guards cover Bash,
 PowerShell and MCP tools, run on bash 3.2+ without `jq`, and ship with an
 assertion test suite (`bash plugins/dev-flow/hooks/test-hooks.sh`).
 
@@ -141,13 +148,15 @@ shows the stage too.
 
 ![The dev-flow-panel band expanded above the prompt: stage row, progress track, hint and the Plan, Debug, Implement and QA impact buttons](docs/images/dev-flow-panel.png)
 
+(The screenshot predates 0.7.0: the band now has a dim rule and a blank row above it, and a fifth button, Load or Clear.)
+
 ## Repository layout
 
 ```
 .claude-plugin/marketplace.json    # the marketplace manifest
 plugins/repo-mapper/               # 2 commands, skill + references, 3 agents, hook
 plugins/design-critic/             # the reviewer agent
-plugins/dev-flow/                  # 3 skills, 7 agents, 5 bash hooks + tests
+plugins/dev-flow/                  # 5 skills, 7 agents, 6 bash hooks + 2 scripts + tests
 plugins/dev-flow-panel/            # the band (hooks module)
 ```
 

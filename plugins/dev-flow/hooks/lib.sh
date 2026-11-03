@@ -13,7 +13,9 @@
 # taken from the first occurrence of the key; tool_input/tool_response fields from
 # the text after that object's key, so a `content` that quotes a key cannot shadow it.
 
-INPUT=$(cat)
+# The hook's JSON input. A script run from the Bash tool rather than as a hook
+# (scripts/) sets DEV_FLOW_INPUT instead, and no stdin is read.
+if [ -n "${DEV_FLOW_INPUT+x}" ]; then INPUT=$DEV_FLOW_INPUT; else INPUT=$(cat); fi
 
 case $(uname -s 2>/dev/null) in
   MINGW*|MSYS*|CYGWIN*) FLOW_OS=windows ;;
@@ -112,12 +114,73 @@ path_under() {
 
 # ---------------------------------------------------------------- flow state
 
-# Walk up from the hook's cwd to the first .claude/flow/<name> pointer. The walk
-# ends at the first directory that holds a .git (a directory in the main checkout,
-# a file in a worktree or submodule): a flow belongs to one checkout, so a session
-# in a worktree (Claude Code puts them under <repo>/.claude/worktrees/<name>) must
-# not pick up the main checkout's pointer above it.
-find_flow_pointer() {
+# The session the hook fires in. A subagent's hooks carry its parent session's
+# id (agent_id and agent_type tell the subagent apart), so a flow's guards reach
+# the session that runs it and every agent it spawns, and nothing else.
+SESSION_ID=$(json_field session_id)
+
+# A pointer file is the task folder's absolute path on its first line and, from
+# dev-flow 2.5.0, `session: <id>` on the second: the session that wrote it, stamped
+# by flow-claim.sh (PostToolUse) right after the tool call that wrote it. The
+# flow belongs to that session: in any other Claude Code session on the same
+# checkout (the same folder, the same branch) the pointer counts as absent, so
+# one session's flow never guards, notifies or interrupts another. A pointer
+# without the line (written by hand, or by an older dev-flow) belongs to no
+# session until one claims it by writing it again.
+pointer_owner() {   # PATH -> the session id on its `session:` line, or nothing
+  # Pure bash: this runs for every pointer on every hook event, and a process
+  # per call adds up on Windows.
+  local line
+  [ -f "$1" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    case $line in
+      [Ss][Ee][Ss][Ss][Ii][Oo][Nn]:*)
+        line=${line#*:}
+        printf '%s' "${line//[[:space:]]/}"
+        return 0 ;;
+    esac
+  done < "$1"
+  return 0
+}
+
+# pointer_mine PATH: the pointer belongs to this session. A hook input without a
+# session id (a harness that sends none) cannot tell sessions apart, so every
+# pointer is then this session's, as before session scoping. An agent that
+# started under the flow (its start snapshot sits beside the pointer until it
+# stops) stays guarded until it stops, whichever session holds the pointer now:
+# a take-over must not leave another session's running agents free to push.
+pointer_mine() {
+  [ -z "$SESSION_ID" ] && return 0
+  [ "$(pointer_owner "$1")" = "$SESSION_ID" ] && return 0
+  [ -n "${AGENT_ID-}" ] && { [ -f "${1%/*}/snap-$AGENT_ID" ] || [ -f "${1%/*}/start-$AGENT_ID" ]; } && return 0
+  return 1
+}
+
+# The hooks' marker files beside the pointers; removed with the last pointer.
+remove_markers() {   # FLOW_DIR
+  rm -f "$1/notified" "$1/stale-notified" "$1/unclaimed-notified" "$1/cross-notified" \
+    "$1"/start-* "$1"/snap-* "$1"/.snap-* "$1"/.cmp-* "$1"/claim-* 2>/dev/null
+  return 0
+}
+
+# Why a pointer is not this session's, for the hooks that say so.
+foreign_notice() {   # PATH
+  local owner
+  owner=$(pointer_owner "$1")
+  if [ -n "$owner" ]; then
+    printf '%s belongs to another Claude Code session (%s)' "$1" "$owner"
+  else
+    printf '%s has no session line, so no session owns it yet (written by hand, or by dev-flow before 2.5.0)' "$1"
+  fi
+}
+
+# Walk up from the hook's cwd to the first .claude/flow directory holding one of
+# POINTER_NAMES; sets FLOW_DIR. The walk ends at the first directory that holds a
+# .git (a directory in the main checkout, a file in a worktree or submodule): a
+# flow belongs to one checkout, so a session in a worktree (Claude Code puts them
+# under <repo>/.claude/worktrees/<name>) must not pick up the main checkout's
+# pointer above it.
+find_flow_dir() {
   local dir name
   dir=$(json_field cwd)
   [ -z "$dir" ] && dir=$PWD
@@ -125,7 +188,7 @@ find_flow_pointer() {
   while :; do
     for name in $POINTER_NAMES; do
       if [ -f "$dir/.claude/flow/$name" ]; then
-        printf '%s' "$dir/.claude/flow/$name"
+        FLOW_DIR="$dir/.claude/flow"
         return 0
       fi
     done
@@ -136,28 +199,59 @@ find_flow_pointer() {
   done
 }
 
-# Sets POINTER, POINTER_NAME, FLOW_DIR, PROJECT_DIR, GIT_ROOT, TASK_FOLDER,
-# AGENT_TYPE (bare name, plugin prefix stripped), AGENT_ID, SESSION_ID.
-# Exits 0 (hook inactive) when no pointer or the task folder is gone, and when
+# Sets POINTER to the first of POINTER_NAMES in that directory that belongs to
+# this session (POINTER_MINE=1). When none does, POINTER is the first that exists
+# and POINTER_MINE=0: another session's flow, or a pointer no session has claimed,
+# for the hooks that name it (SessionStart, the stage gate). Returns 1 without any.
+find_flow_pointer() {
+  local name
+  POINTER=''; POINTER_MINE=0
+  find_flow_dir || return 1
+  for name in $POINTER_NAMES; do
+    if [ -f "$FLOW_DIR/$name" ] && pointer_mine "$FLOW_DIR/$name"; then
+      POINTER="$FLOW_DIR/$name"; POINTER_MINE=1
+      return 0
+    fi
+  done
+  for name in $POINTER_NAMES; do
+    if [ -f "$FLOW_DIR/$name" ]; then
+      POINTER="$FLOW_DIR/$name"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Sets POINTER, POINTER_NAME, POINTER_MINE, FLOW_DIR, PROJECT_DIR, GIT_ROOT,
+# TASK_FOLDER, AGENT_TYPE (bare name, plugin prefix stripped), AGENT_ID.
+# Exits 0 (hook inactive) when no pointer or the task folder is gone, when the
+# pointer is another session's (SessionStart alone goes on, to say so), and when
 # the pointer found is a stale planning one (stale_exit says so first).
 load_task_folder() {
   POINTER_NAMES=${1:-"current planning"}
   AGENT_TYPE=$(json_field agent_type)
   AGENT_TYPE=${AGENT_TYPE##*:}
+  AGENT_ID=$(json_field agent_id)
   # Planner, critic and debugger belong to the task being planned: with a planning
   # pointer beside a parked current (a task waiting at human-review), theirs is the
   # planning one, or they could write nothing but the parked task's folder.
   case $AGENT_TYPE in
     dev-planner|dev-plan-critic|dev-debugger) [ "$POINTER_NAMES" = "current planning" ] && POINTER_NAMES="planning current" ;;
   esac
-  POINTER=$(find_flow_pointer) || exit 0
+  find_flow_pointer || exit 0
   POINTER_NAME=${POINTER##*/}
-  FLOW_DIR=${POINTER%/*}
   PROJECT_DIR=${FLOW_DIR%/.claude/flow}
-  SESSION_ID=$(json_field session_id)
+  if [ "$POINTER_MINE" != 1 ]; then
+    [ "$HOOK_EVENT" = SessionStart ] || exit 0
+    TASK_FOLDER=$(normalize_path "$(head -n 1 "$POINTER" | tr -d '\r')")
+    return 0
+  fi
+  GIT_ROOT=$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)
+  GIT_ROOT=$(normalize_path "${GIT_ROOT:-$PROJECT_DIR}")
   if [ "$POINTER_NAME" = planning ] && planning_stale "$POINTER"; then
-    # Beside a current pointer the parked task carries on; the Stop hook sweeps.
-    if [ "$HOOK_EVENT" != Stop ] && [ -f "$FLOW_DIR/current" ]; then
+    # Beside a current pointer of this session the parked task carries on; the
+    # Stop hook sweeps.
+    if [ "$HOOK_EVENT" != Stop ] && [ -f "$FLOW_DIR/current" ] && pointer_mine "$FLOW_DIR/current"; then
       POINTER="$FLOW_DIR/current"; POINTER_NAME=current
     else
       stale_exit
@@ -165,9 +259,6 @@ load_task_folder() {
   fi
   TASK_FOLDER=$(normalize_path "$(head -n 1 "$POINTER" | tr -d '\r')")
   [ -n "$TASK_FOLDER" ] && [ -d "$TASK_FOLDER" ] || exit 0
-  GIT_ROOT=$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)
-  GIT_ROOT=$(normalize_path "${GIT_ROOT:-$PROJECT_DIR}")
-  AGENT_ID=$(json_field agent_id)
 }
 
 # Statuses of a plan still being planned or diagnosed (plan-format.md): the

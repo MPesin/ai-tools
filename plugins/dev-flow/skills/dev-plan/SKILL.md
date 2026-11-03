@@ -1,6 +1,6 @@
 ---
 name: dev-plan
-description: Use when the user wants to plan a task, bug, or work item before implementing it — "/dev-plan", "plan this task", "let's plan X together". Produces an approved plan in the standard format (interactive with the user, or drafted by a planner subagent), reviewed by a plan critic before approval. Never implements; hand the approved plan path to /dev-flow:dev-implement.
+description: Use when the user wants to plan a task, bug, or work item before implementing it — "/dev-plan", "plan this task", "let's plan X together" — or to continue a plan still at draft ("/dev-plan <task folder>"). Produces an approved plan in the standard format (interactive with the user, or drafted by a planner subagent), reviewed by a plan critic before approval. Never implements; hand the approved plan path to /dev-flow:dev-implement.
 ---
 
 # Dev Plan
@@ -9,7 +9,7 @@ Produce a plan that satisfies `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-f
 
 ## Hard rules
 
-- Never edit source code. The only files you write are in the task folder and `.claude/flow/planning`. While the `planning` pointer exists the hooks refuse every other write from the main session.
+- Never edit source code. The only files you write are in the task folder and `.claude/flow/planning`. While the `planning` pointer exists and belongs to this session (the hooks stamp it with the session that wrote it, as `session: <id>` on its second line) they refuse every other write from the main session; another Claude Code session on the same checkout is not affected by it.
 - Never commit, push, or post anywhere.
 - Read the project's own guidance (CLAUDE.md, AGENTS.md, README, instruction files) first; project rules override this skill. Check the project's plans/handoffs/notes locations for existing work on the task ID.
 - A bug whose cause is not yet known is not planned here: suggest `/dev-debug:dev-debug` (the dev-debug plugin), which finds and verifies the cause first and then writes the fix plan. Plan a bug here only when the cause is already confirmed.
@@ -17,7 +17,7 @@ Produce a plan that satisfies `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-f
 
 ## Start
 
-1. Create the task folder and write its absolute path as the only line of `<project>/.claude/flow/planning` (create the directory).
+1. If `<project>/.claude/flow/planning` already exists, read it first: another plan or diagnosis is in progress, in this session or in another one on this checkout (its second line names the session). Ask whether to continue that one (`/dev-flow:dev-plan`, or `/dev-debug:dev-debug <its folder>`), abandon it (delete the pointer), or plan the new task in a git worktree; never overwrite it unasked. Then create the task folder and write its absolute path as the only line of `<project>/.claude/flow/planning` (create the directory); the hooks add the session line. To continue a plan started in an earlier session, write the pointer again the same way: one stamped by another session guards nothing here.
 2. Ask once: "Paste the relevant PRD/HLD sections, or give a work item / ticket reference (or say none)." Save them per **Specs intake** in `plan-format.md` and list them in `specs:`. The user can add specs at any point; append them the same way.
 3. Choose the mode.
 
@@ -65,6 +65,10 @@ Never spawn `dev-implementer` or edit source from this skill. The hooks refuse t
 1. Set `status: approved` and `mode` (lite criteria are in `plan-format.md`; the user can force either).
 2. Delete `<project>/.claude/flow/planning`.
 3. Print the absolute path of `plan.md` and tell the user to run `/dev-flow:dev-implement <plan path>`.
+
+## Resuming
+
+`/dev-flow:dev-plan <task folder or plan path>` continues a plan at `status: draft` (started in an earlier session, parked while another task ran, or dropped with `/dev-flow:clear-flow`; `/dev-flow:load-flow` hands over this way). Write `<project>/.claude/flow/planning` again with the folder's path (the hooks stamp it for this session), read `plan.md`, `plan-critique.md` and the specs, show in a few lines where the plan stands (open questions, Blocking items from the critique), and go on in the plan's mode (`source: dev-plan-interactive` or `dev-plan-draft`) from **Before approval** or wherever it left off. A plan at a later status is not planned again: `approved` and beyond belongs to `/dev-flow:dev-implement`, `diagnosing` to `/dev-debug:dev-debug`.
 
 ## Already done on the branch
 
