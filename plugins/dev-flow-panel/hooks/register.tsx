@@ -385,9 +385,15 @@ export const register: Register = on => {
     const meta = metaOf(f)
     const bar = <Text color={stage.color}>{'▎'}</Text>
     const hintRoom = e.props.bodyColumns - (2 + skillButtonsWidth(f) + 3 + 9 + 3 + 6 + 3)
+    // A rule across the top keeps the band apart from the transcript scrolling
+    // above it, and one blank row of padding keeps the rule off the first row.
+    // Drawn by hand: the engine's Box border is all four sides or none.
+    const rule = '─'.repeat(Math.max(1, e.props.bodyColumns))
 
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
+        <Text dimColor wrap="truncate-end">{rule}</Text>
+        <Box flexDirection="column" paddingTop={1}>
         <Box justifyContent="space-between" columnGap={2}>
           <Text wrap="truncate-end">
             {bar}
@@ -452,6 +458,7 @@ export const register: Register = on => {
               <Text dimColor italic wrap="truncate-end">{stage.hint}</Text>
             </Box>
           ) : null}
+        </Box>
         </Box>
       </Box>
     )

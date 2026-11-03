@@ -148,6 +148,8 @@ shows the stage too.
 
 ![The dev-flow-panel band expanded above the prompt: stage row, progress track, hint and the Plan, Debug, Implement and QA impact buttons](docs/images/dev-flow-panel.png)
 
+(The screenshot predates 0.7.0: the band now has a dim rule and a blank row above it, and a fifth button, Load or Clear.)
+
 ## Repository layout
 
 ```

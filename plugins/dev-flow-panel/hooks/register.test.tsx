@@ -89,6 +89,8 @@ test('an active task draws two rows, and the buttons run the skills on that task
   await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
 
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  // A rule the width of the column sits above the rows, apart from the transcript.
+  expect((await band.find({ type: 'Text', text: /^─+$/ }))?.text).toHaveLength(BAND.props.bodyColumns)
   expect(await band.find({ type: 'Text', text: /Your review/ })).toBeDefined()
   expect(await band.find({ type: 'Text', text: /login fix/ })).toBeDefined()
   expect(await band.find({ type: 'Text', text: /needs decision/ })).toBeDefined()

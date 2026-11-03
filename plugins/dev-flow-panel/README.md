@@ -1,6 +1,6 @@
 # dev-flow-panel
 
-A band above the prompt for the [dev-flow](../dev-flow) and [dev-debug](../dev-debug) plugins: a colour-coded view of the stage the current task is in (features and bugs each have their own stage list), and one button per skill. It is horizontal, sits right above the prompt, has no background of its own, and takes only the rows it draws: two by default.
+A band above the prompt for the [dev-flow](../dev-flow) and [dev-debug](../dev-debug) plugins: a colour-coded view of the stage the current task is in (features and bugs each have their own stage list), and one button per skill. It is horizontal, sits right above the prompt, has no background of its own, and takes only the rows it draws: a dim rule that keeps it apart from the transcript scrolling above, a blank row of padding, and two rows of content by default.
 
 ```
 /plugin install dev-flow-panel --marketplace MPesin/ai-tools
@@ -10,20 +10,24 @@ No pane: a pane docked beside the transcript runs the full height of the termina
 
 ## Compact
 
-While a task is active, two rows sit above the prompt. Without a task nothing is drawn, so the band costs no rows.
+While a task is active, the band sits above the prompt: a rule across the column, a blank row, then two rows. Without a task nothing is drawn, so the band costs no rows.
 
 ```
+──────────────────────────────────────────────────────────────────────────────────────────────────
+
 ▎ Your review   ⚠ needs decision  login fix · round 2 · full · base main        ●─●─●─●─◉─○─○
 ▎ [ Plan ] [ Debug ] [ Implement ] [ QA impact ] [ Clear ]   ↻ refresh   more ▾   Waiting for you: review…
 ```
 
-The stage is a chip on a block of its theme colour, and an accent bar in the same colour runs down the band. After the chip come the flags for `needs-decision.md` and `violations.md`, the task (plan.md's `task`, else the folder's name) and, dim, the review round, mode and base. At the right end a track of the task's stages shows the steps behind you filled and the current one ringed; it is the first thing to give way when the column is narrow. The second row holds the buttons, with the suggested next step drawn as the primary one, and the hint for this stage, truncated rather than wrapped and left out when fewer than 24 cells remain.
+The rule is dim and spans the column, so the band reads as its own block under whatever Claude last printed. The stage is a chip on a block of its theme colour, and an accent bar in the same colour runs down the band. After the chip come the flags for `needs-decision.md` and `violations.md`, the task (plan.md's `task`, else the folder's name) and, dim, the review round, mode and base. At the right end a track of the task's stages shows the steps behind you filled and the current one ringed; it is the first thing to give way when the column is narrow. The second row holds the buttons, with the suggested next step drawn as the primary one, and the hint for this stage, truncated rather than wrapped and left out when fewer than 24 cells remain.
 
 ## Full
 
 `/dev-flow-panel`, or the band's `more ▾`, expands it; the command or `less ▴` folds it back. Expanded, the band is drawn even without a task.
 
 ```
+──────────────────────────────────────────────────────────────────────────────────────────────────
+
 ▎ Your review   ⚠ needs decision  login fix · round 2 · full · base main        ●─●─●─●─◉─○─○
 ▎ ✓ Planning  ✓ Approved  ✓ Implementing  ✓ Claude review  ◉ Your review  ○ QA impact  ○ Done
 ▎   Waiting for you: review the commits, push, open the PR, then continue.
