@@ -1,6 +1,6 @@
 ---
 name: dev-plan
-description: Use when the user wants to plan a task, bug, or work item before implementing it — "/dev-plan", "plan this task", "let's plan X together". Produces an approved plan in the standard format (interactive with the user, or drafted by a planner subagent), reviewed by a plan critic before approval. Never implements; hand the approved plan path to /dev-flow:dev-implement.
+description: Use when the user wants to plan a task, bug, or work item before implementing it — "/dev-plan", "plan this task", "let's plan X together" — or to continue a plan still at draft ("/dev-plan <task folder>"). Produces an approved plan in the standard format (interactive with the user, or drafted by a planner subagent), reviewed by a plan critic before approval. Never implements; hand the approved plan path to /dev-flow:dev-implement.
 ---
 
 # Dev Plan
@@ -65,6 +65,10 @@ Never spawn `dev-implementer` or edit source from this skill. The hooks refuse t
 1. Set `status: approved` and `mode` (lite criteria are in `plan-format.md`; the user can force either).
 2. Delete `<project>/.claude/flow/planning`.
 3. Print the absolute path of `plan.md` and tell the user to run `/dev-flow:dev-implement <plan path>`.
+
+## Resuming
+
+`/dev-flow:dev-plan <task folder or plan path>` continues a plan at `status: draft` (started in an earlier session, parked while another task ran, or dropped with `/dev-flow:clear-flow`; `/dev-flow:load-flow` hands over this way). Write `<project>/.claude/flow/planning` again with the folder's path (the hooks stamp it for this session), read `plan.md`, `plan-critique.md` and the specs, show in a few lines where the plan stands (open questions, Blocking items from the critique), and go on in the plan's mode (`source: dev-plan-interactive` or `dev-plan-draft`) from **Before approval** or wherever it left off. A plan at a later status is not planned again: `approved` and beyond belongs to `/dev-flow:dev-implement`, `diagnosing` to `/dev-debug:dev-debug`.
 
 ## Already done on the branch
 

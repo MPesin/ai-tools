@@ -28,13 +28,13 @@ other_session_note() {   # NAME
   local p="$FLOW_DIR/$1" folder
   [ -f "$p" ] && ! pointer_mine "$p" || return 0
   folder=$(normalize_path "$(head -n 1 "$p" | tr -d '\r')")
-  printf ' %s: task folder %s at status: %s; the two sessions do not guard or interrupt each other, and that task is not yours to touch.' \
+  printf ' %s: task folder %s at status: %s; the two sessions do not guard or interrupt each other, and that task is not this session'"'"'s to touch.' \
     "$(foreign_notice "$p")" "$folder" "$(frontmatter_value status "$folder/plan.md")"
 }
 
 if [ "$POINTER_MINE" != 1 ]; then
   status=$(frontmatter_value status "$TASK_FOLDER/plan.md")
-  msg="dev-flow: $(foreign_notice "$POINTER"): task folder $TASK_FOLDER, status: ${status:-unknown}. Its guards and notifications do not apply to this session, and this session cannot spawn its stage agents. Leave that task alone unless the user asks for it. To run that flow from this session: $(resume_skill "$POINTER_NAME" "$TASK_FOLDER"); the skill writes the pointer again, which hands the flow to this session and ends it in the other one. To clear a leftover: rm \"$POINTER\"."
+  msg="dev-flow: $(foreign_notice "$POINTER"): task folder $TASK_FOLDER, status: ${status:-unknown}. Its guards and notifications do not apply to this session, and this session cannot spawn its stage agents. Leave that task alone unless the user asks for it. To run that flow from this session: /dev-flow:load-flow $TASK_FOLDER (or $(resume_skill "$POINTER_NAME" "$TASK_FOLDER") directly); the skill writes the pointer again, which hands the flow to this session, and the other session's run then loses its guards (agents it already has running are not stopped) and cannot spawn further stage agents. To clear a leftover: /dev-flow:clear-flow all (or rm \"$POINTER\")."
   emit_context SessionStart "$msg"
   exit 0
 fi
@@ -49,7 +49,7 @@ elif [ "$status" = done ]; then
 else
   next="Continue with /dev-flow:dev-implement $TASK_FOLDER/plan.md (it resumes from status and review_round)."
 fi
-msg="dev-flow: a flow of this session is active in this project. Task folder: $TASK_FOLDER. status: ${status:-unknown}. mode: $(frontmatter_value mode). review_round: $(frontmatter_value review_round). base: $(frontmatter_value base). $next While the pointer exists the plugin's hooks block git push/discard, commits from subagents and --amend, posting and publishing, and limit what each agent may write (the main session commits each stage's files), in this session and its subagents only; delete $POINTER to switch them off (stage agents then cannot be spawned until Intake writes it again)."
+msg="dev-flow: a flow of this session is active in this project. Task folder: $TASK_FOLDER. status: ${status:-unknown}. mode: $(frontmatter_value mode). review_round: $(frontmatter_value review_round). base: $(frontmatter_value base). $next While the pointer exists the plugin's hooks block git push/discard, commits from subagents and --amend, posting and publishing, and limit what each agent may write (the main session commits each stage's files), in this session and its subagents only; /dev-flow:clear-flow switches them off (it removes $POINTER; stage agents then cannot be spawned until Intake writes it again)."
 [ -s "$TASK_FOLDER/needs-decision.md" ] && msg="$msg needs-decision.md has items waiting for the user."
 [ -s "$TASK_FOLDER/violations.md" ] && msg="$msg violations.md lists files changed outside an agent's allowance."
 [ -n "$(find "$POINTER" -mtime +2 2>/dev/null)" ] && msg="$msg The pointer is more than 2 days old: the flow may have been abandoned; ask the user before continuing."

@@ -43,7 +43,7 @@ stage_gate() {
   # Another session's flow is not this session's to run: its agents would work
   # unguarded here, and its own session would lose track of them.
   [ "$POINTER_MINE" = 1 ] \
-    || deny "$(foreign_notice "$POINTER"), and this session has no flow of its own, so $agent cannot run here. A checkout runs one flow at a time: continue that one in its session, or run it from this session with /dev-flow:dev-implement <plan path> (its Intake writes $POINTER again, which hands the flow to this session and stops it in the other one)."
+    || deny "$(foreign_notice "$POINTER"), and this session has no flow of its own, so $agent cannot run here. A checkout runs one flow at a time: continue that one in its session, or run it from this session with /dev-flow:load-flow (or /dev-flow:dev-implement <plan path>; its Intake writes $POINTER again, which hands the flow to this session: the other session's run then loses its guards and cannot spawn further stage agents, though agents it already has running are not stopped)."
   pointer=$POINTER
   # planning is checked by name: find_flow_pointer prefers current when both exist.
   # Its plan's status decides whether it gates: a stale one is named, not obeyed.

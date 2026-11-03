@@ -21,6 +21,7 @@ const FILES: Record<string, string> = {
 
 test('without an active task the band yields to the engine until /dev-flow-panel expands it', async ($, on) => {
   // Nothing sits beneath the plugin: each hook here stands for the engine.
+  const pressed: string[] = []
   on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
   on('ui.status', () => ({ value: undefined }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -28,6 +29,11 @@ test('without an active task the band yields to the engine until /dev-flow-panel
   on('clock.now', () => ({ value: 1 }))
   on('clock.every', () => ({ value: undefined }))
   on('fs.exists', () => ({ value: false }))
+  // The dev-flow skills are slash commands of another plugin; this hook stands for them.
+  on('command.run', (_, e) => {
+    pressed.push(`/${e.command} ${e.args ?? ''}`.trim())
+    return { text: 'ran' }
+  })
   // The engine's own band, drawn when the plugin has nothing to show.
   on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
     const { Text } = $.ui.resolve(e)
@@ -48,9 +54,17 @@ test('without an active task the band yields to the engine until /dev-flow-panel
     const band = await $.ui.mount({ ...BAND, surface })
     expect(await band.find({ type: 'Text', text: /No active task/ })).toBeDefined()
     expect(await band.find({ type: 'Text', text: /○ Planning/ })).toBeDefined()
-    expect(await band.findAll({ type: 'Button' })).toHaveLength(6)
+    // Plan, Debug, Implement, QA impact, Load, refresh, less: Clear only with a task.
+    expect(await band.findAll({ type: 'Button' })).toHaveLength(7)
+    expect(await band.find({ type: 'Button', key: 'clear' })).toBeUndefined()
     await band.unmount()
   }
+
+  // Load lists the plans folder and hands the chosen task to its stage's skill.
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await band.press({ key: 'load' })
+  expect(pressed).toEqual(['/dev-flow:load-flow'])
+  await band.unmount()
 })
 
 test('an active task draws two rows, and the buttons run the skills on that task', async ($, on) => {
@@ -84,6 +98,10 @@ test('an active task draws two rows, and the buttons run the skills on that task
   expect(ran).toEqual(['/dev-flow:dev-implement /p/.claude/plans/t/plan.md'])
   await band.press({ key: 'qa' })
   expect(ran[1]).toBe('/dev-flow:dev-qa-impact /p/.claude/plans/t')
+  // With a task, Clear takes Load's place: it switches this session's flow off.
+  expect(await band.find({ type: 'Button', key: 'load' })).toBeUndefined()
+  await band.press({ key: 'clear' })
+  expect(ran[2]).toBe('/dev-flow:clear-flow')
   await band.unmount()
 })
 

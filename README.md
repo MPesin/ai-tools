@@ -99,6 +99,10 @@ Three skills for any project, in any language, on Linux, macOS and Windows
 - `/dev-flow:dev-qa-impact` writes a fixed-template note for QA engineers who
   do not read code: what changed for users, which regression tests to run,
   and what was built differently from the requirements.
+- `/dev-flow:load-flow` picks an existing task up in this session (it lists
+  the plans folder with each task's status and which session holds it, then
+  hands your choice to the skill its status needs); `/dev-flow:clear-flow`
+  switches this session's flow off and leaves the task folder as it is.
 
 While a flow is active, the main session commits each package and fix round
 as it goes, and **hooks enforce what the prompts promise**: no
@@ -150,7 +154,7 @@ shows the stage too.
 .claude-plugin/marketplace.json    # the marketplace manifest
 plugins/repo-mapper/               # 2 commands, skill + references, 3 agents, hook
 plugins/design-critic/             # the reviewer agent
-plugins/dev-flow/                  # 3 skills, 7 agents, 5 bash hooks + tests
+plugins/dev-flow/                  # 5 skills, 7 agents, 6 bash hooks + 2 scripts + tests
 plugins/dev-flow-panel/            # the band (hooks module)
 ```
 

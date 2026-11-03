@@ -20,7 +20,7 @@
     {
       "name": "dev-flow",
       "source": "./plugins/dev-flow",
-      "description": "Plan, implement, review and QA-impact flow run by subagents (/dev-flow:dev-plan, /dev-flow:dev-implement, /dev-flow:dev-qa-impact; also implements dev-debug's fix plans) and guarded by cross-platform hooks: commits per package and fix round, no push/discard/posting/publishing, no subagent commits, per-agent and per-package write limits, build/test evidence required before an implementer may finish, working-tree change detection, gate notifications; the guards follow the session that runs the flow, so other sessions on the same checkout are not blocked"
+      "description": "Plan, implement, review and QA-impact flow run by subagents (/dev-flow:dev-plan, /dev-flow:dev-implement, /dev-flow:dev-qa-impact, /dev-flow:load-flow, /dev-flow:clear-flow; also implements dev-debug's fix plans) and guarded by cross-platform hooks: commits per package and fix round, no push/discard/posting/publishing, no subagent commits, per-agent and per-package write limits, build/test evidence required before an implementer may finish, working-tree change detection, gate notifications; the guards follow the session that runs the flow, so other sessions on the same checkout are not blocked"
     },
     {
       "name": "dev-debug",

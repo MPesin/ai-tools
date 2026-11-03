@@ -14,7 +14,7 @@ While a task is active, two rows sit above the prompt. Without a task nothing is
 
 ```
 ▎ Your review   ⚠ needs decision  login fix · round 2 · full · base main        ●─●─●─●─◉─○─○
-▎ [ Plan ] [ Debug ] [ Implement ] [ QA impact ]   ↻ refresh   more ▾   Waiting for you: review the diff…
+▎ [ Plan ] [ Debug ] [ Implement ] [ QA impact ] [ Clear ]   ↻ refresh   more ▾   Waiting for you: review…
 ```
 
 The stage is a chip on a block of its theme colour, and an accent bar in the same colour runs down the band. After the chip come the flags for `needs-decision.md` and `violations.md`, the task (plan.md's `task`, else the folder's name) and, dim, the review round, mode and base. At the right end a track of the task's stages shows the steps behind you filled and the current one ringed; it is the first thing to give way when the column is narrow. The second row holds the buttons, with the suggested next step drawn as the primary one, and the hint for this stage, truncated rather than wrapped and left out when fewer than 24 cells remain.
@@ -28,8 +28,10 @@ The stage is a chip on a block of its theme colour, and an accent bar in the sam
 ▎ ✓ Planning  ✓ Approved  ✓ Implementing  ✓ Claude review  ◉ Your review  ○ QA impact  ○ Done
 ▎   Waiting for you: review the commits, push, open the PR, then continue.
 ▎ ⚠ needs-decision.md  findings wait for your decision
-▎ [ Plan ] [ Debug ] [ Implement ] [ QA impact ]   ↻ refresh   less ▴
+▎ [ Plan ] [ Debug ] [ Implement ] [ QA impact ] [ Clear ]   ↻ refresh   less ▴
 ```
+
+Without a task of this session the last button is `[ Load ]` instead of `[ Clear ]`.
 
 The stage list runs across, wrapping onto a second row in a narrow column, with the steps behind you ticked and the ones ahead hollow. Under it the hint for the current stage, then one row per flag.
 
@@ -39,10 +41,12 @@ The stage list runs across, wrapping onto a second row in a narrow column, with 
 | Debug | `/dev-debug:dev-debug` (the dev-debug plugin), with the active task folder while it is diagnosing, so a press brings the diagnosis gate back. Primary at that stage. |
 | Implement / Resume | `/dev-flow:dev-implement <plan.md of the active task>`. Dim while the plan is still a draft or a diagnosis is in progress (`plan.md` at `draft` or `diagnosing`): a press then shows why instead of running the skill, since the plan has to be approved in chat first. A `planning` pointer left behind by a plan at a later status does not dim it; the dev-flow hooks treat such a pointer as stale too. |
 | QA impact | `/dev-flow:dev-qa-impact <task folder>` |
+| Load | `/dev-flow:load-flow`: lists the task folders under the plans location with their status and which session holds them, and hands the one you pick to the skill its status needs. Drawn while this session has no task. |
+| Clear | `/dev-flow:clear-flow`: switches this session's flow off (its pointer files and the hooks' markers go; the task folder and `plan.md` stay, so Load brings the task back). Drawn while this session has a task. |
 | ↻ refresh | re-reads the task folder now |
 | more ▾ / less ▴ | expands or folds the band |
 
-With the band focused (ctrl+x tab, or a click) the hotkeys `p`, `d`, `i` and `q` press the four skill buttons. The engine's own `[-]` at the band's right end collapses it altogether.
+With the band focused (ctrl+x tab, or a click) the hotkeys `p`, `d`, `i`, `q`, `l` and `c` press the skill buttons. The engine's own `[-]` at the band's right end collapses it altogether.
 
 ## Bug tasks
 

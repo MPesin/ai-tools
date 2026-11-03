@@ -12,6 +12,29 @@ HERE=$(printf '%s' "$0" | sed 's|[/\\][^/\\]*$||'); [ "$HERE" = "$0" ] && HERE=.
 [ -f "$HERE/lib.sh" ] || HERE="${CLAUDE_PLUGIN_ROOT}/hooks"
 source "$HERE/lib.sh"
 HOOK_EVENT=Stop
+
+# Another session's run that is over leaves nothing to guard or announce: its
+# `finished` pointer, or its `current` at status done, is swept here without a
+# notification (the owner's own Stop sends that, when the owner is still
+# around), and the hooks' marker files go with the last pointer. A pointer of
+# another session at any other status is never touched.
+sweep_foreign_done() {
+  local name p folder left=''
+  POINTER_NAMES="current planning finished"
+  find_flow_dir || return 0
+  for name in current finished; do
+    p="$FLOW_DIR/$name"
+    [ -f "$p" ] || continue
+    pointer_mine "$p" && continue
+    folder=$(normalize_path "$(head -n 1 "$p" | tr -d '\r')")
+    if [ "$name" = finished ] || [ "$(frontmatter_value status "$folder/plan.md")" = done ]; then rm -f "$p"; fi
+  done
+  for name in $POINTER_NAMES; do [ -f "$FLOW_DIR/$name" ] && left=1; done
+  [ -n "$left" ] || rm -f "$FLOW_DIR/notified" "$FLOW_DIR/stale-notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/.snap-* "$FLOW_DIR"/claim-* 2>/dev/null
+  return 0
+}
+[ -z "$(json_field agent_type)" ] && sweep_foreign_done
+
 # planning first: a task being planned or diagnosed beside a parked current is the
 # one the user is working on, so its gate is the one to announce.
 load_task_folder "planning current finished"

@@ -468,7 +468,7 @@ assert "osascript gets the text as argv"          'grep -q "on run argv" "$T/osa
 echo "== SessionStart"
 plan reviewing
 expect_out "resume re-injects the task folder and status" flow-session.sh "$(session_json resume)" "status: reviewing"
-expect_out "startup names the pointer to delete"          flow-session.sh "$(session_json startup)" "delete"
+expect_out "startup names clear-flow as the way out"      flow-session.sh "$(session_json startup)" "/dev-flow:clear-flow"
 plan done
 expect_out "current at done: finished, not 'continue with dev-implement'" flow-session.sh "$(session_json resume)" "finished"
 assert "no resume hint at done" 'case $out in *"Continue with"*) false;; *) true;; esac'
@@ -692,11 +692,72 @@ assert "deny says the plan is still being planned" 'case $err in *"still being p
 expect_out   "o: its planner start gets task2"                               flow-context.sh "$(start_json p7 dev-flow:dev-planner)" "task2. "
 expect_pass  "o: its planner stop compares against its own snapshot"         flow-verify-stop.sh "$(stop_json p7 dev-flow:dev-planner)"
 expect_out   "o: SessionStart re-injects its planning"                       flow-session.sh "$(session_json resume)" "/dev-flow:dev-plan"
-assert "and names the other session's task as not its own" 'case $out in *"current belongs to another Claude Code session (s)"*"/task at status: implementing"*"not yours to touch"*) true;; *) false;; esac'
+assert "and names the other session's task as not its own" 'case $out in *"current belongs to another Claude Code session (s)"*"/task at status: implementing"*"not this session'"'"'s to touch"*) true;; *) false;; esac'
 rm -f .claude/flow/notified
 expect_out   "o: Stop announces its own gate, not the other session's"       flow-notify.sh "$(main_stop_json)" "t2: waiting for you (draft)"
 SID=s
 rm -rf task2 .claude/flow/planning .claude/flow/current .claude/flow/notified .claude/flow/stale-notified
+
+echo "== session scoping: the claim follows writes, not reads"
+hp "$T/task" > .claude/flow/current          # unclaimed
+expect_pass "claim: cat of the pointer by the main session claims nothing"   flow-claim.sh "$(post_json '' Bash 'cat .claude/flow/current')"
+expect_pass "claim: a redirect elsewhere in the command claims nothing"      flow-claim.sh "$(post_json '' Bash 'cat .claude/flow/current 2>/dev/null')"
+expect_pass "claim: ls of the flow dir claims nothing"                       flow-claim.sh "$(post_json '' Bash 'ls -la .claude/flow')"
+expect_pass "claim: a path that merely contains flow/current claims nothing" flow-claim.sh "$(post_json '' Bash 'cat src/workflow/current.ts')"
+expect_pass "claim: the Write tool on a marker file claims nothing"          flow-claim.sh "$(post_json '' Write "$(jp "$T/.claude/flow/claim-x")")"
+assert "still unclaimed" '! grep -q "^session:" .claude/flow/current'
+expect_out  "claim: a redirect to the pointer claims"                        flow-claim.sh "$(post_json '' Bash "printf '%s\\\\n' /x > .claude/flow/current")" "now owns"
+hp "$T/task" > .claude/flow/current
+expect_out  "claim: tee into the pointer claims"                             flow-claim.sh "$(post_json '' Bash 'echo /x | tee .claude/flow/current')" "now owns"
+hp "$T/task" > .claude/flow/current
+expect_out  "claim: cd into the flow dir and a redirect to current claims"   flow-claim.sh "$(post_json '' Bash 'cd .claude/flow && echo /x > current')" "now owns"
+hp "$T/task" > .claude/flow/current
+expect_out  "claim: mv onto the pointer claims"                              flow-claim.sh "$(post_json '' Bash 'mv /tmp/x .claude/flow/current')" "now owns"
+rm -f .claude/flow/current
+
+echo "== session scoping: another session's finished run is swept, its live run is not"
+plan human-review; ptr current "$T/task" o
+expect_pass "Stop: another session's current at human-review is left alone"  flow-notify.sh "$(main_stop_json)"
+assert "kept" '[ -f .claude/flow/current ] && grep -q -x "session: o" .claude/flow/current'
+plan done; touch .claude/flow/start-zz .claude/flow/notified
+expect_pass "Stop: another session's current at done is swept, silently"     flow-notify.sh "$(main_stop_json)"
+assert "pointer and markers gone" '[ ! -f .claude/flow/current ] && [ ! -f .claude/flow/start-zz ] && [ ! -f .claude/flow/notified ]'
+ptr finished "$T/task" o; ptr planning "$T/task2" s; mkdir -p task2; printf -- '---\ntask: t2\nstatus: draft\n---\n' > task2/plan.md; touch .claude/flow/snap-yy
+run flow-notify.sh "$(main_stop_json)"
+assert "Stop: another session's finished pointer is swept; this session's planning and the markers stay" '[ ! -f .claude/flow/finished ] && [ -f .claude/flow/planning ] && [ -f .claude/flow/snap-yy ]'
+rm -rf task2 .claude/flow/planning .claude/flow/snap-yy .claude/flow/notified
+
+echo "== scripts: flow-list and flow-clear (run from the Bash tool, keyed on CLAUDE_CODE_SESSION_ID)"
+S="$H/../scripts"
+mkdir -p .claude/plans/2026-01-01-a .claude/plans/2026-01-02-b .claude/plans/2026-01-03-c
+printf -- '---\ntask: A done\nstatus: done\nsource: manual\nmode: lite\nreview_round: 1\n---\n' > .claude/plans/2026-01-01-a/plan.md
+printf -- '---\ntask: B | draft\nstatus: draft\nsource: dev-plan-draft\n---\n' > .claude/plans/2026-01-02-b/plan.md
+printf -- '---\ntask: C review\nstatus: human-review\nsource: dev-plan-interactive\nmode: full\nreview_round: 2\n---\n' > .claude/plans/2026-01-03-c/plan.md
+ptr current "$T/.claude/plans/2026-01-03-c" s; ptr planning "$T/.claude/plans/2026-01-02-b" o
+out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-list.sh" 2>&1); rc=$?
+assert "list: newest first, done hidden, header present" '[ $rc -eq 0 ] && case $out in *"| # | folder | task | status"*"| 1 | 2026-01-03-c | C review | human-review | dev-plan-interactive | full | 2 | current (this session) |"*"| 2 | 2026-01-02-b | B \\| draft | draft | dev-plan-draft |  |  | planning (session o) |"*"1 finished task(s) hidden"*) true;; *) false;; esac'
+assert "list: the done task is not listed by default" 'case $out in *"2026-01-01-a"*) false;; *) true;; esac'
+out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-list.sh" "$T/.claude/plans" all 2>&1)
+assert "list all: the done task is listed, without a pointer" 'case $out in *"| 3 | 2026-01-01-a | A done | done | manual | lite | 1 | - |"*) true;; *) false;; esac'
+out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-list.sh" "$T/nowhere" 2>&1)
+assert "list: a missing plans folder is said, not an error" 'case $out in *"No plans folder at"*"/nowhere"*) true;; *) false;; esac'
+touch .claude/flow/start-q .claude/flow/notified
+out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-clear.sh" 2>&1); rc=$?
+assert "clear: removes this session's pointer, keeps the other session's, says so" '[ $rc -eq 0 ] && [ ! -f .claude/flow/current ] && [ -f .claude/flow/planning ] && case $out in *"removed "*"/current"*"status: human-review"*"kept "*"/planning"*"(o;"*"clear-flow all"*"guards are off in this session"*) true;; *) false;; esac'
+assert "clear: markers stay while another session's pointer remains" '[ -f .claude/flow/start-q ] && [ -f .claude/flow/notified ]'
+out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-clear.sh" 2>&1)
+assert "clear again: nothing of this session's" 'case $out in *"kept "*"Nothing of this session"*) true;; *) false;; esac'
+out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-clear.sh" all 2>&1)
+assert "clear all: removes the other session's pointer and the markers" '[ ! -f .claude/flow/planning ] && [ ! -f .claude/flow/start-q ] && [ ! -f .claude/flow/notified ] && case $out in *"removed "*"/planning of session o"*"marker files are removed"*) true;; *) false;; esac'
+out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-clear.sh" 2>&1)
+assert "clear with no pointer: says nothing is active" 'case $out in *"nothing to clear"*) true;; *) false;; esac'
+hp "$T/task" > .claude/flow/current
+out=$(CLAUDE_CODE_SESSION_ID=s bash "$S/flow-clear.sh" 2>&1)
+assert "clear: an unclaimed pointer counts as this session's" '[ ! -f .claude/flow/current ] && case $out in *"removed "*"/current"*) true;; *) false;; esac'
+ptr current "$T/task" o
+out=$(env -u CLAUDE_CODE_SESSION_ID bash "$S/flow-clear.sh" 2>&1)   # no session id at all: an older Claude Code
+assert "clear without a session id: every pointer counts" '[ ! -f .claude/flow/current ]'
+rm -rf .claude/plans
 
 echo
 printf '%d passed, %d failed\n' "$pass" "$fail"

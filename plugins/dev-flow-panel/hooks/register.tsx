@@ -257,8 +257,11 @@ const starter = ($: EngineInterface) => (command: string, args?: string) => () =
   })
 }
 
-// The four skill buttons, the suggested next step drawn as the primary one.
-// Debug resumes the diagnosis gate of the active task while it is diagnosing.
+// The skill buttons, the suggested next step drawn as the primary one. Debug
+// resumes the diagnosis gate of the active task while it is diagnosing. Without
+// a task of this session, Load lists the plans folder and hands the chosen task
+// to its stage's skill; with one, Clear switches this session's flow off (the
+// task folder stays, so Load brings it back).
 const skillButtons = ($: EngineInterface, { Button }: Controls, f: FlowState) => {
   const start = starter($)
   const inProgress = IN_PROGRESS.includes(f.status)
@@ -282,11 +285,21 @@ const skillButtons = ($: EngineInterface, { Button }: Controls, f: FlowState) =>
     <Button key="qa" hotkey="q" {...primary(f.status === 'human-review' || f.status === 'done')} onPress={start('dev-flow:dev-qa-impact', f.taskFolder)}>
       QA impact
     </Button>,
+    f.pointer === 'none' ? (
+      <Button key="load" hotkey="l" onPress={start('dev-flow:load-flow')}>
+        Load
+      </Button>
+    ) : (
+      <Button key="clear" hotkey="c" onPress={start('dev-flow:clear-flow')}>
+        Clear
+      </Button>
+    ),
   ]
 }
-// Cells the four buttons take as the terminal draws them (`[ label ]`), with
+// Cells the five buttons take as the terminal draws them (`[ label ]`), with
 // the gaps: what the compact band's hint has to fit beside.
-const skillButtonsWidth = (f: FlowState) => 8 + 1 + 9 + 1 + (IN_PROGRESS.includes(f.status) ? 10 : 13) + 1 + 13
+const skillButtonsWidth = (f: FlowState) =>
+  8 + 1 + 9 + 1 + (IN_PROGRESS.includes(f.status) ? 10 : 13) + 1 + 13 + 1 + (f.pointer === 'none' ? 8 : 9)
 
 // The stage as a chip: the label on a block of the stage's colour.
 const chip = ({ Text }: Controls, stage: Stage) => (

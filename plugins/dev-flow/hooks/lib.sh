@@ -13,7 +13,9 @@
 # taken from the first occurrence of the key; tool_input/tool_response fields from
 # the text after that object's key, so a `content` that quotes a key cannot shadow it.
 
-INPUT=$(cat)
+# The hook's JSON input. A script run from the Bash tool rather than as a hook
+# (scripts/) sets DEV_FLOW_INPUT instead, and no stdin is read.
+if [ -n "${DEV_FLOW_INPUT+x}" ]; then INPUT=$DEV_FLOW_INPUT; else INPUT=$(cat); fi
 
 case $(uname -s 2>/dev/null) in
   MINGW*|MSYS*|CYGWIN*) FLOW_OS=windows ;;
