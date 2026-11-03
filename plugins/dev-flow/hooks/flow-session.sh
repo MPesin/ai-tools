@@ -34,7 +34,7 @@ other_session_note() {   # NAME
 
 if [ "$POINTER_MINE" != 1 ]; then
   status=$(frontmatter_value status "$TASK_FOLDER/plan.md")
-  msg="dev-flow: $(foreign_notice "$POINTER"): task folder $TASK_FOLDER, status: ${status:-unknown}. Its guards and notifications do not apply to this session, and this session cannot spawn its stage agents. Leave that task alone unless the user asks for it. To run that flow from this session: /dev-flow:load-flow $TASK_FOLDER (or $(resume_skill "$POINTER_NAME" "$TASK_FOLDER") directly); the skill writes the pointer again, which hands the flow to this session, and the other session's run then loses its guards (agents it already has running are not stopped) and cannot spawn further stage agents. To clear a leftover: /dev-flow:clear-flow all (or rm \"$POINTER\")."
+  msg="dev-flow: $(foreign_notice "$POINTER"): task folder $TASK_FOLDER, status: ${status:-unknown}. Its guards and notifications do not apply to this session, and this session cannot spawn its stage agents. Leave that task alone unless the user asks for it. To run that flow from this session: /dev-flow:load-flow $TASK_FOLDER (or $(resume_skill "$POINTER_NAME" "$TASK_FOLDER") directly); the skill writes the pointer again, which hands the flow to this session, and the other session's run then loses its guards (agents it already has running stay guarded until they stop) and cannot spawn further stage agents. To clear a leftover: /dev-flow:clear-flow all (or rm \"$POINTER\")."
   emit_context SessionStart "$msg"
   exit 0
 fi

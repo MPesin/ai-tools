@@ -133,10 +133,22 @@ pointer_owner() {   # PATH -> the session id on its `session:` line, or nothing
 
 # pointer_mine PATH: the pointer belongs to this session. A hook input without a
 # session id (a harness that sends none) cannot tell sessions apart, so every
-# pointer is then this session's, as before session scoping.
+# pointer is then this session's, as before session scoping. An agent that
+# started under the flow (its start snapshot sits beside the pointer until it
+# stops) stays guarded until it stops, whichever session holds the pointer now:
+# a take-over must not leave another session's running agents free to push.
 pointer_mine() {
   [ -z "$SESSION_ID" ] && return 0
-  [ "$(pointer_owner "$1")" = "$SESSION_ID" ]
+  [ "$(pointer_owner "$1")" = "$SESSION_ID" ] && return 0
+  [ -n "${AGENT_ID-}" ] && { [ -f "${1%/*}/snap-$AGENT_ID" ] || [ -f "${1%/*}/start-$AGENT_ID" ]; } && return 0
+  return 1
+}
+
+# The hooks' marker files beside the pointers; removed with the last pointer.
+remove_markers() {   # FLOW_DIR
+  rm -f "$1/notified" "$1/stale-notified" "$1/unclaimed-notified" "$1/cross-notified" \
+    "$1"/start-* "$1"/snap-* "$1"/.snap-* "$1"/.cmp-* "$1"/claim-* 2>/dev/null
+  return 0
 }
 
 # Why a pointer is not this session's, for the hooks that say so.

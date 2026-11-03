@@ -48,7 +48,7 @@ for name in $POINTER_NAMES; do
 done
 
 if [ $kept = 0 ]; then
-  rm -f "$FLOW_DIR/notified" "$FLOW_DIR/stale-notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/.snap-* "$FLOW_DIR"/.cmp-* "$FLOW_DIR"/claim-* 2>/dev/null
+  remove_markers "$FLOW_DIR"
   printf 'No pointer left in %s; the hooks'"'"' marker files are removed too.\n' "$FLOW_DIR"
 fi
 if [ $removed -gt 0 ]; then

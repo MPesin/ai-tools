@@ -30,10 +30,35 @@ sweep_foreign_done() {
     if [ "$name" = finished ] || [ "$(frontmatter_value status "$folder/plan.md")" = done ]; then rm -f "$p"; fi
   done
   for name in $POINTER_NAMES; do [ -f "$FLOW_DIR/$name" ] && left=1; done
-  [ -n "$left" ] || rm -f "$FLOW_DIR/notified" "$FLOW_DIR/stale-notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/.snap-* "$FLOW_DIR"/claim-* 2>/dev/null
+  [ -n "$left" ] || remove_markers "$FLOW_DIR"
   return 0
 }
-[ -z "$(json_field agent_type)" ] && sweep_foreign_done
+
+# A pointer no session has claimed (written by hand, or by dev-flow before
+# 2.5.0) guards nothing anywhere, which must not stay silent: once per session
+# the user is told, with the skill that claims it. Returns 1 when it spoke, so
+# the Stop hook prints no second JSON line this turn.
+notice_unclaimed() {
+  local name p folder marker msg
+  POINTER_NAMES="current planning"
+  find_flow_dir || return 0
+  for name in $POINTER_NAMES; do
+    p="$FLOW_DIR/$name"
+    [ -f "$p" ] && [ -z "$(pointer_owner "$p")" ] || continue
+    marker="$FLOW_DIR/unclaimed-notified"
+    grep -q -x -F "$p|$SESSION_ID" "$marker" 2>/dev/null && continue
+    printf '%s|%s\n' "$p" "$SESSION_ID" >> "$marker"
+    folder=$(normalize_path "$(head -n 1 "$p" | tr -d '\r')")
+    msg="dev-flow: $p names no session (written by hand, or by dev-flow before 2.5.0), so its guards are off in every session until one claims it. To run that flow here: /dev-flow:load-flow $folder (status: $(frontmatter_value status "$folder/plan.md")); to drop it: /dev-flow:clear-flow."
+    printf '{"systemMessage":"%s"}\n' "$(json_escape "$msg")"
+    return 1
+  done
+  return 0
+}
+if [ -z "$(json_field agent_type)" ]; then
+  sweep_foreign_done
+  notice_unclaimed || exit 0
+fi
 
 # planning first: a task being planned or diagnosed beside a parked current is the
 # one the user is working on, so its gate is the one to announce.
@@ -42,7 +67,8 @@ load_task_folder "planning current finished"
 
 finish_cleanup() {
   [ "$POINTER_NAME" = finished ] || [ "$status" = done ] || return 0
-  rm -f "$POINTER" "$FLOW_DIR/notified" "$FLOW_DIR/stale-notified" "$FLOW_DIR"/start-* "$FLOW_DIR"/snap-* "$FLOW_DIR"/.snap-* "$FLOW_DIR"/claim-* 2>/dev/null
+  rm -f "$POINTER" 2>/dev/null
+  remove_markers "$FLOW_DIR"
 }
 
 status=$(frontmatter_value status)

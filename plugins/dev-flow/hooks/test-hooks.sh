@@ -37,8 +37,8 @@ assert() { if eval "$2"; then ok; else fail=$((fail+1)); printf 'FAIL: %s\n' "$1
 # subagent's carries its parent session's. SID is the session the input comes
 # from: s, the session that owns the test flow, unless a case sets another.
 SID=s
-bash_json() { # AGENT_TYPE COMMAND [DESCRIPTION] [TOOL]
-  local a=''; [ -n "$1" ] && a='"agent_type":"'$1'","agent_id":"x",'
+bash_json() { # AGENT_TYPE COMMAND [DESCRIPTION] [TOOL]   (AID: the agent id, x unless a case sets one)
+  local a=''; [ -n "$1" ] && a='"agent_type":"'$1'","agent_id":"'${AID:-x}'",'
   printf '{"session_id":"%s","cwd":"%s",%s"hook_event_name":"PreToolUse","tool_name":"%s","tool_input":{"command":"%s","description":"%s"}}' "$SID" "$CW" "$a" "${4:-Bash}" "$2" "${3:-}"
 }
 write_json() { # AGENT_TYPE PATH [TOOL] [AGENT_ID]
@@ -726,6 +726,49 @@ ptr finished "$T/task" o; ptr planning "$T/task2" s; mkdir -p task2; printf -- '
 run flow-notify.sh "$(main_stop_json)"
 assert "Stop: another session's finished pointer is swept; this session's planning and the markers stay" '[ ! -f .claude/flow/finished ] && [ -f .claude/flow/planning ] && [ -f .claude/flow/snap-yy ]'
 rm -rf task2 .claude/flow/planning .claude/flow/snap-yy .claude/flow/notified
+
+echo "== session scoping: an agent that started under the flow stays guarded after a take-over"
+plan implementing; ptr current "$T/task" o
+SID=o; run flow-context.sh "$(start_json i8 dev-flow:dev-implementer)"     # session o's implementer starts
+assert "its snapshot sits beside the pointer" '[ -f .claude/flow/snap-i8 ] && [ -f .claude/flow/start-i8 ]'
+ptr current "$T/task" s                                                   # session s takes the flow over
+AID=i8
+expect_deny  "o's running implementer: git push is still refused"           flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git push')"
+expect_deny  "o's running implementer: git commit is still refused"         flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git commit -m x')"
+expect_deny  "o's running implementer: verify.log is still protected"       flow-guard.sh "$(write_json dev-flow:dev-implementer "$T/task/verify.log" Write i8)"
+expect_block "o's running implementer: its stop still needs the evidence"   flow-verify-stop.sh "$(stop_json i8 dev-flow:dev-implementer)"
+sleep 1.1; printf '$ make\nok\n' >> task/verify.log; printf 'done\n' > task/notes.md
+expect_pass  "o's running implementer: stops cleanly once the evidence is in" flow-verify-stop.sh "$(stop_json i8 dev-flow:dev-implementer)"
+expect_allow "o's implementer after its stop: no longer guarded (markers gone)" flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git push')"
+AID=x
+expect_allow "o's main session itself is no longer guarded"                 flow-guard.sh "$(bash_json '' 'git push')"
+SID=s; rm -f task/notes.md .claude/flow/current .claude/flow/cross-notified
+
+echo "== Stop: an unclaimed pointer is named once per session, with load-flow"
+hp "$T/task" > .claude/flow/current; plan human-review
+expect_out  "Stop names an unclaimed pointer"                     flow-notify.sh "$(main_stop_json)" "names no session"
+assert "and load-flow with the folder, and clear-flow" 'case $out in *"/dev-flow:load-flow "*"/task (status: human-review)"*"/dev-flow:clear-flow"*) true;; *) false;; esac'
+expect_pass "said once per session"                               flow-notify.sh "$(main_stop_json)"
+SID=o
+expect_out  "another session hears it once too"                   flow-notify.sh "$(main_stop_json)" "names no session"
+expect_pass "and then no more"                                    flow-notify.sh "$(main_stop_json)"
+SID=s
+ptr current "$T/task" s
+expect_out  "once claimed, the owner's Stop announces its gate as usual" flow-notify.sh "$(main_stop_json)" "(human-review)"
+rm -f .claude/flow/current .claude/flow/unclaimed-notified .claude/flow/notified
+
+echo "== guard: a branch switch or discard beside another session's flow is warned about once, never blocked"
+plan implementing; ptr current "$T/task" o
+expect_allow "git push: allowed, no warning (sessions push as they like)" flow-guard.sh "$(bash_json '' 'git push')"
+assert "silent" '[ -z "$out" ]'
+expect_allow "git checkout: allowed, with a warning"              flow-guard.sh "$(bash_json '' 'git checkout -- src')"
+assert "a terminal line and context, no decision" 'case $out in *"systemMessage"*"belongs to another Claude Code session (o)"*"uncommitted work"*"additionalContext"*) case $out in *"decision"*) false;; *) true;; esac;; *) false;; esac'
+expect_allow "git stash: allowed, silent the second time"         flow-guard.sh "$(bash_json '' 'git stash')"
+assert "silent" '[ -z "$out" ]'
+SID=o
+expect_deny  "the owner session: git checkout is still refused"   flow-guard.sh "$(bash_json '' 'git checkout -- src')"
+SID=s
+rm -f .claude/flow/current .claude/flow/cross-notified
 
 echo "== scripts: flow-list and flow-clear (run from the Bash tool, keyed on CLAUDE_CODE_SESSION_ID)"
 S="$H/../scripts"

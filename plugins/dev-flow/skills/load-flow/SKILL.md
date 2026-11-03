@@ -20,7 +20,7 @@ Read the project's own guidance first (CLAUDE.md, AGENTS.md, README): when it na
 A checkout runs one flow at a time, and a flow belongs to the session that wrote its pointer. From the pointer column:
 
 - The chosen task's pointer is this session's, or there is none: go on.
-- The chosen task's pointer belongs to another session: say so and ask before going on. Loading it here hands the flow to this session; the other session's run then loses its guards and cannot spawn further stage agents, though agents it already has running are not stopped. If the user is unsure whether that session is still open, they check before answering.
+- The chosen task's pointer belongs to another session: say so and ask before going on. Loading it here hands the flow to this session; the other session's run then loses its guards and cannot spawn further stage agents, while agents it already has running stay guarded until they stop. If the user is unsure whether that session is still open, they check before answering.
 - Another task's pointer belongs to this session: ask whether to clear it first (`/dev-flow:clear-flow`), since loading a second task would replace it.
 - Another task's pointer belongs to another session: say that this checkout is in use by that session for that task. Two flows in one working tree share its files and its git index, which the flow does not support; the user either waits, clears that flow (`/dev-flow:clear-flow all`, when that session is gone), or runs this task in a git worktree.
 
