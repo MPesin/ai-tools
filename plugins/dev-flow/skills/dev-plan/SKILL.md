@@ -14,6 +14,7 @@ Produce a plan that satisfies `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-f
 - Read the project's own guidance (CLAUDE.md, AGENTS.md, README, instruction files) first; project rules override this skill. Check the project's plans/handoffs/notes locations for existing work on the task ID.
 - A bug whose cause is not yet known is not planned here: suggest `/dev-debug:dev-debug` (the dev-debug plugin), which finds and verifies the cause first and then writes the fix plan. Plan a bug here only when the cause is already confirmed.
 - Approval must be an explicit user reply. Set `status: approved` only then.
+- Write `plan.md`, and every reply to the user, by `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/writing-style.md`; each section's budget is under Required headings in `plan-format.md`.
 
 ## Start
 

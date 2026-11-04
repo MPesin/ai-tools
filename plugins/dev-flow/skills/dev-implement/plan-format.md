@@ -1,6 +1,6 @@
 # Plan format
 
-Single source of truth for the plan structure and section names. `dev-plan`, `dev-planner`, `dev-plan-critic`, `dev-reviewer`, `dev-qa-impact`, and dev-implement's Intake all use this file. A hand-written plan must satisfy it.
+Single source of truth for the plan structure and section names. `dev-plan`, `dev-planner`, `dev-plan-critic`, `dev-reviewer`, `dev-qa-impact`, and dev-implement's Intake all use this file. A hand-written plan must satisfy it. How the prose in every section is written, and how reports to the user are shaped, is in `writing-style.md` next to this file.
 
 ## What comes from the project's rules file
 
@@ -81,15 +81,15 @@ Excerpts are partial. Every agent that checks conformance states that its check 
 
 ## Required headings
 
-Used verbatim by every agent. `dev-reviewer` and `dev-plan-critic` read the plan by these headings, so they must not be renamed.
+Used verbatim by every agent. `dev-reviewer` and `dev-plan-critic` read the plan by these headings, so they must not be renamed. The budget after each heading is the section's size (the writing rules are in `writing-style.md`); `dev-plan-critic` reports a section over it as a Note.
 
-- `## Context`
-- `## Requirements`, with a `### Acceptance criteria` sub-list
-- `## Specs` — which PRD/HLD sections apply, with links
-- `## Verified facts` — each fact with evidence: `file:line` or command output; mark anything unverified as an assumption
-- `## Steps` — `- [ ]` items, each with exact file paths, the shape of the change, and its own minimal build/test verification; grouped into work packages when the plan is parallel-ready (see Work packages)
-- `## Risks`
-- `## Open questions` — each with the options and a recommendation; `None` once resolved
+- `## Context` — what the task is and why, 3 to 5 lines; not the history of the discussion
+- `## Requirements`, with a `### Acceptance criteria` sub-list — one line per requirement and per criterion; a criterion is testable
+- `## Specs` — one line per spec file: which PRD/HLD sections apply, with links
+- `## Verified facts` — one line per fact with its evidence: `file:line` or one quoted line of command output; mark anything unverified as an assumption
+- `## Steps` — `- [ ]` items, each with exact file paths, the shape of the change, and its own minimal build/test verification, in 3 lines at most; grouped into work packages when the plan is parallel-ready (see Work packages)
+- `## Risks` — one line per risk with its mitigation, or `accepted`
+- `## Open questions` — each with the options and a recommendation, 3 lines; `None` once resolved
 
 ## Work packages (parallel-ready plans)
 

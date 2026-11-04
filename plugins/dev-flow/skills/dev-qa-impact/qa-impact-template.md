@@ -6,6 +6,8 @@ so QA can read each note the same way. Fill the <...> fields; write "None" in an
 empty section rather than deleting it. Written for QA engineers who do not read code:
 name screens, features, flows, data, settings and integrations. Never mention files,
 classes, functions, methods, commits, diffs, variables, tests by name, or code terms.
+One sentence per table cell, bullets for lists, no paragraph over 3 sentences; the
+writing rules are in skills/dev-implement/writing-style.md.
 -->
 
 | | |
@@ -30,7 +32,7 @@ What the development covered and what it deliberately did not, so QA knows where
 
 ## 3. Regression tests to run
 
-Existing behaviour that this change could have broken. Highest risk first. Every row is something QA already knows how to test.
+Existing behaviour that this change could have broken. Highest risk first. Every row is something QA already knows how to test. One sentence per cell.
 
 | # | Area / feature | What to check still works | Why it could break (plain words) | Risk |
 |---|---|---|---|---|
@@ -56,4 +58,4 @@ Requirements the provided specs do not mention are listed here as "Not covered b
 
 ## 6. Setup QA needs
 
-<Flags, settings, tenants, accounts, test data, migrations or integrations that must be in place before testing. "None" if nothing.>
+<Bullets, one line each: flags, settings, tenants, accounts, test data, migrations or integrations that must be in place before testing. "None" if nothing.>

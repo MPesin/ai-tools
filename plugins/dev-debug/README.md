@@ -18,6 +18,8 @@ The diagnosis headings, the task folder, the specs intake, the fix plan contract
 
 It never edits source, not even to add a print statement. The only files it writes are `diagnosis*.md` and reproduction scripts or captured output under `debug/` in the task folder. Instrumentation it would have needed goes under the diagnosis's open questions for you to add by hand.
 
+The diagnosis is lean by rule. `skills/dev-debug/writing-style.md` (a copy of the `lean-talk` plugin's skill, same marketplace: whole sentences, every fact, no filler, lists and tables over paragraphs) sets how it is written, and `diagnosis-format.md` gives each section a budget: one line per symptom item, evidence line and blast-radius site, the root cause in one sentence followed by a numbered mechanism, each fix step in three lines. The gate summary in chat is one line per item.
+
 ## What it writes
 
 ```
