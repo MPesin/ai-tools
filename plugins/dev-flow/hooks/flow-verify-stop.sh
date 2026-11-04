@@ -33,6 +33,9 @@ if [ ! -f "$snap" ]; then
 else
   tree_snapshot > "$snap.now"
   changed=$(snapshot_changes "$snap" "$snap.now")
+  # A standalone QA note lands in a folder that is not the task folder (which
+  # the snapshot leaves out), so its own file is not a violation.
+  [ "$AGENT_TYPE" = dev-qa-impact ] && changed=$(printf '%s\n' "$changed" | grep -v -E '(^|/)qa-impact\.md$')
   if [ -n "$changed" ]; then
     if is_readonly_agent "$AGENT_TYPE"; then
       violation=$changed

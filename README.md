@@ -106,9 +106,9 @@ Three skills for any project, in any language, on Linux, macOS and Windows
 
 While a flow is active, the main session commits each package and fix round
 as it goes, and pushes and opens the PR when you ask. **Hooks enforce what the
-prompts promise**: no push, PR or commit from subagents, no force push, no
-`git pull/checkout/stash/clean`, no comments, merges or work-item updates
-(`gh`, `glab`, `az`, MCP tools), no publishing; read-only agents may write
+prompts promise**: no push, pull, PR, branch change or commit from subagents,
+no force or tag push, no rebase or `git clean`, no comments, merges or
+work-item updates (`gh`, `glab`, `az`, MCP tools), no publishing; read-only agents may write
 only their one output file and any other change to the working tree is
 detected and reported; implementers may edit only their package's files;
 implementers must leave their build/test output in `verify.log` before they

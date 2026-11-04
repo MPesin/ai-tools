@@ -9,7 +9,7 @@ Find the cause of a bug before anyone changes code, then hand the fix to the imp
 
 ## Hard rules
 
-- Never edit source from this skill, and never fix by hand "because it is obvious": the fix goes through the plan and `/dev-flow:dev-implement`, so it gets a regression test, a review and a QA note. The only files you write are in the task folder and `.claude/flow/planning`. While that pointer exists, belongs to this session (dev-flow's hooks stamp it with the session that wrote it, as `session: <id>` on its second line) and the `dev-flow` plugin is installed, its hooks refuse every other write from the main session and block push and posting; another Claude Code session on the same checkout is not affected by it.
+- Never edit source from this skill, and never fix by hand "because it is obvious": the fix goes through the plan and `/dev-flow:dev-implement`, so it gets a regression test, a review and a QA note. The only files you write are in the task folder and `.claude/flow/planning`. While that pointer exists, belongs to this session (dev-flow's hooks stamp it with the session that wrote it, as `session: <id>` on its second line) and the `dev-flow` plugin is installed, its hooks refuse every other write from the main session and block force pushes and posting; another Claude Code session on the same checkout is not affected by it.
 - Never commit, push, or post anywhere. Never update the work item.
 - Read the project's own guidance first (CLAUDE.md, AGENTS.md, README, instruction files); project rules override this skill. Check the project's plans location for an existing task folder on the same bug ID before creating one.
 - The root cause is confirmed by an explicit user reply, and so is the fix plan. Never set `status: approved` without one.

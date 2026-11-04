@@ -59,10 +59,15 @@ fi
 msg="dev-flow: a flow of this session is active in this project. Task folder: $TASK_FOLDER. status: ${status:-unknown}. mode: $(frontmatter_value mode). review_round: $(frontmatter_value review_round). base: $(frontmatter_value base). $next While the pointer exists the plugin's hooks block pushes and new PRs from subagents, force and delete pushes, pulling, branch switches and discards, commits from subagents and --amend, commenting, merging and publishing, and limit what each agent may write; the main session commits each stage's files and may push and open the PR when the user asks. This holds in this session and its subagents only. /dev-flow:clear-flow abandons the run (it removes $POINTER; stage agents then cannot be spawned until Intake writes it again): suggest it only when the user wants to stop the run, never to push, open the PR or finish it."
 [ -s "$TASK_FOLDER/needs-decision.md" ] && msg="$msg needs-decision.md has items waiting for the user."
 [ -s "$TASK_FOLDER/violations.md" ] && msg="$msg violations.md lists files changed outside an agent's allowance."
-[ -n "$(find "$POINTER" -mtime +2 2>/dev/null)" ] && msg="$msg The pointer is more than 2 days old: the flow may have been abandoned; ask the user before continuing."
+# A task waiting at human review or blocked waits on people, for as long as a
+# review takes; only an in-progress stage left for days looks abandoned.
+case $status in
+  human-review|blocked|done) ;;
+  *) [ -n "$(find "$POINTER" -mtime +2 2>/dev/null)" ] && msg="$msg The pointer is more than 2 days old: the flow may have been abandoned; ask the user before continuing." ;;
+esac
 if [ "$POINTER_NAME" = planning ] && [ -f "$FLOW_DIR/current" ] && pointer_mine "$FLOW_DIR/current"; then
   parked=$(normalize_path "$(head -n 1 "$FLOW_DIR/current" | tr -d '\r')")
-  msg="$msg Another task is parked meanwhile: $parked at status: $(frontmatter_value status "$parked/plan.md"); its stage agents cannot be spawned until this planning ends (approve or abandon it), then /dev-flow:dev-implement $parked/plan.md resumes it."
+  msg="$msg Another task is parked meanwhile: $parked at status: $(frontmatter_value status "$parked/plan.md"); /dev-flow:dev-implement $parked/plan.md resumes it at any time (its stage agents run beside this planning; the planner, critic and debugger belong to this task)."
 fi
 case $POINTER_NAME in
   planning) msg="$msg$(other_session_note current)" ;;

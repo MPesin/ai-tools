@@ -15,7 +15,7 @@ First check whether the folder (or, with none given, the one `<project>/.claude/
 
 - At `status: human-review` or `qa-impact`, this request means the review is done. Do not run the steps below: follow stage 6 and the **Final report** of `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/SKILL.md` (set `status: qa-impact`, spawn the agent, then `status: done` and the pointer rename), so the run finishes and its guards go off. If the user also asked to push or open the PR, do that first, as stage 4 says. Never suggest `/dev-flow:clear-flow` for this.
 - At an earlier status (`implementing`, `reviewing`, `blocked`), say the run has not reached QA impact yet, and offer a standalone note (the steps below) that leaves the run as it is.
-- Otherwise (no run, another session's run, or another folder) run the steps below.
+- Otherwise (no run, another session's run, or another folder) run the steps below. A standalone note beside a parked run is fine: the hooks let the agent write `qa-impact.md` in any folder.
 
 ## Steps
 

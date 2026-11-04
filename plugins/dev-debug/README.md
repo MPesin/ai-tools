@@ -36,7 +36,7 @@ It never edits source, not even to add a print statement. The only files it writ
 
 The task folder layout, the plan format and the `.claude/flow/planning` pointer are dev-flow's. With `dev-flow` installed:
 
-- its hooks guard the run, in the session that runs it (the pointer names that session; another Claude Code session on the same checkout is not affected): `dev-debugger` may write only `diagnosis*.md` and `debug/`, any other change to the working tree is reported in `violations.md`, the main session may write only the task folder, and push, posting and a commit from the debugger are blocked;
+- its hooks guard the run, in the session that runs it (the pointer names that session; another Claude Code session on the same checkout is not affected): `dev-debugger` may write only `diagnosis*.md` and `debug/`, any other change to the working tree is reported in `violations.md`, the main session may write only the task folder, and a force push, posting and a commit, push or pull from the debugger are blocked;
 - its Stop hook sends a desktop notification at the diagnosis gate (`waiting for you (confirm-cause)`), and a restarted session is pointed back at `/dev-debug:dev-debug <task folder>`; a `planning` pointer left behind once `plan.md` is past `diagnosing`/`draft` is reported as stale, not enforced, and removed at the next Stop; a diagnosis can start while another task's `current` pointer is parked at human-review (the debugger is keyed on `planning`, though the gate notification and the band then follow the parked task);
 - `/dev-flow:dev-implement` runs the fix plan: the implementer writes the regression test first and appends its failing run to `verify.log` before fixing, the reviewer checks cause over symptom, the QA note lists the reported scenario as the first regression test;
 - the `dev-flow-panel` band gives a bug task its own stage list (Diagnosing, Confirm cause, Approved, then the implementing steps) and its Debug button starts or resumes this skill.
@@ -61,7 +61,7 @@ sequenceDiagram
     M->>U: Paste the report / stack trace / log, or a work item ID; repro steps, environment, last good version?
     U-->>M: bug report
     M->>F: specs/bug-report.md (verbatim); plan.md (status diagnosing, written at start) gets specs and Context
-    Note over H: planning pointer exists -> main session may write only the task folder; push/post blocked
+    Note over H: planning pointer exists -> main session may write only the task folder; force push, posting blocked
     M->>D: task folder, project root, base, specs (nothing else; a theory in the report is a hypothesis)
     H-->>D: SubagentStart: flow state + snapshot of the working tree
     D->>D: reproduce (project's run/test commands), localize, read history read-only, test hypotheses, find sibling sites

@@ -25,6 +25,9 @@ if is_writing_agent "$AGENT_TYPE"; then
   fi
 elif [ "$AGENT_TYPE" = dev-debugger ]; then
   context="$context You are a read-only agent: write nothing but your diagnosis file in the task folder and reproduction scripts or captured output under $TASK_FOLDER/debug/. Never edit source, not even to instrument it. The plugin compares the working tree before and after your run and reports every other changed file to the user."
+elif [ "$AGENT_TYPE" = dev-qa-impact ]; then
+  # Also runs standalone, on another folder, while this session's task is parked.
+  context="Dev-flow is active in this session for the task folder $TASK_FOLDER (status: $(frontmatter_value status)). Project root: $GIT_ROOT. Branch: $branch. Your task folder is the one your prompt names; when it is that folder, this is its QA impact stage (base: $(frontmatter_value base)). You are a read-only agent: write nothing but qa-impact.md in your task folder. The plugin compares the working tree before and after your run and reports every other changed file to the user."
 else
   context="$context You are a read-only agent: write nothing but your own output file. The plugin compares the working tree before and after your run and reports every other changed file to the user."
 fi
