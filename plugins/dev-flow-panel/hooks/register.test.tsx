@@ -311,6 +311,105 @@ test('a bug task has its own stages: Diagnosing, then Confirm cause once diagnos
   await fixing.unmount()
 })
 
+test('Debug shows the bug\'s stages from the press: a planning pointer whose plan.md is not written yet is Diagnosing, not Planning', async ($, on) => {
+  // dev-debug writes the planning pointer first, plan.md (source: dev-debug) after.
+  const files: Record<string, string> = {}
+  const ran: string[] = []
+  const toasts: string[] = []
+  const clock = mock.clock(on)
+  on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
+  on('ui.status', () => ({ value: undefined }))
+  on('ui.invalidate', () => ({ value: undefined }))
+  on('ui.toast', (_, e) => { toasts.push(e.text); return { value: undefined } })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.root', () => ({ value: '/p' }))
+  on('fs.exists', (_, e) => ({ value: e.path in files }))
+  on('fs.read', (_, e) => ({ value: files[e.path] ?? '' }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false } }))
+  on('command.run', (_, e) => {
+    ran.push(`/${e.command} ${e.args ?? ''}`.trim())
+    return { text: 'ran' }
+  })
+
+  await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'dev-flow-panel', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+
+  // No task yet: the press alone turns the previewed list into the bug's.
+  const idle = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await idle.press({ key: 'debug' })
+  expect(ran).toEqual(['/dev-debug:dev-debug'])
+  await idle.unmount()
+  const pressed = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await pressed.find({ type: 'Text', text: /No active task/ })).toBeDefined()
+  expect(await pressed.find({ type: 'Text', text: /○ Diagnosing/ })).toBeDefined()
+  expect(await pressed.find({ type: 'Text', text: /Planning/ })).toBeUndefined()
+  await pressed.unmount()
+
+  // The skill writes the pointer; plan.md is not there yet.
+  files['/p/.claude/flow/planning'] = '/p/.claude/plans/2026-11-04-crash\n'
+  await clock.advance(4000)
+  const pointer = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await pointer.find({ type: 'Text', text: /◉ Diagnosing/ })).toBeDefined()
+  expect(await pointer.find({ type: 'Text', text: /○ Confirm cause/ })).toBeDefined()
+  expect(await pointer.find({ type: 'Text', text: /Planning/ })).toBeUndefined()
+  expect(await pointer.find({ type: 'Text', text: /2026-11-04-crash/ })).toBeDefined()
+  await pointer.press({ key: 'implement' })
+  expect(toasts.at(-1)).toMatch(/diagnosis/)
+  await pointer.unmount()
+
+  // plan.md written: the same stage, now from the file, with its task.
+  files['/p/.claude/plans/2026-11-04-crash/plan.md'] = '---\ntask: crash on save\nsource: dev-debug\nstatus: diagnosing\n---\n'
+  await clock.advance(4000)
+  const written = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await written.find({ type: 'Text', text: /◉ Diagnosing/ })).toBeDefined()
+  expect(await written.find({ type: 'Text', text: /crash on save/ })).toBeDefined()
+  await written.unmount()
+})
+
+test('a flow skill typed or run by the model picks the stage list too: dev-debug a bug, dev-plan a feature', async ($, on) => {
+  const files: Record<string, string> = { '/p/.claude/flow/planning': '/p/.claude/plans/t\n' }
+  const clock = mock.clock(on)
+  on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
+  on('ui.status', () => ({ value: undefined }))
+  on('ui.invalidate', () => ({ value: undefined }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.root', () => ({ value: '/p' }))
+  on('fs.exists', (_, e) => ({ value: e.path in files }))
+  on('fs.read', (_, e) => ({ value: files[e.path] ?? '' }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false } }))
+  // The engine's expansion of the skill's prompt, beneath the plugin.
+  on('skill.prompt', (_, e) => ({ text: e.text }))
+
+  await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
+
+  // A pointer with no plan.md and no skill seen: a plan being written, as before.
+  const before = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await before.find({ type: 'Text', text: /Planning/ })).toBeDefined()
+  await before.unmount()
+
+  const prompt = await $.skill.prompt({ skill: 'dev-debug:dev-debug', pluginName: 'dev-debug', text: '# Dev Debug' })
+  expect(prompt.text).toBe('# Dev Debug')
+  await clock.advance(4000)
+  const bug = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await bug.find({ type: 'Text', text: /Diagnosing/ })).toBeDefined()
+  expect(await bug.find({ type: 'Text', text: /Planning/ })).toBeUndefined()
+  await bug.unmount()
+
+  await $.skill.prompt({ skill: 'dev-plan', pluginName: 'dev-flow', text: '# Dev Plan' })
+  await clock.advance(4000)
+  const feature = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await feature.find({ type: 'Text', text: /Planning/ })).toBeDefined()
+  expect(await feature.find({ type: 'Text', text: /Diagnosing/ })).toBeUndefined()
+  await feature.unmount()
+
+  // plan.md's own source wins over the skill seen last.
+  files['/p/.claude/plans/t/plan.md'] = '---\ntask: crash on save\nsource: dev-debug\nstatus: diagnosing\n---\n'
+  await clock.advance(4000)
+  const own = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await own.find({ type: 'Text', text: /Diagnosing/ })).toBeDefined()
+  await own.unmount()
+})
+
 test('the poll picks up a stage change in plan.md and a pointer at the git root above the session', async ($, on) => {
   // The session starts in a subfolder; the pointer sits at the repository root.
   const files: Record<string, string> = {
