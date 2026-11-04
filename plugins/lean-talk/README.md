@@ -32,11 +32,11 @@ The skill text, about 90 lines, is then loaded once per session. Without the plu
 |---|---|---|
 | whole sentences, articles, grammar | preamble, closers, hedging, filler | the answer first, then the reason, then the next step |
 | every negation, number and unit | a sentence that restates its heading or the question | one idea per sentence, 20 words or fewer |
-| code, paths, commands, errors verbatim | a fact stated twice | a paragraph of at most 3 sentences, and only for non-parallel items |
+| names, quotations, citations, code verbatim | a fact stated twice | a paragraph of at most 3 sentences, and only for non-parallel items |
 | one term per thing, no invented abbreviations | the story of how you found something | lists for parallel items, tables for repeated fields, one sentence per cell |
-| the reader's language | praise and commentary on your own work | evidence as `file:line` or one quoted output line |
+| the reader's language | praise and commentary on your own work | evidence as the source itself: a quotation, a citation, a number with its origin |
 
-In replies: one line before a multi-step tool run, one at a change of direction, one with the result, and no recap at the end. Full sentences anyway for an irreversible action, a security warning, a sequence a list could scramble, and a question to the user.
+In replies: one line before a multi-step tool run, one at a change of direction, one with the result, and no recap at the end. Full sentences anyway for an irreversible action, a warning, a sequence a list could scramble, and a question to the user. The rules hold for any writing: a brief, a paper, a memo, a report, as much as a plan or a review.
 
 ## Where it comes from
 

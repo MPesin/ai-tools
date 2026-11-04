@@ -11,13 +11,13 @@ Rewrite the given text so the reader gets every fact in one pass and reads nothi
 
 - A file path: rewrite the file in place. Several paths: one file at a time, each with its own report.
 - Pasted text, or "this" pointing at text in the conversation: return the rewritten text in the reply, with nothing before or after it.
-- Code or configuration files: refuse and say why; the skill rewrites prose only.
+- Code, data or configuration files: refuse and say why; the skill rewrites prose only.
 
 ## What stays as it is
 
-- Every heading and its order, the frontmatter, code blocks, inline code, links, images, tables and their columns, IDs and numbering.
+- Every heading and its order, the frontmatter, code, links, images, footnotes, tables and their columns, IDs and numbering.
 - Anything between `<!-- keep -->` and `<!-- /keep -->`.
-- Quoted text and text saved verbatim: a spec excerpt, a bug report, a work item, a reviewer's comment, legal text.
+- Quotations, citations and anything in someone else's words: a source excerpt, a contract clause, a reviewer's comment.
 - The language of the text.
 
 ## Process

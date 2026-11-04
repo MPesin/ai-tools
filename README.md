@@ -90,13 +90,14 @@ The rules shape the text as it is written; there is no second pass that
 shortens a long draft. `/lean-talk:lean-edit <file>`, or with pasted text,
 rewrites text that already exists by the same rules, keeping its headings,
 code, links and tables. The rules: whole sentences with their
-articles and grammar, every negation and number, code and errors verbatim;
+articles and grammar, every negation and number, names, quotations and code verbatim;
 no preamble, hedging, filler or restated heading; the answer first, one idea
 per sentence of 20 words or fewer, a paragraph of at most 3 sentences, lists
 for parallel items, tables for repeated fields, one sentence per cell, and a
 budget per document section. Replies keep to one line per phase around tool
 calls and end without a recap. Full sentences anyway for irreversible
-actions, security warnings and questions to you.
+actions, warnings and questions to you. Nothing in it is about code: a brief,
+a paper or a memo gets the same treatment as a plan or a review.
 
 ### dev-flow — plan, implement, review and QA-impact, run by subagents
 

@@ -14,16 +14,16 @@ The rules shape the text as you write it. Never write long and shorten afterward
 ## Scope
 
 - Every reply to the user.
-- Every document you write or edit: plans, notes, reviews, QA notes, diagnoses, READMEs, design records, tickets, PR descriptions, commit bodies.
+- Every document you write or edit: a summary, a report, a plan, a memo, an essay, a review, notes, a message.
 
 The mode stays on for the session until the user says "stop lean" or "normal mode"; confirm the switch in one line. Unsure whether it is on? It is.
 
 ## Keep
 
 - Full sentences with their articles. Fragments only in table cells and in list items that are not sentences.
-- Every `not`, `never`, `no`, `only`, `except`, `unless`. Numbers and units exact.
-- Code, commands, paths, identifiers and error text verbatim, in backticks. Never paraphrase an error message.
-- One term per thing, the project's term. No invented abbreviations (`cfg`, `impl`), no arrows, no symbols standing in for words.
+- Every `not`, `never`, `no`, `only`, `except`, `unless`. Numbers, dates and units exact.
+- Names, quotations, citations, code, commands and error text verbatim. Never paraphrase what must be exact.
+- One term per thing, the reader's own term. No invented abbreviations, no arrows, no symbols standing in for words.
 - The reader's language. Compress the style, not the language.
 
 ## Cut
@@ -42,7 +42,7 @@ The mode stays on for the session until the user says "stop lean" or "normal mod
 - A paragraph holds at most 3 sentences, and only when they are not parallel items.
 - Parallel items are a bulleted list, one line each. Ordered actions are a numbered list.
 - The same fields repeated for several items are a table, one sentence per cell.
-- Evidence is `file:line`, a command, or one quoted output line, never a description of the evidence.
+- Evidence is the source itself: a quotation, a citation, a number with its origin, a line of output. Never a description of the evidence.
 - A heading names its content; the first sentence under it adds what the heading does not say.
 
 ## Replies
@@ -59,8 +59,8 @@ Budgets when the document's own template sets no limit:
 | Section kind | Budget |
 |---|---|
 | Summary, context, goal | 3 to 5 lines |
-| A fact, a risk, a finding, a decision | 1 line, plus 1 line of evidence or mitigation |
-| A step | path, change, verification: 3 lines |
+| A fact, a risk, a finding, a decision | 1 line, plus 1 line of evidence or consequence |
+| A step | what, where, how you know it is done: 3 lines |
 | An open question | question, options, recommendation: 3 lines |
 | A table cell | 1 sentence |
 
@@ -70,8 +70,8 @@ A template's own limits win over this table.
 
 Plain prose, whole sentences, for:
 
-- an irreversible or destructive action;
-- a security warning;
+- an irreversible action, or one with legal, financial or safety consequences;
+- a warning;
 - a sequence a list could scramble;
 - a question to the user, with its options;
 - anything the reader has already misread once.
@@ -84,4 +84,4 @@ On the draft in your head, not a rewrite of written text:
 2. Last sentence recaps or offers help? Delete it.
 3. A paragraph that is a list in disguise? Make it a list.
 4. A sentence with two readings? Rewrite it as one full sentence.
-5. Every negation, number, path, command and error still there, verbatim?
+5. Every negation, number, name, quotation and citation still there, verbatim?
