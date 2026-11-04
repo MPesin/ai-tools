@@ -1,6 +1,6 @@
 {
   "name": "lean-talk",
   "version": "0.1.0",
-  "description": "Lean responses and documents (/lean-talk:lean-talk): whole sentences with every fact kept, filler and hedging cut, the answer in the first line, one line per phase around tool calls, lists for parallel items, tables for repeated fields, a budget per document section. The rules apply as the text is written, never as a rewrite pass; /lean-talk:lean-edit rewrites an existing file in place or pasted text in the reply by the same rules. Grammar and articles stay; nothing persisted is left ambiguous. The dev-flow and dev-debug plugins carry the same rules for their agents",
+  "description": "Lean responses and documents (/lean-talk:lean-talk): whole sentences with every fact kept, filler and hedging cut, the answer in the first line, one line per phase around tool calls, lists for parallel items, tables for repeated fields, a budget per document section. The rules apply as the text is written, never as a rewrite pass; /lean-talk:lean-edit rewrites an existing file in place or pasted text in the reply by the same rules. Grammar and articles stay; nothing persisted is left ambiguous",
   "author": { "name": "Michael Pesin" }
 }

@@ -1,6 +1,6 @@
 # Diagnosis format
 
-Single source of truth for `diagnosis.md`: `dev-debugger` writes it, the `dev-debug` skill turns it into a fix plan, and the user reads it at the diagnosis gate. The headings are used verbatim. How the prose is written is in `writing-style.md` next to this file; the budget after each heading is the section's size.
+Single source of truth for `diagnosis.md`: `dev-debugger` writes it, the `dev-debug` skill turns it into a fix plan, and the user reads it at the diagnosis gate. The headings are used verbatim.
 
 ## Task folder
 
@@ -42,15 +42,15 @@ Root cause: <one sentence, or "not found">
 
 ## Required headings
 
-- `## Symptom` — bullets, one line each: expected behaviour, actual behaviour, the inputs and environment, since when, who is affected. Mark what was observed (by the debugger or in attached output) and what the report asserts.
-- `## Reproduction` — the exact command(s) and the trimmed raw output that shows the failure, or one line per attempt and why it did not reproduce. Name the scripts and captures under `debug/`.
-- `## Root cause` — the defect in one plain sentence, then the mechanism from input to failure as a numbered list, one line per step with its `file:line`.
-- `## Evidence` — one line per observation with its `file:line` or quoted output line, and one line for the prediction that was tested and its result.
-- `## Hypotheses ruled out` — a table `hypothesis | how it was tested | result`, one sentence per cell. The reporter's own theory, if the report has one, is a row here or the root cause; never silently adopted.
-- `## Blast radius` — one line each: other code paths carrying the same defect (`file:line`), other callers of the defective code, data or persisted state already affected, and the commit that introduced the defect when history shows it.
-- `## Fix` — `- [ ]` steps with exact file paths, the shape of each change, and the minimal build/test verification per step, 3 lines each: the smallest change at the root cause, repeated at every blast-radius site. Then one line per alternative considered with why it was rejected, and one line per symptom patch to avoid.
-- `## Regression test` — three lines: where the test goes (an existing test file or a new one, by path), what it asserts, why it fails today and passes after the fix.
-- `## Open questions` — each with options and a recommendation, 3 lines; `None` if none. Includes any instrumentation the debugger would have needed and could not add without editing source, one line each.
+- `## Symptom` — expected behaviour, actual behaviour, the inputs and environment, since when, and who is affected. Separate what was observed (by the debugger or in attached output) from what the report asserts.
+- `## Reproduction` — the exact command(s) and the trimmed raw output that shows the failure, or what was tried and why it did not reproduce. Name the scripts and captures under `debug/`.
+- `## Root cause` — the defect in plain words, then the code (`file:line`) and the mechanism from input to failure, step by step.
+- `## Evidence` — each observation that supports the cause with its `file:line` or command output, and the prediction that was tested with its result.
+- `## Hypotheses ruled out` — a table `hypothesis | how it was tested | result`. The reporter's own theory, if the report has one, is a row here or the root cause; never silently adopted.
+- `## Blast radius` — other code paths carrying the same defect (`file:line`), other callers of the defective code, data or persisted state already affected, and the commit that introduced the defect when history shows it.
+- `## Fix` — `- [ ]` steps with exact file paths, the shape of each change, and the minimal build/test verification per step: the smallest change at the root cause, repeated at every blast-radius site. Then the alternatives considered and why they were rejected, and the symptom patches to avoid.
+- `## Regression test` — where the test goes (an existing test file or a new one, by path), what it asserts, and why it fails today and passes after the fix.
+- `## Open questions` — each with options and a recommendation; `None` if none. Includes any instrumentation the debugger would have needed and could not add without editing source.
 
 ## The fix plan
 

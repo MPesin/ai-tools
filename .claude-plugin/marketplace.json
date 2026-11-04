@@ -20,7 +20,7 @@
     {
       "name": "lean-talk",
       "source": "./plugins/lean-talk",
-      "description": "Lean responses and documents (/lean-talk:lean-talk), applied as the text is written, never as a rewrite pass, plus /lean-talk:lean-edit to rewrite an existing file or pasted text by the same rules: whole sentences with every fact kept, filler and hedging cut, the answer in the first line, lists for parallel items, tables for repeated fields, a budget per document section. Grammar and articles stay. dev-flow and dev-debug carry the same rules for their agents"
+      "description": "Lean responses and documents (/lean-talk:lean-talk), applied as the text is written, never as a rewrite pass, plus /lean-talk:lean-edit to rewrite an existing file or pasted text by the same rules: whole sentences with every fact kept, filler and hedging cut, the answer in the first line, lists for parallel items, tables for repeated fields, a budget per document section. Grammar and articles stay"
     },
     {
       "name": "dev-flow",

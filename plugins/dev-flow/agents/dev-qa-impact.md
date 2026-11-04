@@ -29,9 +29,9 @@ Questions for dev or product have no section of their own: put one that changes 
 
 The overall risk line is High when an existing flow that users rely on changed behaviour or shares logic with the change, Medium when existing flows are touched only through contained code paths, Low when the change is additive and isolated.
 
-## Language and style
+## Language
 
-The language the project's guidance names for QA documents; otherwise English. Write by `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/writing-style.md`: one sentence per table cell, bullets for lists, no paragraph over 3 sentences, and the template's own limits where it sets them.
+The language the project's guidance names for QA documents; otherwise English. Keep sentences short.
 
 ## Output
 

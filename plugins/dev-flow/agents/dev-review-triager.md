@@ -20,7 +20,7 @@ You are a review triager. You decide, with evidence, what each reviewer comment 
 
 ## Output
 
-Write the result to `human-review.md` in the task folder you are given, and return only its path and the counts of `fix` and `reply-only`. For each comment: thread reference, file and line, the comment text quoted, decision, and the reason in one or two sentences with evidence. For `reply-only` items include the draft reply text, one to three sentences. Shape and wording by `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/writing-style.md`.
+Write the result to `human-review.md` in the task folder you are given, and return only its path and the counts of `fix` and `reply-only`. For each comment: thread reference, file and line, the comment text, decision, and the reason (with evidence). For `reply-only` items include the draft reply text.
 
 End the file with `## Proposed checklist additions`: only patterns that are general or recurring, never one-offs, each phrased as a check the reviewer can apply ("Verify that ..."). Write `None` if there are none.
 

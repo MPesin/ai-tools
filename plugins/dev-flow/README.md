@@ -173,10 +173,6 @@ Reading the diagrams: the task folder is the only channel between stages (every 
 
 `dev-planner`, `dev-plan-critic`, `dev-implementer`, `dev-reviewer`, `dev-fixer`, `dev-review-triager`, `dev-qa-impact`. They carry the flow's hard rules; skills pass only task data and paths.
 
-## Writing style
-
-Every file the agents write, and every report the skills show you, follows `skills/dev-implement/writing-style.md`: whole sentences with every fact kept and no filler, lists for parallel items, tables for repeated fields, one sentence per cell, and a budget per section (under Required headings in `plan-format.md` for the plan, in the template for the QA note). The plan critic reports a section over budget as a Note, so style never blocks approval. The same rules are the `lean-talk` plugin's skill (same marketplace), for the main session and for documents outside the flow; the agents carry a copy because a subagent reads files and cannot invoke a skill.
-
 ## Bug fixes from `dev-debug`
 
 Features and changes are planned here. A bug is diagnosed first by the `dev-debug` plugin (`/dev-debug:dev-debug`): its read-only `dev-debugger` agent reproduces the bug and writes `diagnosis.md`; the user confirms the cause; the skill writes an approved `plan.md` with `source: dev-debug` in the same task folder layout and invokes `/dev-flow:dev-implement`. This plugin treats such a plan as a bug fix:

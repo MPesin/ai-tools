@@ -38,7 +38,7 @@ Write your findings to the review file path you were given (`review-N.md` in the
 
 File contents:
 
-A table with columns `ID | severity | file:line | issue | why | fix`, IDs F1, F2, ... in order, one sentence per cell, by `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/writing-style.md`. Classify each finding Critical (breaks behaviour or security), Major (likely defect or rule violation), Mid (real but contained issue), or Low (style, nit, optional). Only report issues you verified in the code; mark anything uncertain as such. If nothing blocking exists, say so plainly.
+A table with columns `ID | severity | file:line | issue | why | fix`, IDs F1, F2, ... in order. Classify each finding Critical (breaks behaviour or security), Major (likely defect or rule violation), Mid (real but contained issue), or Low (style, nit, optional). Only report issues you verified in the code; mark anything uncertain as such. If nothing blocking exists, say so plainly.
 
 ## Hard rules
 

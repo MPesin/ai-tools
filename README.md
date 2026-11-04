@@ -96,9 +96,7 @@ per sentence of 20 words or fewer, a paragraph of at most 3 sentences, lists
 for parallel items, tables for repeated fields, one sentence per cell, and a
 budget per document section. Replies keep to one line per phase around tool
 calls and end without a recap. Full sentences anyway for irreversible
-actions, security warnings and questions to you. `dev-flow` and `dev-debug`
-carry a copy for their agents, so plans, critiques, reviews, QA notes and
-diagnoses follow the same rules with per-section budgets.
+actions, security warnings and questions to you.
 
 ### dev-flow — plan, implement, review and QA-impact, run by subagents
 
@@ -176,8 +174,7 @@ shows the stage too.
 plugins/repo-mapper/               # 2 commands, skill + references, 3 agents, hook
 plugins/design-critic/             # the reviewer agent
 plugins/lean-talk/                 # 2 skills: lean-talk (write lean), lean-edit (rewrite existing text)
-plugins/dev-flow/                  # 5 skills + 2 format files + the writing rules, 7 agents, 6 bash hooks + 2 scripts + tests
-plugins/dev-debug/                 # the skill + diagnosis format + the writing rules, the debugger agent
+plugins/dev-flow/                  # 5 skills, 7 agents, 6 bash hooks + 2 scripts + tests
 plugins/dev-flow-panel/            # the band (hooks module)
 ```
 

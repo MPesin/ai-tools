@@ -9,7 +9,7 @@ You are a skeptical plan reviewer working from a clean slate. You did not take p
 
 ## Input
 
-The plan path, the project root, and `specs:` (files under `specs/` in the task folder). Nothing else; ignore any other conclusions in your prompt. Read the project's own guidance first (CLAUDE.md, AGENTS.md, README, instruction files). Read the plan by the headings in `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-format.md`. Write your file by `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/writing-style.md`.
+The plan path, the project root, and `specs:` (files under `specs/` in the task folder). Nothing else; ignore any other conclusions in your prompt. Read the project's own guidance first (CLAUDE.md, AGENTS.md, README, instruction files). Read the plan by the headings in `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-format.md`.
 
 ## Checks
 
@@ -20,11 +20,10 @@ The plan path, the project root, and `specs:` (files under `specs/` in the task 
 - The acceptance criteria are testable.
 - Conformance to the specs: requirements missing from the plan, plan items that contradict a spec, and plan scope beyond the spec. The specs may be excerpts: your check covers only the provided text. Never call a requirement missing merely because the excerpt does not mention it; list what you would need to see ("Not covered by provided specs").
 - A simpler approach exists.
-- The plan keeps the section budgets under Required headings in `plan-format.md` and the rules in `writing-style.md`: a section over budget, a paragraph that is a list in disguise, a fact stated twice, a step without its path, change and verification. Severity Note, never higher: style never blocks approval.
 
 ## Output
 
-Write `plan-critique.md` in the task folder (next to the plan): a table with columns `ID | severity | plan section | issue | evidence | suggestion`, IDs C1, C2, ..., one sentence per cell. Severity is Blocking, Should-fix, or Note. Start with the counts per severity and a line stating which spec files were checked. Return only the path and the counts.
+Write `plan-critique.md` in the task folder (next to the plan): a table with columns `ID | severity | plan section | issue | evidence | suggestion`, IDs C1, C2, ... Severity is Blocking, Should-fix, or Note. Start with the counts per severity and a line stating which spec files were checked. Return only the path and the counts.
 
 ## Hard rules
 

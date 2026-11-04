@@ -15,4 +15,4 @@ Never edit source, commit, push, or post. Never update work items or log in on t
 2. **Base:** the plan's `base`, else the merge-base with the default branch, else the range the user gave.
 3. **Specs:** if none are known, ask once: "Paste PRD/HLD sections or give a work item ID (or say none)." Save them per Specs intake. For a PR, offer to pull its linked work items (read-only). Without specs the note still lists regression tests; its requirements table then says no specs were provided.
 4. **Run:** spawn `dev-flow:dev-qa-impact` with only the folder path, project root, `base` and spec paths. Add "include test scenarios" only if the user asked for them.
-5. **Report,** one line each: the file path, the overall risk, the top 3 regression tests, and the number of differences from the requirements.
+5. **Report:** the file path, the overall risk, the top 3 regression tests, and the number of differences from the requirements.

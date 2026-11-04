@@ -27,6 +27,3 @@ In replies: one line before a multi-step tool run, one at a change of direction,
 
 The caveman skill (JuliusBrussee/caveman) cuts replies to fragments and, by its own rules, leaves documents alone. Its sane part is ASD-STE100, the controlled English of maintenance manuals. Short sentences, one instruction each, active voice, one term per thing, with the articles and the grammar kept. This skill is that part, applied to replies and documents alike.
 
-## With dev-flow and dev-debug
-
-The `dev-flow` and `dev-debug` plugins (same marketplace) carry a copy of these rules in `skills/dev-implement/writing-style.md` and `skills/dev-debug/writing-style.md`. Their subagents read files and cannot invoke a skill. Their plan, critique, review, QA and diagnosis files follow the same rules with per-section budgets in their format files. Installing this plugin adds the mode for the main session and for replies and documents outside the flow.

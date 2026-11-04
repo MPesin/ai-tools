@@ -14,7 +14,6 @@ Find the cause of a bug before anyone changes code, then hand the fix to the imp
 - Read the project's own guidance first (CLAUDE.md, AGENTS.md, README, instruction files); project rules override this skill. Check the project's plans location for an existing task folder on the same bug ID before creating one.
 - The root cause is confirmed by an explicit user reply, and so is the fix plan. Never set `status: approved` without one.
 - Prompts to the debugger carry task data and paths only. Do not pass it your own or the reporter's theory as a conclusion: a theory is saved in the bug report file, where the debugger reads it as a hypothesis.
-- Write `plan.md`, and every reply to the user, by `${CLAUDE_PLUGIN_ROOT}/skills/dev-debug/writing-style.md`; the gate summary is one line per item.
 
 ## 1. Start
 
