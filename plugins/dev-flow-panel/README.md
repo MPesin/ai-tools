@@ -10,7 +10,7 @@ No pane: a pane docked beside the transcript runs the full height of the termina
 
 ## Compact
 
-While a task is active, the band sits above the prompt: a rule across the column, a blank row, then two rows. Without a task nothing is drawn, so the band costs no rows.
+While a task is active, the band sits above the prompt: a rule across the column, a blank row, then two rows. Without a task nothing is drawn, so the band costs no rows, unless you fold the expanded band with `less ▴` (see below).
 
 ```
 ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ The rule is dim and spans the column, so the band reads as its own block under w
 
 ## Full
 
-`/dev-flow-panel`, or the band's `more ▾`, expands it; the command or `less ▴` folds it back. Expanded, the band is drawn even without a task.
+`/dev-flow-panel`, or the band's `more ▾`, expands it. Expanded, the band is drawn even without a task. `less ▴` folds it back to the two rows, and they stay drawn without a task too (`No active task`, with Load at hand) for the rest of the session, so the band does not vanish under the click. The command folds it back to the default instead, drawn only while a task is active, which is also how you put the folded band away.
 
 ```
 ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ The stage list runs across, wrapping onto a second row in a narrow column, with 
 | Load | `/dev-flow:load-flow`: lists the task folders under the plans location with their status and which session holds them, and hands the one you pick to the skill its status needs. Drawn while this session has no task. |
 | Clear | `/dev-flow:clear-flow`: switches this session's flow off (its pointer files and the hooks' markers go; the task folder and `plan.md` stay, so Load brings the task back). Drawn while this session has a task. |
 | ↻ refresh | re-reads the task folder now |
-| more ▾ / less ▴ | expands or folds the band |
+| more ▾ / less ▴ | expands the band, or folds it to two rows, which stay drawn even without a task |
 
 With the band focused (ctrl+x tab, or a click) the hotkeys `p`, `d`, `i`, `q`, `l` and `c` press the skill buttons. The engine's own `[-]` at the band's right end collapses it altogether.
 
@@ -61,11 +61,11 @@ A task diagnosed by the [dev-debug](../dev-debug) plugin (`plan.md` has `source:
 ▎   Waiting for you: confirm the root cause (reply fix), add facts, ask for a second opinion, or stop at the diagnosis.
 ```
 
-**Diagnosing** is the debugger at work (`status: diagnosing`, no `diagnosis.md` yet). **Confirm cause** is the diagnosis gate: the same status once `diagnosis.md` exists, the band's `warning` colour since it waits for you, with Debug as the primary button to bring the gate back. **Approved** is the fix plan; in the moment it is being written (`status: draft`) the step is drawn as **Fix plan**. From Implementing on, a bug runs through the same steps as a feature, with the first two ticked. Implement is dim until the plan is approved and explains why on a press.
+**Diagnosing** is the debugger at work (`status: diagnosing`, no `diagnosis.md` yet). It is shown from the moment dev-debug starts in this session (the Debug button, `/dev-debug:dev-debug` typed, or the model running the skill): the skill writes the `planning` pointer before `plan.md`, and until `plan.md` says `source: dev-debug` the band goes by the flow skill this session started last, so the bug's list replaces the feature's even before there is a task folder. **Confirm cause** is the diagnosis gate: the same status once `diagnosis.md` exists, the band's `warning` colour since it waits for you, with Debug as the primary button to bring the gate back. **Approved** is the fix plan; in the moment it is being written (`status: draft`) the step is drawn as **Fix plan**. From Implementing on, a bug runs through the same steps as a feature, with the first two ticked. Implement is dim until the plan is approved and explains why on a press.
 
 ## Where the stage comes from
 
-The same files the dev-flow hooks use: `<project>/.claude/flow/current` or `planning` points at the task folder (when both exist, the task being planned or diagnosed is shown while its plan is at `draft` or `diagnosing`; a `planning` pointer past that is stale and the `current` task is shown), and `plan.md`'s frontmatter holds `status`, `mode`, `review_round` and `source`; `diagnosis.md` in the task folder tells Diagnosing from Confirm cause. The plugin polls every 4 seconds and refreshes right after a tool call touches those files. The status line under the prompt shows the same stage.
+The same files the dev-flow hooks use: `<project>/.claude/flow/current` or `planning` points at the task folder (when both exist, the task being planned or diagnosed is shown while its plan is at `draft` or `diagnosing`; a `planning` pointer past that is stale and the `current` task is shown), and `plan.md`'s frontmatter holds `status`, `mode`, `review_round` and `source`; `diagnosis.md` in the task folder tells Diagnosing from Confirm cause. A `planning` pointer whose `plan.md` is not written yet is Diagnosing when dev-debug is the flow skill this session started last, and Planning otherwise. The plugin polls every 4 seconds and refreshes right after a tool call touches those files. The status line under the prompt shows the same stage.
 
 A pointer also names the session it belongs to (`session: <id>` on its second line, stamped by the dev-flow hooks right after the skill writes it), and the band shows a task only when it belongs to this session, or to no session yet. Another session's task on the same checkout is not this band's: the compact band is not drawn for it, and the expanded band names it in one dim line (`login fix · Your review · another session`) next to `No active task`, so two sessions in the same folder each see their own work.
 

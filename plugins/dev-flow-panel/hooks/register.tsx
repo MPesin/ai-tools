@@ -10,7 +10,7 @@
 import { atom, read, update } from 'claude-code'
 import type { Color, Elements, EngineInterface, Register } from 'claude-code'
 
-import type { FlowState, PanelView } from '../types'
+import type { FlowStart, FlowState, PanelView } from '../types'
 
 const COMMAND = 'dev-flow-panel'
 const POLL_MS = 4000
@@ -20,6 +20,17 @@ const EMPTY: FlowState = { pointer: 'none', status: 'none', diagnosed: false, ne
 // outlives a reload and is then read as EMPTY instead of as the old shape.
 const flow = atom({ plugin: 'dev-flow-panel', key: 'flow' } as const, EMPTY, { shape: 'flow-3' })
 const view = atom({ plugin: 'dev-flow-panel', key: 'view' } as const, 'auto' as PanelView)
+const started = atom({ plugin: 'dev-flow-panel', key: 'started' } as const, 'none' as FlowStart)
+
+// Which flow a skill starts, by the name the engine gives it (`dev-debug:dev-debug`,
+// or `dev-debug` with its plugin beside it): dev-debug's diagnosis or dev-flow's plan.
+const startOf = (skill: string, pluginName?: string): FlowStart | undefined => {
+  const cut = skill.lastIndexOf(':')
+  const name = skill.slice(cut + 1)
+  const plugin = pluginName ?? (cut >= 0 ? skill.slice(0, cut) : undefined)
+  const of = (owner: string) => plugin === undefined || plugin === owner
+  return name === 'dev-debug' && of('dev-debug') ? 'debug' : name === 'dev-plan' && of('dev-flow') ? 'plan' : undefined
+}
 
 // A step of the track. `key` names the step; `status` is the plan.md status it
 // stands for (two steps may share one, the diagnosis gate being `diagnosing`
@@ -159,6 +170,10 @@ const elsewhereOf = (taskFolder: string, fm: Record<string, string>) => {
 async function readFlow($: EngineInterface): Promise<FlowState> {
   const checkedAt = await $.clock.now()
   const me = await sessionId($)
+  // dev-plan and dev-debug both write the planning pointer before plan.md, so a
+  // pointer whose plan.md says nothing yet is a bug only by the skill this session
+  // started. Without a task, the same picks the stage list the band previews.
+  const asBug = (await read($, started)) === 'debug' ? 'dev-debug' : undefined
   // A planning pointer counts only while its plan is still being planned or
   // diagnosed; past that it is stale (the hooks ignore and remove it), and a
   // current pointer beside it names the task that carries on. A pointer of
@@ -180,16 +195,17 @@ async function readFlow($: EngineInterface): Promise<FlowState> {
   }
   if (found) {
     const { pointer, taskFolder, fm } = found
-    if (!taskFolder) return { ...EMPTY, elsewhere, checkedAt }
+    if (!taskFolder) return { ...EMPTY, source: asBug, elsewhere, checkedAt }
     const planPath = join(taskFolder, 'plan.md')
     const round = Number(fm.review_round)
+    const source = fm.source || (pointer === 'planning' && !fm.status ? asBug : undefined)
     return {
       pointer,
       taskFolder,
       planPath,
       task: fm.task || undefined,
-      status: fm.status || (pointer === 'planning' ? 'draft' : 'unknown'),
-      source: fm.source || undefined,
+      status: fm.status || (pointer === 'planning' ? (source === 'dev-debug' ? 'diagnosing' : 'draft') : 'unknown'),
+      source,
       diagnosed: await nonEmpty($, join(taskFolder, 'diagnosis.md')),
       mode: fm.mode || undefined,
       base: fm.base || undefined,
@@ -199,7 +215,7 @@ async function readFlow($: EngineInterface): Promise<FlowState> {
       checkedAt,
     }
   }
-  return { ...EMPTY, elsewhere, checkedAt }
+  return { ...EMPTY, source: asBug, elsewhere, checkedAt }
 }
 
 const statusLine = (f: FlowState) =>
@@ -249,9 +265,18 @@ const NOT_DIAGNOSED = 'Implement waits for the diagnosis: confirm the root cause
 
 type Controls = Pick<Elements['terminal'], 'Box' | 'Text' | 'Button'>
 
+// Notes which flow this session starts, so the band draws its stages before the
+// skill has written plan.md, and redraws now rather than at the next poll.
+const noteStart = async ($: EngineInterface, kind: FlowStart) => {
+  await update($, started, () => kind)
+  await refresh($)
+}
+
 // A skill is a slash command: $.command.run queues `/command args` as if the
 // person typed it (a prompt beginning with / is refused by $.prompt.submit).
 const starter = ($: EngineInterface) => (command: string, args?: string) => () => {
+  const kind = startOf(command)
+  if (kind) void noteStart($, kind).catch(() => undefined)
   $.command.run(args ? { command, args } : { command }).catch((err: unknown) => {
     $.ui.toast(`/${command} did not run (is the ${command.split(':')[0]} plugin installed?): ${String(err)}`)
   })
@@ -322,8 +347,13 @@ const track = ({ Text }: Controls, f: FlowState) => {
   )
 }
 
-const toggleView = async ($: EngineInterface) => {
-  const now = await update($, view, v => (v === 'full' ? 'auto' : 'full'))
+// `more` expands the band and `less` folds it to its two rows, which stay drawn
+// even without a task: the band the person just clicked must not vanish under
+// the click. The command folds back to `auto` instead, the default that draws
+// nothing without a task, so it is also how the folded band is put away.
+// The view is session state: a new session starts at `auto` again.
+const setView = async ($: EngineInterface, fold: PanelView) => {
+  const now = await update($, view, v => (v === 'full' ? fold : 'full'))
   $.ui.invalidate('ui.render')
   return now
 }
@@ -344,9 +374,19 @@ export const register: Register = on => {
 
   on('command.run', { command: COMMAND }, async $ => {
     await refresh($)
-    const now = await toggleView($)
+    const now = await setView($, 'auto')
 
     return { text: now === 'full' ? 'dev-flow band expanded above the prompt.' : 'dev-flow band folded to two rows (drawn while a task is active).' }
+  })
+
+  // dev-plan or dev-debug starting, typed, run by the model through the Skill
+  // tool, or by a button here: which one decides the stage list until plan.md
+  // carries its own `source`. The skill's text passes through unchanged.
+  on('skill.prompt', async ($, e, next) => {
+    const kind = startOf(e.skill, e.pluginName)
+    if (kind) await noteStart($, kind).catch(() => undefined)
+
+    return next(e)
   })
 
   // The stage changes when the skills write plan.md or move the pointer files;
@@ -365,6 +405,8 @@ export const register: Register = on => {
   // The band. Compact, two rows:
   //   ▎ Your review   ⚠ needs decision  login fix · round 2 · full       ●─●─●─●─◉─○─○
   //   ▎ [ Plan ] [ Debug ] [ Implement ] [ QA impact ]   ↻ refresh   more ▾   Waiting for you: review…
+  // Without a task the compact rows are drawn only once `less` has folded the
+  // expanded band; until then the engine's own band is drawn.
   // Full, the stage list, the hint and the flags between those two rows:
   //   ▎ ✓ Planning  ✓ Approved  ✓ Implementing  ✓ Claude review  ◉ Your review  ○ QA impact  ○ Done
   // A bug task (source: dev-debug) has its own list and track:
@@ -375,8 +417,9 @@ export const register: Register = on => {
   // right end of the first row is what gives way first when the column is narrow.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const f = await read($, flow)
-    const full = (await read($, view)) === 'full'
-    if (e.props.hasSurvey || (!full && f.pointer === 'none')) return next(e)
+    const shown = await read($, view)
+    const full = shown === 'full'
+    if (e.props.hasSurvey || (shown === 'auto' && f.pointer === 'none')) return next(e)
 
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
@@ -449,7 +492,7 @@ export const register: Register = on => {
             <Button key="refresh" plain dimColor onPress={() => { void refresh($) }}>
               ↻ refresh
             </Button>
-            <Button key="view" plain dimColor onPress={() => toggleView($)}>
+            <Button key="view" plain dimColor onPress={() => setView($, 'compact')}>
               {full ? 'less ▴' : 'more ▾'}
             </Button>
           </Box>
