@@ -2,9 +2,11 @@
 # PreToolUse guard. Active while <project>/.claude/flow/current or /planning exists
 # and belongs to this session (lib.sh: another session's pointer counts as absent;
 # a planning pointer left behind past draft/diagnosing is stale: named once, not enforced).
-#   Bash, PowerShell  -> no push/discard, no commit from a subagent or --amend,
+#   Bash, PowerShell  -> no push or new PR from a subagent, no force/delete push,
+#                        no pull/discard, no commit from a subagent or --amend,
 #                        no posting, no publishing (commands.sh)
-#   mcp__*            -> no MCP tools that write to external systems
+#   mcp__*            -> no MCP tools that write to external systems, except a
+#                        new PR from the main session
 #   Edit/Write/NotebookEdit -> per-agent write allowances (case table below)
 #   Agent (Task)      -> a stage agent is spawned only at its own plan status (stage_gate);
 #                        checked even without a pointer, since a missing pointer is the finding

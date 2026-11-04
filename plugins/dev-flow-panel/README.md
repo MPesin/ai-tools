@@ -30,7 +30,7 @@ The rule is dim and spans the column, so the band reads as its own block under w
 
 ▎ Your review   ⚠ needs decision  login fix · round 2 · full · base main        ●─●─●─●─◉─○─○
 ▎ ✓ Planning  ✓ Approved  ✓ Implementing  ✓ Claude review  ◉ Your review  ○ QA impact  ○ Done
-▎   Waiting for you: review the commits, push, open the PR, then continue.
+▎   Waiting for you: review the commits; push and open the PR (or ask Claude to), then QA impact.
 ▎ ⚠ needs-decision.md  findings wait for your decision
 ▎ [ Plan ] [ Debug ] [ Implement ] [ QA impact ] [ Clear ]   ↻ refresh   less ▴
 ```
@@ -44,9 +44,9 @@ The stage list runs across, wrapping onto a second row in a narrow column, with 
 | Plan | `/dev-flow:dev-plan` |
 | Debug | `/dev-debug:dev-debug` (the dev-debug plugin), with the active task folder while it is diagnosing, so a press brings the diagnosis gate back. Primary at that stage. |
 | Implement / Resume | `/dev-flow:dev-implement <plan.md of the active task>`. Dim while the plan is still a draft or a diagnosis is in progress (`plan.md` at `draft` or `diagnosing`): a press then shows why instead of running the skill, since the plan has to be approved in chat first. A `planning` pointer left behind by a plan at a later status does not dim it; the dev-flow hooks treat such a pointer as stale too. |
-| QA impact | `/dev-flow:dev-qa-impact <task folder>` |
+| QA impact | `/dev-flow:dev-qa-impact <task folder>`. Primary at Your review and Done. At Your review it means the review is done: the skill runs the flow's QA impact stage and its final report, so the run ends at Done and its guards go off (no Clear needed). Ask Claude to push and open the PR before or with it; the main session may do both while the flow is active. |
 | Load | `/dev-flow:load-flow`: lists the task folders under the plans location with their status and which session holds them, and hands the one you pick to the skill its status needs. Drawn while this session has no task. |
-| Clear | `/dev-flow:clear-flow`: switches this session's flow off (its pointer files and the hooks' markers go; the task folder and `plan.md` stay, so Load brings the task back). Drawn while this session has a task. |
+| Clear | `/dev-flow:clear-flow`: switches this session's flow off (its pointer files and the hooks' markers go; the task folder and `plan.md` stay, so Load brings the task back). Drawn while this session has a task. It abandons the run; it is not needed to push, open the PR or finish. |
 | ↻ refresh | re-reads the task folder now |
 | more ▾ / less ▴ | expands the band, or folds it to two rows, which stay drawn even without a task |
 

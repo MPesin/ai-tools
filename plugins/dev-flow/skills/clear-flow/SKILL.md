@@ -1,6 +1,6 @@
 ---
 name: clear-flow
-description: Use when the user wants the dev-flow guards switched off or the active dev-flow task dropped in this session — "/clear-flow", "clear the flow", "stop the flow", "turn the guards off", "the flow is stuck", "remove the leftover pointer". Removes this session's pointer files only; the task folder and plan.md stay, so /dev-flow:load-flow brings the task back. Not for clearing the conversation (that is the built-in /clear).
+description: Use when the user wants the dev-flow guards switched off or the active dev-flow task dropped in this session — "/clear-flow", "clear the flow", "stop the flow", "turn the guards off", "the flow is stuck", "remove the leftover pointer". Removes this session's pointer files only; the task folder and plan.md stay, so /dev-flow:load-flow brings the task back. Not for clearing the conversation (that is the built-in /clear), and not the way to push, open a PR or finish a run: the main session pushes and opens the PR on request while the flow is active, and QA impact finishes the run.
 ---
 
 # Clear flow

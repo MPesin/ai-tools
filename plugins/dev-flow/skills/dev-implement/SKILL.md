@@ -12,23 +12,23 @@ State between stages is files in the task folder, never chat summaries. Plan str
 ## Rules
 
 - Work in the current project. Do not assume a language, framework, repo layout, or hosting platform; discover them.
-- Commit as the work goes, from the main session (see **Commits** below). Never push or post to a PR/review system in any stage: the user does that.
+- Commit as the work goes, from the main session (see **Commits** below). Push the branch and open the PR from the main session when the user asks, at any stage (usually at the human-review gate); never on your own initiative, never from a subagent, never a force push. Never comment, reply, review, merge or update work items: the user does that.
 - Hard rules live in the agent files. Spawn agents by their plugin-scoped names: `dev-flow:dev-implementer`, `dev-flow:dev-reviewer`, `dev-flow:dev-fixer`, `dev-flow:dev-review-triager`, `dev-flow:dev-planner`, `dev-flow:dev-qa-impact`. Prompts carry only task data and paths. If an agent is missing, fall back to `general-purpose` and paste that agent's rules into the prompt, and tell the user the hooks cannot then tell it apart from the main session. Do not use a review tool tied to a different hosting platform than the project uses.
 - Update `status` (and `review_round`) in `plan.md` frontmatter at every stage transition, before spawning the stage's agent. The hooks and the status panel read them, and the guard refuses to spawn an agent at the wrong status: `dev-implementer` needs `implementing`, `dev-reviewer` `reviewing`, `dev-fixer` `reviewing` or `human-review`, `dev-review-triager` `human-review`. None of these four can be spawned while a `.claude/flow/planning` of this session exists, while this session has no pointer (another session's does not count), or while `current` points at a missing folder or one without `plan.md`. `dev-qa-impact` is not gated (it also runs standalone).
 - Do not advance past a human gate without an explicit user reply.
 - Never run subagents with `isolation: "worktree"`: a subagent worktree starts from the default branch without the work of earlier waves, and nothing merges it back. All work happens in the one working tree.
 - After every subagent returns, check `violations.md` in the task folder. If it gained lines, show them to the user and stop before committing; the user decides whether to keep or revert those changes.
-- The hooks: while `<project>/.claude/flow/current` exists and belongs to this session (the hooks stamp it with the session that wrote it, as `session: <id>` on its second line; another Claude Code session on the same checkout is neither guarded nor notified by it), the plugin blocks push/discard, a commit from any subagent, `git commit --amend`, posting and publishing (Bash, PowerShell and MCP tools), limits what each agent may write, refuses to let an implementer or fixer finish without this run's build/test output in `verify.log`, compares the working tree before and after each read-only agent, and notifies the user at the gates. If a guard blocks the main session wrongly, the user can run `/dev-flow:clear-flow` (or delete the pointer file); the stage agents then cannot be spawned until Intake writes it again.
+- The hooks: while `<project>/.claude/flow/current` exists and belongs to this session (the hooks stamp it with the session that wrote it, as `session: <id>` on its second line; another Claude Code session on the same checkout is neither guarded nor notified by it), the plugin blocks a push or a new PR from any subagent, a force or delete push from anyone, pulling, switching branches and discarding changes, a commit from any subagent, `git commit --amend`, commenting, merging, work items and publishing (Bash, PowerShell and MCP tools), limits what each agent may write, refuses to let an implementer or fixer finish without this run's build/test output in `verify.log`, compares the working tree before and after each read-only agent, and notifies the user at the gates. A refused command is not a reason to clear the flow: say what was refused and give the user the command to run themselves. `/dev-flow:clear-flow` (or deleting the pointer file) abandons the run: the guards go off and the stage agents cannot be spawned until Intake writes the pointer again. Suggest it only when the user wants to stop the run, never to push, open the PR or finish (stage 6 and the final report finish the run).
 
 ## Commits
 
-The flow commits each stage's work so the branch carries the history of the run; the user reviews the commits and pushes. Skip them only when `commits: off` (below).
+The flow commits each stage's work so the branch carries the history of the run; the user reviews the commits, and the branch is pushed (by the user, or by the main session when the user asks) to keep the remote up to date. Skip them only when `commits: off` (below).
 
 - **Who.** Only the main session commits. Subagents leave their changes uncommitted and the hooks refuse a commit from one: parallel implementers share one index, so one's `git add` would sweep in another's half-done files.
 - **When.** After each implementation package (one commit per package, wave by wave, the `Integration` package last) or after the single implementer; after each `dev-fixer` run in stage 3 and in stage 5. Review, triage and QA change no source and commit nothing. Only while no dev-flow agent is running (wait for the whole wave, and for any agent running in the background), never before a stage's `violations.md` lines are settled with the user, and never a stage that changed nothing.
 - **What.** Only the files the stage changed, named twice: `git add -- <paths>` (so new files are known to git), then `git commit -m "<message>" -- <paths>`. The paths after `--` make the commit hold exactly those files, whatever else is staged (by the user before the run, or by an agent's `git add`); a plain `git commit` would take the whole index. Never `git add -A`, `git add .` or `git commit -a`, which would take in the user's own uncommitted work. For a package, its changed files are the ones matching its `Owns`; otherwise `git status --porcelain` now, minus the paths listed under `## Context` as left out (Intake). Never the task folder or `.claude/flow/` (Intake excludes `.claude/plans/` and `.claude/flow/` from git status).
 - **Message.** The project's convention (`git log --oneline -20`, and CLAUDE.md or contributing guidance); otherwise `<task>: <package or step title>` for implementation, `<task>: fix review-<N> F1, F3` for a fix round, `<task>: address review comments` for stage 5.
-- **Never** `--amend` or `git reset --soft` (the hooks refuse both), `--no-verify`, or a push. When the commit fails (a pre-commit hook, a signing prompt), show its output and stop; the user decides.
+- **Never** `--amend` or `git reset --soft` (the hooks refuse both), `--no-verify`, a force push, or a push the user did not ask for. When the user asked for the branch to be kept pushed, push after each commit (`git push`, with `-u origin HEAD` the first time). When the commit fails (a pre-commit hook, a signing prompt), show its output and stop; the user decides.
 
 ## Stages
 
@@ -68,7 +68,14 @@ Set `status: reviewing`. Rounds alternate review → fix → review; the loop al
 
 ### 4. Human review (gate)
 
-Set `status: human-review`. Report the run's commits (`git log --oneline <base>..HEAD`) and anything left uncommitted, the `verify.log` tail, the round count, Low findings, and disputed findings. Offer a PR description drafted from `plan.md` and `git diff <base>...HEAD` (text only). The user reviews the commits, pushes and opens the PR. Stop. The notify hook alerts the user.
+Set `status: human-review`. Report the run's commits (`git log --oneline <base>..HEAD`) and anything left uncommitted, the `verify.log` tail, the round count, Low findings, and disputed findings. Offer a PR description drafted from `plan.md` and `git diff <base>...HEAD`, and offer to push the branch and open the PR with it. Stop. The notify hook alerts the user.
+
+The user's reply decides what follows:
+- **Push / open the PR.** Push (`git push -u origin HEAD`) and open the PR with the project's hosting tool (`gh pr create`, `glab mr create`, `az repos pr create`, or the MCP `create_pull_request` tool) using the drafted description. The hooks allow both from the main session. Then report the PR link and wait at this gate for review comments, unless the same reply also says the review is done.
+- **Review comments or a PR reference.** Stage 5.
+- **The review is done** ("everything works", "looks good", "QA impact", the panel's QA impact button, `/dev-flow:dev-qa-impact` on this task). Stage 6, after the push and PR if those were asked for too.
+
+Never clear the flow to push, open the PR or reach stage 6.
 
 ### 5. Fix human findings (`dev-review-triager`, then `dev-fixer`)
 
@@ -76,7 +83,7 @@ Set `status: human-review`. Report the run's commits (`git log --oneline <base>.
 2. `dev-fixer` gets the `human-review.md` path and applies the `fix` items. Commit them (`<task>: address review comments`).
 3. Show the proposed checklist additions and append only the ones the user confirms to the project's `review-checklist.md` (the location named in project guidance, otherwise `.claude/review-checklist.md`).
 
-Report the fixes, their commit and the draft replies. The user pushes and replies.
+Report the fixes, their commit and the draft replies, and offer to push the fix commit (push when the user asks). The user posts the replies. Then wait at the gate (`status: human-review`) for further comments, or go to stage 6 when the user says the review is done.
 
 ### 6. QA impact (`dev-qa-impact`)
 
@@ -84,4 +91,4 @@ The last stage that writes, so it describes the final code. Set `status: qa-impa
 
 ## Final report
 
-Show the task folder path, a per-stage summary, the run's commits (`git log --oneline <base>..HEAD`), the evidence quoted from `verify.log`, unresolved items, and the next human action (push, when not done yet). Set `status: done` and rename `<project>/.claude/flow/current` to `<project>/.claude/flow/finished` (the Stop hook sends the "done" notification and removes it together with the run's marker files).
+Show the task folder path, a per-stage summary, the run's commits (`git log --oneline <base>..HEAD`), the evidence quoted from `verify.log`, unresolved items, and the next human action (push and open the PR, when not done yet: offer to do both). Set `status: done` and rename `<project>/.claude/flow/current` to `<project>/.claude/flow/finished` (the Stop hook sends the "done" notification and removes it together with the run's marker files).

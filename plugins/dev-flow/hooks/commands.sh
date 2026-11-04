@@ -165,8 +165,14 @@ check_git() {
       for x in "${rest[@]}"; do
         case $x in --am|--am=*|--ame|--ame=*|--amen|--amen=*|--amend|--amend=*) deny "git commit --amend is not allowed during the flow: it rewrites an existing commit. Make a new commit." ;; esac
       done ;;
-    push|pull|checkout|restore|clean|rebase|merge|cherry-pick|revert|am|switch|filter-branch|filter-repo|commit-tree|update-ref|replace)
-      deny "git $sub is not allowed during the flow: the user pushes, pulls, switches branches, rewrites history and discards changes. Delete $POINTER to switch the guards off." ;;
+    push)
+      # The main session commits each stage, so it may also push them when the
+      # user asks; a subagent never does. A push that rewrites or deletes refs on
+      # the remote is refused to everyone (the flow never rewrites history).
+      [ -n "${AGENT_TYPE-}" ] && deny "git push is not allowed in a subagent ($AGENT_TYPE): the main session pushes, when the user asks. Leave it and report."
+      check_push_args "${rest[@]}" ;;
+    pull|checkout|restore|clean|rebase|merge|cherry-pick|revert|am|switch|filter-branch|filter-repo|commit-tree|update-ref|replace)
+      deny "git $sub is not allowed during the flow: it pulls, switches branches, rewrites history or discards changes in the tree the flow works on. If the user wants it, they run it in their own terminal. Do not clear the flow (/dev-flow:clear-flow) to get past this: that abandons the run." ;;
     stash)
       case ${rest[0]-} in list|show) ;; *) deny "git stash is not allowed during the flow (uncommitted work is the deliverable)." ;; esac ;;
     reset)
@@ -191,6 +197,30 @@ check_git() {
   return 0
 }
 
+# The arguments of a main-session `git push`: refuse what rewrites or deletes refs
+# on the remote. git takes any unambiguous prefix of a long option (--forc,
+# --del), and short options cluster (-uf); -o/--push-option takes a value.
+check_push_args() {
+  local x v name s
+  for x in "$@"; do
+    v=$(word_text "$x")
+    case $v in
+      --*)
+        name=${v#--}; name=${name%%=*}
+        [ -n "$name" ] || continue
+        for s in force force-with-lease force-if-includes delete mirror prune; do
+          case $s in "$name"*) deny "git push --$name is not allowed during the flow: it overwrites or deletes branches on the remote. Push without it; the flow never rewrites history, so a plain push is enough." ;; esac
+        done ;;
+      -*)
+        s=${v#-}; s=${s%%o*}
+        case $s in *f*|*d*) deny "git push $v is not allowed during the flow: -f forces and -d deletes branches on the remote. Push without it." ;; esac ;;
+      +*) deny "git push $v is not allowed during the flow: a + refspec forces the update on the remote. Push without the +." ;;
+      :*) deny "git push $v is not allowed during the flow: an empty source deletes the branch on the remote." ;;
+    esac
+  done
+  return 0
+}
+
 # gh/glab api: deny anything that is not a plain GET
 check_api_args() {
   local tool=$1; shift
@@ -208,11 +238,20 @@ check_api_args() {
   return 0
 }
 
+# Opening the PR is the one write to a hosting platform the main session may
+# make, when the user asks (the human-review gate offers it): it publishes the
+# commits the flow made, nothing else. Commenting, replying, reviewing, merging
+# and work items stay the user's; a subagent opens nothing.
+pr_create() {   # TOOL WHAT
+  [ -z "${AGENT_TYPE-}" ] && return 0
+  deny "$1 $2 is not allowed in a subagent ($AGENT_TYPE): the main session opens the PR, when the user asks. Leave it and report."
+}
+
 check_gh() {
   local grp=${1-} sub=${2-}
   case $grp in
     api) shift; check_api_args gh "$@"; return 0 ;;
-    pr)       case $sub in view|list|diff|checks|status|'') return 0 ;; esac ;;
+    pr)       case $sub in view|list|diff|checks|status|'') return 0 ;; create) pr_create gh 'pr create'; return 0 ;; esac ;;
     issue)    case $sub in view|list|status|'') return 0 ;; esac ;;
     release)  case $sub in view|list|download|'') return 0 ;; esac ;;
     repo)     case $sub in view|list|clone|'') return 0 ;; esac ;;
@@ -223,28 +262,28 @@ check_gh() {
               case $sub in list|view|'') return 0 ;; esac ;;
     *) return 0 ;;
   esac
-  deny "gh $grp $sub posts, changes or publishes something outside the working tree; not allowed during the flow (the user does that)."
+  deny "gh $grp $sub posts, changes or publishes something outside the working tree; not allowed during the flow (the user does that; the main session only pushes and opens the PR). Give the user the text or the command to run instead."
 }
 
 check_glab() {
   local grp=${1-} sub=${2-}
   case $grp in
     api) shift; check_api_args glab "$@"; return 0 ;;
-    mr)      case $sub in view|list|diff|'') return 0 ;; esac ;;
+    mr)      case $sub in view|list|diff|'') return 0 ;; create) pr_create glab 'mr create'; return 0 ;; esac ;;
     issue)   case $sub in view|list|'') return 0 ;; esac ;;
     release) case $sub in view|list|download|'') return 0 ;; esac ;;
     repo)    case $sub in view|list|clone|search|'') return 0 ;; esac ;;
     ci)      case $sub in view|list|status|lint|trace|'') return 0 ;; esac ;;
     *) return 0 ;;
   esac
-  deny "glab $grp $sub posts or changes something outside the working tree; not allowed during the flow."
+  deny "glab $grp $sub posts or changes something outside the working tree; not allowed during the flow (the user does that; the main session only pushes and opens the MR). Give the user the text or the command to run instead."
 }
 
 check_az() {
   local a1=${1-} a2=${2-} a3=${3-} a4=${4-} x method='' next=0
   case "$a1 $a2" in
     "repos pr")
-      case $a3 in list|show|'') return 0 ;; reviewer|work-item|policy) case $a4 in list|show|'') return 0 ;; esac ;; esac ;;
+      case $a3 in list|show|'') return 0 ;; create) pr_create az 'repos pr create'; return 0 ;; reviewer|work-item|policy) case $a4 in list|show|'') return 0 ;; esac ;; esac ;;
     "repos create"|"repos delete"|"repos update"|"repos import") ;;
     "repos policy") case $a3 in list|show|'') return 0 ;; esac ;;
     "repos ref")    case $a3 in list|'') return 0 ;; esac ;;
@@ -264,7 +303,7 @@ check_az() {
       case $method in ''|get) return 0 ;; esac ;;
     *) return 0 ;;
   esac
-  deny "az $a1 $a2 $a3 changes something in Azure DevOps; not allowed during the flow (the user updates work items and PRs)."
+  deny "az $a1 $a2 $a3 changes something in Azure DevOps; not allowed during the flow (the user updates work items and PRs; the main session only pushes and opens the PR). Give the user the text or the command to run instead."
 }
 
 check_publish() {
@@ -284,11 +323,16 @@ check_publish() {
   return 0
 }
 
-# MCP tools: deny names that read like writes to an external system.
+# MCP tools: deny names that read like writes to an external system. Opening a
+# PR/MR (create_pull_request, create_merge_request, repo_create_pull_request) is
+# the main session's, as with gh pr create; anything longer
+# (create_pull_request_with_copilot) is not that.
 check_mcp_tool() {
   local name=${1#mcp__} tool
   tool=$(lower "${name#*__}")
   local re='(^|_)(create|update|delete|remove|add|post|comment|reply|resolve|unresolve|merge|push|submit|vote|approve|request_changes|assign|unassign|close|reopen|edit|set|transition|publish|upload|write|send|move|archive|lock|unlock|dismiss|fork|star|rename|put|patch|insert|append|complete)(_|$)'
-  [[ $tool =~ $re ]] && deny "MCP tool $1 looks like it writes to an external system; not allowed during the flow (the user posts and updates). Delete $POINTER to switch the guards off."
+  local open_pr='(^|_)create_(pull|merge)_request$'
+  if [[ $tool =~ $open_pr ]]; then pr_create "MCP tool" "$1"; return 0; fi
+  [[ $tool =~ $re ]] && deny "MCP tool $1 looks like it writes to an external system; not allowed during the flow (the user posts and updates; the main session only pushes and opens the PR). Give the user the text to post instead."
   return 0
 }

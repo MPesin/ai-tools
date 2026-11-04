@@ -9,6 +9,14 @@ Produce `qa-impact.md` with the `dev-flow:dev-qa-impact` agent. The note always 
 
 Never edit source, commit, push, or post. Never update work items or log in on the user's behalf.
 
+## Inside a dev-flow run
+
+First check whether the folder (or, with none given, the one `<project>/.claude/flow/current` names) is the task of this session's active dev-flow run: this conversation ran `/dev-flow:dev-implement` or `/dev-flow:load-flow` on it, or a dev-flow notice said the flow is this session's. The panel's QA impact button passes that folder.
+
+- At `status: human-review` or `qa-impact`, this request means the review is done. Do not run the steps below: follow stage 6 and the **Final report** of `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/SKILL.md` (set `status: qa-impact`, spawn the agent, then `status: done` and the pointer rename), so the run finishes and its guards go off. If the user also asked to push or open the PR, do that first, as stage 4 says. Never suggest `/dev-flow:clear-flow` for this.
+- At an earlier status (`implementing`, `reviewing`, `blocked`), say the run has not reached QA impact yet, and offer a standalone note (the steps below) that leaves the run as it is.
+- Otherwise (no run, another session's run, or another folder) run the steps below.
+
 ## Steps
 
 1. **Folder:** use the given task folder, or create `YYYY-MM-DD-<branch>` in the plans location (project guidance, otherwise `.claude/plans/`). No `plan.md` needed.

@@ -51,10 +51,12 @@ elif [ "$POINTER_NAME" = planning ]; then
   next="Planning is in progress: continue with /dev-flow:dev-plan, or delete $POINTER to abandon it."
 elif [ "$status" = done ]; then
   next="The run is finished; the Stop hook removes $POINTER at the end of the turn."
+elif [ "$status" = human-review ]; then
+  next="The run waits at the human-review gate: when the user asks, push the branch and open the PR from this session (the hooks allow both here); review comments go to stage 5, and when the user says the review is done (or asks for QA impact) stage 6 and the final report finish the run: /dev-flow:dev-implement $TASK_FOLDER/plan.md."
 else
   next="Continue with /dev-flow:dev-implement $TASK_FOLDER/plan.md (it resumes from status and review_round)."
 fi
-msg="dev-flow: a flow of this session is active in this project. Task folder: $TASK_FOLDER. status: ${status:-unknown}. mode: $(frontmatter_value mode). review_round: $(frontmatter_value review_round). base: $(frontmatter_value base). $next While the pointer exists the plugin's hooks block git push/discard, commits from subagents and --amend, posting and publishing, and limit what each agent may write (the main session commits each stage's files), in this session and its subagents only; /dev-flow:clear-flow switches them off (it removes $POINTER; stage agents then cannot be spawned until Intake writes it again)."
+msg="dev-flow: a flow of this session is active in this project. Task folder: $TASK_FOLDER. status: ${status:-unknown}. mode: $(frontmatter_value mode). review_round: $(frontmatter_value review_round). base: $(frontmatter_value base). $next While the pointer exists the plugin's hooks block pushes and new PRs from subagents, force and delete pushes, pulling, branch switches and discards, commits from subagents and --amend, commenting, merging and publishing, and limit what each agent may write; the main session commits each stage's files and may push and open the PR when the user asks. This holds in this session and its subagents only. /dev-flow:clear-flow abandons the run (it removes $POINTER; stage agents then cannot be spawned until Intake writes it again): suggest it only when the user wants to stop the run, never to push, open the PR or finish it."
 [ -s "$TASK_FOLDER/needs-decision.md" ] && msg="$msg needs-decision.md has items waiting for the user."
 [ -s "$TASK_FOLDER/violations.md" ] && msg="$msg violations.md lists files changed outside an agent's allowance."
 [ -n "$(find "$POINTER" -mtime +2 2>/dev/null)" ] && msg="$msg The pointer is more than 2 days old: the flow may have been abandoned; ask the user before continuing."

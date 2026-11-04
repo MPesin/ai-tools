@@ -105,8 +105,9 @@ Three skills for any project, in any language, on Linux, macOS and Windows
   switches this session's flow off and leaves the task folder as it is.
 
 While a flow is active, the main session commits each package and fix round
-as it goes, and **hooks enforce what the prompts promise**: no
-`git push/checkout/stash/clean`, no commits from subagents, no posting to PRs or work items
+as it goes, and pushes and opens the PR when you ask. **Hooks enforce what the
+prompts promise**: no push, PR or commit from subagents, no force push, no
+`git pull/checkout/stash/clean`, no comments, merges or work-item updates
 (`gh`, `glab`, `az`, MCP tools), no publishing; read-only agents may write
 only their one output file and any other change to the working tree is
 detected and reported; implementers may edit only their package's files;
