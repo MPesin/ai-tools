@@ -18,6 +18,11 @@
       "description": "Adversarial DESIGN reviewer agent (not a general critical-thinking aid): attacks the assumptions of plans, specs, and architectures, hunts failure modes, steelmans simpler alternatives, returns severity-ranked findings and a verdict"
     },
     {
+      "name": "lean-talk",
+      "source": "./plugins/lean-talk",
+      "description": "Lean responses and documents (/lean-talk:lean-talk), applied as the text is written, never as a rewrite pass, plus /lean-talk:lean-edit to rewrite an existing file or pasted text by the same rules: whole sentences with every fact kept, filler and hedging cut, the answer in the first line, lists for parallel items, tables for repeated fields, a budget per document section. Grammar and articles stay"
+    },
+    {
       "name": "dev-flow",
       "source": "./plugins/dev-flow",
       "description": "Plan, implement, review and QA-impact flow run by subagents (/dev-flow:dev-plan, /dev-flow:dev-implement, /dev-flow:dev-qa-impact, /dev-flow:load-flow, /dev-flow:clear-flow; also implements dev-debug's fix plans) and guarded by cross-platform hooks: commits per package and fix round, no push/discard/posting/publishing, no subagent commits, per-agent and per-package write limits, build/test evidence required before an implementer may finish, working-tree change detection, gate notifications; the guards follow the session that runs the flow, so other sessions on the same checkout are not blocked"

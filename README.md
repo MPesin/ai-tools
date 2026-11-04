@@ -9,6 +9,7 @@ AI tooling — skills and agents usable in any codebase, by anyone.
 /plugin marketplace add MPesin/ai-tools
 /plugin install repo-mapper@michaelp-ai-tools
 /plugin install design-critic@michaelp-ai-tools
+/plugin install lean-talk@michaelp-ai-tools
 /plugin install dev-flow@michaelp-ai-tools
 /plugin install dev-debug@michaelp-ai-tools
 /plugin install dev-flow-panel@michaelp-ai-tools
@@ -80,6 +81,23 @@ probing intent, never facts it can look up itself. repo-mapper optionally uses
 it to review a freshly generated index against the actual code.
 
 This repository's own design was reviewed by it before being built.
+
+### lean-talk — lean responses and documents
+
+A skill that keeps every fact and drops every word a reader would skip, in
+replies and in documents. `/lean-talk:lean-talk` switches it on for the session.
+The rules shape the text as it is written; there is no second pass that
+shortens a long draft. `/lean-talk:lean-edit <file>`, or with pasted text,
+rewrites text that already exists by the same rules, keeping its headings,
+code, links and tables. The rules: whole sentences with their
+articles and grammar, every negation and number, names, quotations and code verbatim;
+no preamble, hedging, filler or restated heading; the answer first, one idea
+per sentence of 20 words or fewer, a paragraph of at most 3 sentences, lists
+for parallel items, tables for repeated fields, one sentence per cell, and a
+budget per document section. Replies keep to one line per phase around tool
+calls and end without a recap. Full sentences anyway for irreversible
+actions, warnings and questions to you. Nothing in it is about code: a brief,
+a paper or a memo gets the same treatment as a plan or a review.
 
 ### dev-flow — plan, implement, review and QA-impact, run by subagents
 
@@ -156,6 +174,7 @@ shows the stage too.
 .claude-plugin/marketplace.json    # the marketplace manifest
 plugins/repo-mapper/               # 2 commands, skill + references, 3 agents, hook
 plugins/design-critic/             # the reviewer agent
+plugins/lean-talk/                 # 2 skills: lean-talk (write lean), lean-edit (rewrite existing text)
 plugins/dev-flow/                  # 5 skills, 7 agents, 6 bash hooks + 2 scripts + tests
 plugins/dev-flow-panel/            # the band (hooks module)
 ```
