@@ -322,8 +322,13 @@ const track = ({ Text }: Controls, f: FlowState) => {
   )
 }
 
-const toggleView = async ($: EngineInterface) => {
-  const now = await update($, view, v => (v === 'full' ? 'auto' : 'full'))
+// `more` expands the band and `less` folds it to its two rows, which stay drawn
+// even without a task: the band the person just clicked must not vanish under
+// the click. The command folds back to `auto` instead, the default that draws
+// nothing without a task, so it is also how the folded band is put away.
+// The view is session state: a new session starts at `auto` again.
+const setView = async ($: EngineInterface, fold: PanelView) => {
+  const now = await update($, view, v => (v === 'full' ? fold : 'full'))
   $.ui.invalidate('ui.render')
   return now
 }
@@ -344,7 +349,7 @@ export const register: Register = on => {
 
   on('command.run', { command: COMMAND }, async $ => {
     await refresh($)
-    const now = await toggleView($)
+    const now = await setView($, 'auto')
 
     return { text: now === 'full' ? 'dev-flow band expanded above the prompt.' : 'dev-flow band folded to two rows (drawn while a task is active).' }
   })
@@ -365,6 +370,8 @@ export const register: Register = on => {
   // The band. Compact, two rows:
   //   ▎ Your review   ⚠ needs decision  login fix · round 2 · full       ●─●─●─●─◉─○─○
   //   ▎ [ Plan ] [ Debug ] [ Implement ] [ QA impact ]   ↻ refresh   more ▾   Waiting for you: review…
+  // Without a task the compact rows are drawn only once `less` has folded the
+  // expanded band; until then the engine's own band is drawn.
   // Full, the stage list, the hint and the flags between those two rows:
   //   ▎ ✓ Planning  ✓ Approved  ✓ Implementing  ✓ Claude review  ◉ Your review  ○ QA impact  ○ Done
   // A bug task (source: dev-debug) has its own list and track:
@@ -375,8 +382,9 @@ export const register: Register = on => {
   // right end of the first row is what gives way first when the column is narrow.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const f = await read($, flow)
-    const full = (await read($, view)) === 'full'
-    if (e.props.hasSurvey || (!full && f.pointer === 'none')) return next(e)
+    const shown = await read($, view)
+    const full = shown === 'full'
+    if (e.props.hasSurvey || (shown === 'auto' && f.pointer === 'none')) return next(e)
 
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
@@ -449,7 +457,7 @@ export const register: Register = on => {
             <Button key="refresh" plain dimColor onPress={() => { void refresh($) }}>
               ↻ refresh
             </Button>
-            <Button key="view" plain dimColor onPress={() => toggleView($)}>
+            <Button key="view" plain dimColor onPress={() => setView($, 'compact')}>
               {full ? 'less ▴' : 'more ▾'}
             </Button>
           </Box>

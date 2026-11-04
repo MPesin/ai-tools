@@ -10,7 +10,7 @@ No pane: a pane docked beside the transcript runs the full height of the termina
 
 ## Compact
 
-While a task is active, the band sits above the prompt: a rule across the column, a blank row, then two rows. Without a task nothing is drawn, so the band costs no rows.
+While a task is active, the band sits above the prompt: a rule across the column, a blank row, then two rows. Without a task nothing is drawn, so the band costs no rows, unless you fold the expanded band with `less ▴` (see below).
 
 ```
 ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ The rule is dim and spans the column, so the band reads as its own block under w
 
 ## Full
 
-`/dev-flow-panel`, or the band's `more ▾`, expands it; the command or `less ▴` folds it back. Expanded, the band is drawn even without a task.
+`/dev-flow-panel`, or the band's `more ▾`, expands it. Expanded, the band is drawn even without a task. `less ▴` folds it back to the two rows, and they stay drawn without a task too (`No active task`, with Load at hand) for the rest of the session, so the band does not vanish under the click. The command folds it back to the default instead, drawn only while a task is active, which is also how you put the folded band away.
 
 ```
 ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ The stage list runs across, wrapping onto a second row in a narrow column, with 
 | Load | `/dev-flow:load-flow`: lists the task folders under the plans location with their status and which session holds them, and hands the one you pick to the skill its status needs. Drawn while this session has no task. |
 | Clear | `/dev-flow:clear-flow`: switches this session's flow off (its pointer files and the hooks' markers go; the task folder and `plan.md` stay, so Load brings the task back). Drawn while this session has a task. |
 | ↻ refresh | re-reads the task folder now |
-| more ▾ / less ▴ | expands or folds the band |
+| more ▾ / less ▴ | expands the band, or folds it to two rows, which stay drawn even without a task |
 
 With the band focused (ctrl+x tab, or a click) the hotkeys `p`, `d`, `i`, `q`, `l` and `c` press the skill buttons. The engine's own `[-]` at the band's right end collapses it altogether.
 

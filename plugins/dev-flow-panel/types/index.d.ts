@@ -5,8 +5,10 @@
 export type FlowPointer = 'none' | 'current' | 'planning'
 
 /** How much of the band is drawn: `auto` is two rows while a task is active
- *  and nothing otherwise; `full` adds the stage list, flags and hint, task or not. */
-export type PanelView = 'auto' | 'full'
+ *  and nothing otherwise; `compact` is the same two rows, task or not (what the
+ *  band's `less` folds to, so the band does not vanish under the click); `full`
+ *  adds the stage list, flags and hint, task or not. */
+export type PanelView = 'auto' | 'compact' | 'full'
 
 export type FlowState = {
   pointer: FlowPointer

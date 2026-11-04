@@ -144,6 +144,57 @@ test('more expands the band to the stage list, the hint and the flags; less fold
   await folded.unmount()
 })
 
+test('without a task, less folds the expanded band to its two rows instead of closing it; the command puts it away', async ($, on) => {
+  const pressed: string[] = []
+  on('command.register', () => ({ value: { command: 'dev-flow-panel' } }))
+  on('ui.status', () => ({ value: undefined }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.root', () => ({ value: '/p' }))
+  on('clock.now', () => ({ value: 1 }))
+  on('clock.every', () => ({ value: undefined }))
+  on('fs.exists', () => ({ value: false }))
+  on('command.run', (_, e) => {
+    pressed.push(`/${e.command} ${e.args ?? ''}`.trim())
+    return { text: 'ran' }
+  })
+  // The engine's own band, drawn when the plugin has nothing to show.
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+
+  await $.session.start({ cwd: '/p', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'dev-flow-panel', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+
+  const full = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await full.find({ type: 'Button', key: 'view' }))?.text).toMatch(/less/)
+  await full.press({ key: 'view' })
+  await full.unmount()
+
+  // Folded, not gone: the two rows, with Load still at hand.
+  const folded = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await folded.find({ type: 'Text', text: /engine/ })).toBeUndefined()
+  expect(await folded.find({ type: 'Text', text: /No active task/ })).toBeDefined()
+  expect(await folded.find({ type: 'Text', text: /○ Planning/ })).toBeUndefined()
+  expect((await folded.find({ type: 'Button', key: 'view' }))?.text).toMatch(/more/)
+  await folded.press({ key: 'load' })
+  expect(pressed).toEqual(['/dev-flow:load-flow'])
+  // more expands it again.
+  await folded.press({ key: 'view' })
+  await folded.unmount()
+
+  const again = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await again.find({ type: 'Text', text: /○ Planning/ })).toBeDefined()
+  await again.unmount()
+
+  // The command folds back to the default, which draws nothing without a task.
+  const ran = await $.command.run({ command: 'dev-flow-panel', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  expect(ran.text).toMatch(/folded/)
+  const away = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await away.find({ type: 'Text' }))?.text).toBe('engine')
+  await away.unmount()
+})
+
 test('while the plan is a draft, Implement is dim and a press explains instead of running the skill', async ($, on) => {
   const files: Record<string, string> = {
     '/p/.claude/flow/planning': '/p/.claude/plans/t\n',

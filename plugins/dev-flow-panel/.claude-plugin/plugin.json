@@ -1,6 +1,6 @@
 {
   "name": "dev-flow-panel",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "A band above the prompt for the dev-flow and dev-debug plugins, two rows while a task of this session is active: buttons that start /dev-flow:dev-plan, /dev-debug:dev-debug, /dev-flow:dev-implement and /dev-flow:dev-qa-impact, Load (/dev-flow:load-flow picks a task from the plans folder) or Clear (/dev-flow:clear-flow switches this session's flow off), and a colour-coded view of the current stage read from the task folder: planning, approved, implementing, Claude review, your review, QA impact, done, blocked for a feature; diagnosing, confirm cause, approved and the same implementing steps for a bug from dev-debug. Another session's task on the same checkout is not shown as this session's.",
   "author": {
     "name": "Michael Pesin"
