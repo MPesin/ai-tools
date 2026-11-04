@@ -2,9 +2,11 @@
 # PreToolUse guard. Active while <project>/.claude/flow/current or /planning exists
 # and belongs to this session (lib.sh: another session's pointer counts as absent;
 # a planning pointer left behind past draft/diagnosing is stale: named once, not enforced).
-#   Bash, PowerShell  -> no push/discard, no commit from a subagent or --amend,
+#   Bash, PowerShell  -> no push or new PR from a subagent, no force/delete push,
+#                        no pull/discard, no commit from a subagent or --amend,
 #                        no posting, no publishing (commands.sh)
-#   mcp__*            -> no MCP tools that write to external systems
+#   mcp__*            -> no MCP tools that write to external systems, except a
+#                        new PR from the main session
 #   Edit/Write/NotebookEdit -> per-agent write allowances (case table below)
 #   Agent (Task)      -> a stage agent is spawned only at its own plan status (stage_gate);
 #                        checked even without a pointer, since a missing pointer is the finding
@@ -45,14 +47,20 @@ stage_gate() {
   [ "$POINTER_MINE" = 1 ] \
     || deny "$(foreign_notice "$POINTER"), and this session has no flow of its own, so $agent cannot run here. A checkout runs one flow at a time: continue that one in its session, or run it from this session with /dev-flow:load-flow (or /dev-flow:dev-implement <plan path>; its Intake writes $POINTER again, which hands the flow to this session: the other session's run then loses its guards and cannot spawn further stage agents, while agents it already has running stay guarded until they stop)."
   pointer=$POINTER
+  POINTER_NAME_HINT=${POINTER##*/}
   # planning is checked by name: find_flow_pointer prefers current when both exist.
   # Its plan's status decides whether it gates: a stale one is named, not obeyed.
-  # Another session's planning pointer does not gate this session.
+  # Another session's planning pointer does not gate this session. A genuine one
+  # gates only its own task: beside a current pointer naming another task (one
+  # parked at human review while a second task is planned), the stage agents
+  # belong to that other task and run.
   planning="$FLOW_DIR/planning"
   if [ -f "$planning" ] && pointer_mine "$planning"; then
     if planning_stale "$planning"; then
       [ -f "$FLOW_DIR/current" ] && pointer_mine "$FLOW_DIR/current" \
         || deny "$STALE_NOTICE $agent runs inside /dev-flow:dev-implement, whose Intake writes $FLOW_DIR/current and whose stages set status in plan.md before spawning; run /dev-flow:dev-implement <plan path>."
+    elif [ "$POINTER_NAME_HINT" = current ] && [ "$(path_key "$STALE_FOLDER")" != "$(path_key "$(head -n 1 "$pointer" | tr -d '\r')")" ]; then
+      :   # another task's planning: the stage agents are this task's
     elif [ "$STALE_STATUS" = diagnosing ]; then
       deny "the bug is still being diagnosed ($planning exists; $STALE_FOLDER/plan.md has status: diagnosing). Finish /dev-debug:dev-debug first: the user confirms the cause (reply fix), the skill writes the fix plan, sets status: approved, deletes the planning pointer, then invokes /dev-flow:dev-implement <plan path>. Never implement from dev-debug."
     else
@@ -160,7 +168,11 @@ implementer_check() {
 case $AGENT_TYPE in
   dev-reviewer)       only_file 'review-*.md' ;;
   dev-plan-critic)    only_file 'plan-critique.md' ;;
-  dev-qa-impact)      only_file 'qa-impact.md' ;;
+  dev-qa-impact)
+    # Not gated: it also runs standalone on another folder while this session's
+    # task is parked, so the file name is the allowance, not the folder.
+    [ "$base" = qa-impact.md ] && exit 0
+    deny "dev-qa-impact may only write a file named qa-impact.md, in the task folder its prompt names (attempted: $target)." ;;
   dev-review-triager) only_file 'human-review.md' ;;
   dev-debugger)
     # diagnosis.md (or diagnosis-2.md for a second opinion) plus reproduction
@@ -180,10 +192,18 @@ case $AGENT_TYPE in
     exit 0 ;;
   dev-implementer) implementer_check ;;
   '')
-    # Main session. While /dev-plan runs, only the task folder and the flow dir are writable.
+    # Main session. While /dev-plan or /dev-debug runs, only the task folder and
+    # the flow dir are writable (never implement from the planning skill). The
+    # way out is named: this is the one refusal where clearing the flow is right,
+    # when the user has dropped the plan.
     if [ "$POINTER_NAME" = planning ]; then
-      in_task || in_flow \
-        || deny "while /dev-plan runs, writes are limited to the task folder $TASK_FOLDER (attempted: $target). Approve or abandon the plan first."
+      if ! in_task && ! in_flow; then
+        if [ "$(frontmatter_value source)" = dev-debug ]; then
+          deny "while /dev-debug:dev-debug runs ($POINTER names $TASK_FOLDER, status: $(frontmatter_value status)), writes are limited to that task folder (attempted: $target); the fix goes through the plan and /dev-flow:dev-implement. Continue with /dev-debug:dev-debug $TASK_FOLDER and confirm the cause, or, if the user has dropped it, /dev-flow:clear-flow switches this off (the task folder stays)."
+        else
+          deny "while /dev-flow:dev-plan runs ($POINTER names $TASK_FOLDER, status: $(frontmatter_value status)), writes are limited to that task folder (attempted: $target); nothing is implemented from the planning skill. Continue with /dev-flow:dev-plan and approve the plan, or, if the user has dropped it, /dev-flow:clear-flow switches this off (the task folder and plan.md stay; /dev-flow:load-flow brings it back)."
+        fi
+      fi
     fi
     exit 0 ;;
 esac

@@ -9,7 +9,7 @@ Plan, implement, review, and QA-impact flow for any project, run by subagents an
 ## Skills
 
 - `/dev-flow:dev-plan` - produce an approved plan (interactive with you, or drafted by a planner subagent), reviewed by a plan critic. Never implements.
-- `/dev-flow:dev-implement <plan path>` - implement an approved plan (committing each package and each fix round as it goes; you push), run the Claude review/fix loop, stop for human review, fix human findings, then produce the QA impact note. State lives as files in the task folder; a run resumes from `status` and `review_round`.
+- `/dev-flow:dev-implement <plan path>` - implement an approved plan (committing each package and each fix round as it goes; it pushes and opens the PR when you ask), run the Claude review/fix loop, stop for human review, fix human findings, then produce the QA impact note. State lives as files in the task folder; a run resumes from `status` and `review_round`.
 - `/dev-flow:dev-qa-impact` - a fixed-template note for QA engineers who do not read code: what changed for users, which regression tests to run, what was built differently from the requirements. Works from a branch, diff, or PR; no plan needed.
 - `/dev-flow:load-flow [task folder]` - pick up an existing task in this session: lists the task folders under the plans location with their status and which session holds them, and hands the one you choose to the skill its status needs (`dev-plan` for a draft, `dev-debug` for a diagnosis, `dev-implement` from approved on).
 - `/dev-flow:clear-flow [all]` - switch this session's flow off: removes its pointer files and the hooks' marker files, nothing else (the task folder and `plan.md` stay, so `load-flow` brings the task back). `all` also removes another session's leftover pointer.
@@ -36,7 +36,7 @@ sequenceDiagram
 
     U->>M: /dev-flow:dev-plan "task"
     M->>F: create folder, write .claude/flow/planning
-    Note over H: planning pointer exists -> main session may write only the task folder,<br/>git push/discard, posting and publishing are blocked
+    Note over H: planning pointer exists -> main session may write only the task folder,<br/>force pushes, discards, posting and publishing are blocked
     M->>U: Paste PRD/HLD or a work-item ref? Plan interactively or let a planner draft?
     U-->>M: specs + mode
     M->>F: specs/*.md (verbatim, with source line)
@@ -138,7 +138,9 @@ sequenceDiagram
     M->>F: status human-review
     H-->>U: Stop: desktop notification + terminal line "waiting for you (human-review)"
     M->>U: the run's commits, verify.log tail, Low findings, draft PR text
-    U->>U: review the commits, push, open the PR, collect reviewer comments
+    U->>M: review the commits; "push and open the PR" (or do it yourself)
+    M->>M: git push -u origin HEAD; open the PR with the drafted description
+    U->>U: collect reviewer comments
 
     rect rgb(255, 245, 230)
     Note over M,X: Stage 5 - Human findings
@@ -150,11 +152,13 @@ sequenceDiagram
     X->>F: fixes for the fix items, notes.md, verify.log
     M->>M: git commit "address review comments"
     M->>U: fixes (committed), draft replies, checklist additions to confirm
-    U->>U: push, reply on the PR
+    U->>M: "push" (or push yourself)
+    U->>U: reply on the PR
     end
 
     rect rgb(235, 255, 235)
     Note over M,Q: Stage 6 - QA impact (last writer, describes the final code)
+    U->>M: review done ("everything works", or the panel's QA impact button)
     M->>F: status qa-impact
     M->>Q: task folder, project root, base, specs
     Q->>Q: trace callers and consumers, verify every note against the code
@@ -207,9 +211,9 @@ Where the rules file is silent, the agents ask or say so; they do not fall back 
 
 ## Guards
 
-The skills tell each agent what it may and may not do. The guards are hooks (`hooks/hooks.json`) that enforce those rules regardless of what an agent decides, so a prompt that drifts cannot push a branch, post to a PR, or let a reviewer "quickly fix" the code it reviews.
+The skills tell each agent what it may and may not do. The guards are hooks (`hooks/hooks.json`) that enforce those rules regardless of what an agent decides, so a subagent that drifts cannot push a branch or open a PR, nothing in the flow can force-push, post to a PR or merge it, and a reviewer cannot "quickly fix" the code it reviews. The main session, which you talk to, pushes the commits it made and opens the PR when you ask: keeping the remote up to date is yours to decide, not something a guard should stand in the way of.
 
-A refused tool call never runs. Claude Code shows the agent the reason, for example `dev-flow guard: git push is not allowed during the flow`, and the agent adapts: it reports the problem instead of retrying around it. The checks that run when an agent finishes block it once, with the list of what is missing, and the agent then reports. They never loop.
+A refused tool call never runs. Claude Code shows the agent the reason, for example `dev-flow guard: git push is not allowed in a subagent (dev-fixer): the main session pushes, when the user asks`, and the agent adapts: it reports the problem instead of retrying around it. The checks that run when an agent finishes block it once, with the list of what is missing, and the agent then reports. They never loop.
 
 ### When the guards are on
 
@@ -223,11 +227,11 @@ The guards follow a **pointer file** in `<project>/.claude/flow/`. Each pointer 
 
 - **No pointer, no guards.** The one exception is the stage gate (below), which also refuses to start a stage agent when there is no pointer.
 - **One session.** The skills write the pointer's first line; a PostToolUse hook in the session that ran that tool call adds the session line right after. The flow then belongs to that session: the guards, the notifications and the session restore apply to it and to the subagents it spawns (their hooks carry the parent session's id), and to nothing else. Another Claude Code session on the same checkout, even in the same folder on the same branch, sees the pointer as absent: it pushes, commits and edits as usual, its own subagents are held to nothing, and it cannot spawn the flow's stage agents (the refusal names the owning session). At start it is told that the flow exists and how to run it from there: `/dev-flow:load-flow` (or the stage's skill: `/dev-flow:dev-implement <plan>`, `/dev-flow:dev-plan <task folder>`, `/dev-debug:dev-debug <task folder>`) writes the pointer again, which hands the flow to that session; the other session's run then loses its guards and cannot spawn further stage agents, while agents it already has running stay guarded until they stop. A `finished` pointer or a `current` at `status: done` left by another session is swept by any session's Stop hook, since that run is over. A pointer without the line (written by hand, or by dev-flow before 2.5.0) belongs to no session until one claims it the same way. A resumed session (`claude --resume`) keeps its id and its flow; a fork, or a fresh session in the same folder, is another session.
-- **To switch the guards off, run `/dev-flow:clear-flow`** (it removes this session's pointer files and the hooks' marker files), or delete the pointer file. The stage agents then cannot be spawned until `/dev-flow:dev-implement` writes `current` again.
+- **To switch the guards off, run `/dev-flow:clear-flow`** (it removes this session's pointer files and the hooks' marker files), or delete the pointer file. That abandons the run: the stage agents then cannot be spawned until `/dev-flow:dev-implement` writes `current` again. It is not needed to push or open the PR (the main session may do both), nor to finish (QA impact and the final report end the run and switch the guards off).
 - **Lookup.** The pointer is searched from the working directory upwards and the search stops at the first directory holding a `.git`. A session started in a subdirectory still finds the project's flow. A git worktree (Claude Code makes them under `<repo>/.claude/worktrees/<name>`) is its own project: it neither sees nor is guarded by the main checkout's flow.
 - **A stale `planning` pointer is not enforced.** That is one left behind once `plan.md` moved past planning (`approved` or later) or whose folder is gone. The hooks say so once per session, with the `rm` command, and the Stop hook removes it once `plan.md` shows the later status. One naming a missing folder is only named, never removed. A pointer at `draft` or `diagnosing` is never touched.
-- **A `current` left at `status: done`** (the final rename to `finished` skipped) is finished by the Stop hook all the same, so it cannot leave push blocked for good.
-- **Two tasks at once.** A second task can be planned or diagnosed (`planning`) while the first waits at human review (`current`). The planner, critic and debugger then belong to `planning` and the stage agents to `current`.
+- **A `current` left at `status: done`** (the final rename to `finished` skipped) is finished by the Stop hook all the same, so it cannot leave the guards on for good.
+- **Two tasks at once.** A second task can be planned or diagnosed (`planning`) while the first waits at human review (`current`). The planner, critic and debugger then belong to `planning` and the stage agents to `current`, and both go on: review comments on the parked task are fixed (`/dev-flow:dev-implement <its plan>`) while the second plan is still a draft. A `planning` pointer gates only the task it names.
 - **Who is who.** The hooks tell the main session from a subagent, and one subagent from another, by the agent type Claude Code reports. An agent spawned as `general-purpose` (the fallback when a dev-flow agent is missing) counts as a subagent of no known kind: it gets no per-agent write limits, but it still cannot commit.
 
 ### 1. Commands (Bash and PowerShell)
@@ -238,30 +242,37 @@ Every Bash and PowerShell command is read before it runs.
 
 | Allowed | Refused |
 |---|---|
-| everything that reads: `status`, `diff`, `log`, `show`, `blame`, `branch` (list), `stash list/show`, ... | `push`, `pull` |
-| `add`, and `reset <path>` (unstage) | `checkout`, `switch`, `restore`, `clean`, `stash` (anything but list/show), `reset --hard/--merge/--keep/--soft` |
+| everything that reads: `status`, `diff`, `log`, `show`, `blame`, `branch` (list), `stash list/show`, ... | |
+| `push` from the **main session**, when you ask (it pushes the commits the flow made; `-u`, `-o`, `HEAD:<branch>` are fine) | `push` from **any subagent**; a push that overwrites or deletes remote branches, from anyone: `-f`, `--force`, `--force-with-lease`, `--force-if-includes`, `-d`, `--delete`, `--mirror`, `--prune` (and their abbreviations), a `+<ref>` or `:<ref>` refspec; a push that publishes a tag (`--tags`, `--follow-tags`, `refs/tags/...`, or a refspec naming an existing tag), since release pipelines listen for tags |
+| `pull` (a merge or a fast-forward), `merge`, `revert` and `cherry-pick` from the **main session**, when you ask: they keep the branch in step with the remote and only add commits (so a push rejected as non-fast-forward is followed by `git pull --no-rebase` or `--ff-only`, then pushed again) | the same from **any subagent**; `pull --rebase`/`-r` from anyone, and a plain `pull` when the repo's `pull.rebase` setting would make it rebase (the refusal says to add `--no-rebase` or `--ff-only`) |
+| a new branch at HEAD from the **main session**: `switch -c <name>`, `checkout -b <name>` (with or without a start point) | `switch <branch>`, `checkout <branch>`, `-C`/`-B` (they reset an existing branch), `--orphan`, `--detach`, `-f`; any of it from a subagent |
+| `restore <paths>` and `checkout -- <paths>` from the **main session** with explicit paths, when you ask (to bring back files an agent should not have changed); `restore --staged` (unstage, any paths), `add`, `reset <path>` | `restore`/`checkout --` of the whole tree (`.`, `:/`, `*`, no path), `restore -S` (read as `--source`; write `--staged`), `clean`, `reset --hard/--merge/--keep/--soft`; any restore from a subagent |
+| `stash`, `stash push/pop/apply` from the **main session**, when you ask (stashed work comes back) | `stash drop/clear` from anyone; any stash but `list`/`show` from a subagent |
+| `branch -d` (a merged branch), `-m` (rename), `-c` (copy) from the **main session**; `branch -u`, `--format`, every listing form | `branch -D`, `-M`, `-C`, `-f`/`--force` from anyone; `-d`/`-m`/`-c` from a subagent |
 | `commit` from the **main session**, which commits each package and fix round (see the dev-implement skill's Commits section) | `commit` from **any subagent**: parallel implementers share one index, so one's `git add` would sweep in another's half-done files |
 | | `commit --amend` (and its abbreviations `--am`, `--ame`, `--amen`), and `reset --soft`, which amends in two steps: they rewrite a commit from before the flow, or one a reviewer already saw |
-| | `rebase`, `merge`, `cherry-pick`, `revert`, `am`, `filter-branch`, `filter-repo`, `commit-tree`, `update-ref`, `replace`; `branch -d/-D/-m/-M/-f` |
-| | `-c alias.<name>=...` on the command line. An alias from git config (`git ci`) is looked up and checked as what it runs, so `ci = commit` from a subagent and `pp = !git push` are refused |
+| | `rebase`, `am`, `filter-branch`, `filter-repo`, `commit-tree`, `update-ref`, `replace` |
+| | `-c alias.<name>=...` on the command line. An alias from git config (`git ci`) is looked up and checked as what it runs, so `ci = commit` from a subagent and `fp = push --force` are refused |
 
 **Hosting platforms and publishing**
 
 | Tool | Allowed | Refused |
 |---|---|---|
-| `gh` | `pr view/list/diff/checks/status`, `issue view/list`, `repo view/clone`, `run view/watch`, other `list`/`view`; `api` with a plain GET | everything that creates, edits, comments, merges, approves or deletes; `api` with `-X POST/PATCH/...`, `-f`/`-F` fields or `--input` |
-| `glab` | `mr view/list/diff`, `issue view/list`, `ci view/list/status/lint/trace`, ...; `api` GET | the same writes as `gh` |
-| `az` | `repos pr list/show`, `boards work-item show`, other list/show; `devops invoke` GET | creating or updating PRs, work items, repos, pipeline runs, builds, releases, variables |
+| `gh` | `pr view/list/diff/checks/status`, `issue view/list`, `repo view/clone`, `run view/watch`, other `list`/`view`; `api` with a plain GET; `api graphql` with a query that only reads (what fetching unresolved review threads takes, since thread resolution is GraphQL-only on GitHub); `pr create` from the main session | everything else that creates, edits, comments, merges, approves or deletes; `pr create` from a subagent; `api` with `-X POST/PATCH/...`, `-f`/`-F` fields or `--input` on a REST endpoint; `api graphql` whose document holds a `mutation`, or with `--input` (a file the guard cannot read) |
+| `glab` | `mr view/list/diff`, `issue view/list`, `ci view/list/status/lint/trace`, ...; `api` GET and `api graphql` read queries; `mr create` from the main session | the same writes as `gh` |
+| `az` | `repos pr list/show`, `boards work-item show`, other list/show; `devops invoke` GET; `repos pr create` from the main session | updating PRs, creating them from a subagent or with `--auto-complete` (that merges once policies pass), work items, repos, pipeline runs, builds, releases, variables |
 | package and image publishing | building, testing, restoring packages | `dotnet nuget push/delete`, `nuget push`, `npm publish/unpublish/deprecate`, `yarn`/`pnpm publish`, `docker push`, `cargo publish`, `twine upload`, `gem push`, `helm push`, `mvn deploy`, `gradle publish*` |
 
-**How a command is read.** A command is split into simple commands at `;`, `&&`, `|`, `$(...)`, backticks and newlines. Quoted text stays an argument, heredoc bodies are skipped, and case is ignored. Wrappers (`sudo`, `env X=1`, `timeout`, `nohup`, `xargs`, `Start-Process`, ...) are looked through, and so is a quoted or Windows path to the program (`"C:\Program Files\Git\bin\git.exe"`). Commands handed to another shell (`bash -c "..."`, `cmd /c "..."`, `pwsh -Command "..."`, `wsl ...`, `eval`) are read too, two levels deep. So:
+**How a command is read.** A command is split into simple commands at `;`, `&&`, `|`, `$(...)`, backticks and newlines. Quoted text stays an argument, heredoc bodies are skipped, and the names of commands and subcommands are matched in any case (`Git Push`, as PowerShell users type them) while options keep theirs, as git reads them (`branch -d` is not `-D`, `switch -c` is not `-C`). Wrappers (`sudo`, `env X=1`, `timeout`, `nohup`, `xargs`, `Start-Process`, ...) are looked through, and so is a quoted or Windows path to the program (`"C:\Program Files\Git\bin\git.exe"`). Commands handed to another shell (`bash -c "..."`, `cmd /c "..."`, `pwsh -Command "..."`, `wsl ...`, `eval`) are read too, two levels deep. So:
 
 - `grep -rn "git push" docs/`, `echo remember to git push` and a heredoc that mentions `git push` all pass;
-- `git -C "my repo" push`, `npm test && git push`, `sudo env X=1 git push` and `cmd /c "git push"` are all refused.
+- `git -C "my repo" push -f`, `npm test && git push --force`, `sudo env X=1 git push -f` and `cmd /c "git push -f"` are all refused, and so is any of them without `-f` from a subagent.
 
 ### 2. MCP tools
 
-An MCP tool (`mcp__<server>__<tool>`) is refused when its name reads like a write to an outside system. That means a name with a word such as `create`, `update`, `delete`, `add`, `post`, `comment`, `reply`, `resolve`, `merge`, `push`, `submit`, `approve`, `assign`, `close`, `edit`, `set`, `transition`, `publish`, `upload`, `send`, `move` or `archive`, for example `create_pull_request`, `add_issue_comment` or `wit_update_work_item`. Tools that read (`get_pull_request`, `search_code`, `list_issues`) pass. The check goes by name only, so a read tool with a write-like word in its name is refused too. Read the same data through `git`, `gh` or `az` instead, or switch the guards off.
+An MCP tool (`mcp__<server>__<tool>`) is refused when its name reads like a write to an outside system. That means a name with a word such as `create`, `update`, `delete`, `add`, `post`, `comment`, `reply`, `resolve`, `merge`, `push`, `submit`, `approve`, `assign`, `close`, `edit`, `set`, `transition`, `publish`, `upload`, `send`, `move` or `archive`, for example `merge_pull_request`, `add_issue_comment` or `wit_update_work_item`. The one exception is opening a PR or MR from the main session (`create_pull_request`, `create_merge_request`, `repo_create_pull_request`), as with `gh pr create`; from a subagent it is refused too. Tools that read (`get_pull_request`, `search_code`, `list_issues`) pass. The check goes by name only, so a read tool with a write-like word in its name is refused too. Read the same data through `git`, `gh` or `az` instead.
+
+Servers that only touch this machine are not external systems: for the **main session** (which the flow does not write-limit) the check skips servers whose name contains `filesystem`, `playwright`, `puppeteer`, `chrome-devtools`, `browser`, `desktop-commander`, `sequential-thinking` or `memory`, or is `ide`, so a browser tab can be closed and a local file written during a run. `DEV_FLOW_LOCAL_MCP="<name> <name>"` (space-separated, matched as substrings of the server name) adds your own. A subagent's MCP writes stay under the name check whatever the server.
 
 ### 3. File writes (Edit, Write, NotebookEdit)
 
@@ -298,7 +309,7 @@ This guard sees the Edit/Write tools only. A file written by a shell command (`e
 
 They are also refused:
 - when there is no pointer at all (run `/dev-flow:dev-implement <plan>`, not the agent directly);
-- while a genuine `planning` pointer exists (the refusal names the plan's status and the skill to finish first; a plan at `diagnosing` points at `/dev-debug:dev-debug`);
+- while a genuine `planning` pointer names this task, or there is no `current` beside it (the refusal names the plan's status and the skill to finish first; a plan at `diagnosing` points at `/dev-debug:dev-debug`); a `planning` pointer for another task does not gate the task `current` names;
 - when `current` names a missing folder or a folder without `plan.md`.
 
 `dev-planner`, `dev-plan-critic`, `dev-debugger` and `dev-qa-impact` are not gated. They run during planning, standalone, or under another task's pointer, and their writes are limited by guard 3.
@@ -333,17 +344,18 @@ An implementer or fixer cannot finish without proof that it built and tested its
 These do not refuse anything; they keep you and a restarted session informed.
 
 - **Stop.** When the flow waits for you, you get a terminal line and one desktop notification per state. That covers the diagnosis (`diagnosing`, then `confirm-cause`), plan approval (`draft`), `human-review`, `blocked`, `done`, and whenever `needs-decision.md` or `violations.md` has entries. Notifications use a PowerShell toast on Windows and WSL, `osascript` on macOS and `notify-send` on Linux. Set `DEV_FLOW_NOTIFY_CMD="<program>"` to use your own; it is called with the title and message. The Stop hook also removes a stale `planning` pointer and finishes a `finished` (or `done`) run, removing its marker files; it sweeps another session's finished run the same way, silently. A pointer no session has claimed (written by hand, or by dev-flow before 2.5.0) guards nothing anywhere, so the Stop hook says so once per session, with the `/dev-flow:load-flow` call that claims it.
-- **SessionStart** (startup, resume, clear, compact). It puts this session's active task folder, status, mode, review round and base back into context with how to continue, and names a parked second task. It warns when the pointer is more than two days old (the flow may be abandoned) and when `needs-decision.md` or `violations.md` have items. A pointer of another session, or one no session has claimed, is named instead, with `/dev-flow:load-flow` to run that flow from this session and `/dev-flow:clear-flow all` to clear a leftover.
+- **SessionStart** (startup, resume, clear, compact). It puts this session's active task folder, status, mode, review round and base back into context with how to continue, and names a parked second task. It warns when the pointer is more than two days old at an in-progress stage (the flow may be abandoned; a task waiting at human review or blocked waits on people, for as long as a review takes, and is not warned about) and when `needs-decision.md` or `violations.md` have items. A pointer of another session, or one no session has claimed, is named instead, with `/dev-flow:load-flow` to run that flow from this session and `/dev-flow:clear-flow all` to clear a leftover.
 - **PostToolUse** (Bash, PowerShell, Write, Edit, NotebookEdit; main session only). After a tool call that can have written a pointer (the Write or Edit tool on a pointer's path; a shell command that names the flow directory and writes there: a redirect to `current`, `planning` or `finished`, `tee`, `cp`, `mv`, `Set-Content` and the like), a pointer without a session line gets this session's: that is the moment a flow becomes this session's, right after the skill writes the pointer. A read (`cat`, `ls`) claims nothing, and a pointer that already names a session is left alone.
 - **SubagentStart.** It gives each dev-flow agent the task folder, project root, branch and plan status, and tells it its own allowance (the claim file for a package implementer, `verify.log` for writing agents). It also adds `.claude/flow/` and `.claude/plans/` to `.git/info/exclude`, so the flow's own files stay out of `git status` and out of commits.
 
 ### What the guards do not cover
 
 - **Scripts are not read.** `./release.sh` that runs `git push` inside is not refused; only the command line itself (and the git aliases it uses) is read.
+- **A shell reached through an MCP server is not read.** Desktop Commander's `start_process`, or any MCP tool that runs a command, is checked by its tool name only, not by the command it runs.
 - **The main session is not write-limited while implementing.** It is the orchestrator; only its commands are checked.
 - **A single implementer and the fixer may change any source file.** Package implementers are held to their `Owns`.
 - **Shell writes are detected, not prevented.** A read-only agent that writes with a shell command is reported when it stops, not stopped when it writes.
-- **No pointer, no guards** (except the stage gate). `/dev-flow:clear-flow`, or deleting the pointer, is the deliberate way out when a guard is wrong.
+- **No pointer, no guards** (except the stage gate). `/dev-flow:clear-flow`, or deleting the pointer, abandons the run: the deliberate way out when you want the run stopped, not a step for pushing or finishing.
 - **Other sessions are not guarded.** A flow in one session does not stop another Claude Code session on the same checkout from pushing or changing the branch the flow works on. Sessions are kept apart on purpose; two flows that must not share a working tree belong in separate git worktrees. The one thing the other session gets is a warning, once per session, the first time it runs a git command that switches branches, discards or rewrites changes (`checkout`, `switch`, `restore`, `reset`, `stash`, `clean`, `rebase`, `merge`, `cherry-pick`, `revert`, `pull`, `worktree`) while another session's flow is active there: such a command would also move or lose that flow's uncommitted work. The command still runs.
 
 ### Running the tests

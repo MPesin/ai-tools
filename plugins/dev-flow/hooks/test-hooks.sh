@@ -116,42 +116,141 @@ expect_deny  "implementer: git commit"          flow-guard.sh "$(bash_json dev-f
 assert "deny says the main session commits" 'case $err in *"main session commits"*) true;; *) false;; esac'
 expect_deny  "fixer: git add . && git commit"   flow-guard.sh "$(bash_json dev-flow:dev-fixer 'git add . && git commit -am x')"
 expect_deny  "general-purpose subagent: git commit" flow-guard.sh "$(bash_json general-purpose 'git commit -m x')"
-expect_deny  "git push"                         flow-guard.sh "$(bash_json '' 'git push origin main')"
-expect_deny  "git --no-pager push"              flow-guard.sh "$(bash_json '' 'git --no-pager push')"
-expect_deny  "git -C \"my repo\" push"          flow-guard.sh "$(bash_json '' 'git -C \"my repo\" push')"
+expect_allow "main session: git push"           flow-guard.sh "$(bash_json '' 'git push origin main')"
+expect_allow "main session: git push -u origin HEAD" flow-guard.sh "$(bash_json '' 'git push -u origin HEAD')"
+expect_allow "main session: git push -o ci.skip (value of -o is not an option)" flow-guard.sh "$(bash_json '' 'git push -o ci.skip origin feature')"
+expect_allow "main session: git push HEAD:refs/heads/x" flow-guard.sh "$(bash_json '' 'git push origin HEAD:refs/heads/x')"
+expect_allow "main session: git push --dry-run --set-upstream origin x" flow-guard.sh "$(bash_json '' 'git push --dry-run --set-upstream origin x')"
+expect_allow "main session: git push --push-option ci.skip origin x" flow-guard.sh "$(bash_json '' 'git push --push-option ci.skip origin x')"
+expect_deny  "git push --tags (publishes a release)" flow-guard.sh "$(bash_json '' 'git push --tags')"
+expect_deny  "git push --follow-tags"           flow-guard.sh "$(bash_json '' 'git push --follow-tags')"
+expect_deny  "git push refs/tags/"              flow-guard.sh "$(bash_json '' 'git push origin refs/tags/v1.0')"
+git tag v1.0 >/dev/null 2>&1
+expect_deny  "git push origin <existing tag>"   flow-guard.sh "$(bash_json '' 'git push origin v1.0')"
+assert "deny names the tag" 'case $err in *"v1.0 is a tag"*) true;; *) false;; esac'
+expect_allow "git push origin <branch> (not a tag)" flow-guard.sh "$(bash_json '' 'git push origin main')"
+git tag -d v1.0 >/dev/null 2>&1
+expect_deny  "implementer: git push"            flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git push')"
+assert "deny says the main session pushes" 'case $err in *"main session pushes"*) true;; *) false;; esac'
+expect_deny  "reviewer: git push origin main"   flow-guard.sh "$(bash_json dev-flow:dev-reviewer 'git push origin main')"
+expect_deny  "general-purpose subagent: git push" flow-guard.sh "$(bash_json general-purpose 'git push')"
+expect_deny  "git push --force"                 flow-guard.sh "$(bash_json '' 'git push --force origin main')"
+assert "a force-push deny does not send the user to clear-flow" 'case $err in *clear-flow*) false;; *) true;; esac'
+expect_deny  "git push -f"                      flow-guard.sh "$(bash_json '' 'git push -f')"
+expect_deny  "git push -uf (cluster)"           flow-guard.sh "$(bash_json '' 'git push -uf origin x')"
+expect_deny  "git push --force-with-lease"      flow-guard.sh "$(bash_json '' 'git push --force-with-lease')"
+expect_deny  "git push --forc (prefix)"         flow-guard.sh "$(bash_json '' 'git push --forc')"
+expect_deny  "git push --force-if-includes=x"   flow-guard.sh "$(bash_json '' 'git push --force-if-includes')"
+expect_deny  "git push --delete"                flow-guard.sh "$(bash_json '' 'git push origin --delete feature')"
+expect_deny  "git push -d"                      flow-guard.sh "$(bash_json '' 'git push -d origin feature')"
+expect_deny  "git push --mirror"                flow-guard.sh "$(bash_json '' 'git push --mirror')"
+expect_deny  "git push --prune"                 flow-guard.sh "$(bash_json '' 'git push --prune origin')"
+expect_deny  "git push +refspec"                flow-guard.sh "$(bash_json '' 'git push origin +HEAD:main')"
+expect_deny  "git push :branch (delete)"        flow-guard.sh "$(bash_json '' 'git push origin :feature')"
+expect_deny  "git push \"+main\" (quoted)"      flow-guard.sh "$(bash_json '' 'git push origin \"+main\"')"
+expect_deny  "git --no-pager push --force"      flow-guard.sh "$(bash_json '' 'git --no-pager push --force')"
+expect_deny  "git -C \"my repo\" push -f"       flow-guard.sh "$(bash_json '' 'git -C \"my repo\" push -f')"
 expect_deny  "git -c x=y commit --amend"        flow-guard.sh "$(bash_json '' 'git -c user.name=x commit --amend -m y')"
 expect_deny  "git commit --amen (prefix of --amend)" flow-guard.sh "$(bash_json '' 'git commit --amen -m y')"
 expect_deny  "git commit --am"                  flow-guard.sh "$(bash_json '' 'git commit --am --no-edit')"
 expect_allow "git commit --author (not --amend)" flow-guard.sh "$(bash_json '' 'git commit --author=\"a <a@b>\" -m y')"
 expect_deny  "subagent: git -c alias.c=commit c" flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git -c alias.c=commit c -m x')"
 expect_deny  "git -c \"alias.p=push\" p"        flow-guard.sh "$(bash_json '' 'git -c \"alias.p=push\" p')"
-git config alias.ci commit; git config alias.pp '!git push origin'; git config alias.st status
+git config alias.ci commit; git config alias.pp '!git push origin'; git config alias.fp 'push --force'; git config alias.st status
 expect_deny  "subagent: config alias ci = commit" flow-guard.sh "$(bash_json dev-flow:dev-fixer 'git ci -m x')"
 expect_allow "main session: config alias ci = commit" flow-guard.sh "$(bash_json '' 'git ci -m x')"
-expect_deny  "shell alias pp = !git push"       flow-guard.sh "$(bash_json '' 'git pp')"
+expect_allow "main session: shell alias pp = !git push" flow-guard.sh "$(bash_json '' 'git pp')"
+expect_deny  "subagent: shell alias pp = !git push" flow-guard.sh "$(bash_json dev-flow:dev-fixer 'git pp')"
+expect_deny  "alias fp = push --force"          flow-guard.sh "$(bash_json '' 'git fp')"
 expect_allow "alias st = status"                flow-guard.sh "$(bash_json '' 'git st')"
-git config --unset alias.ci; git config --unset alias.pp; git config --unset alias.st
+git config --unset alias.ci; git config --unset alias.pp; git config --unset alias.fp; git config --unset alias.st
 expect_deny  "git commit-tree"                  flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git commit-tree HEAD^{tree} -m x')"
 expect_deny  "git update-ref"                   flow-guard.sh "$(bash_json '' 'git update-ref refs/heads/main HEAD~1')"
 expect_deny  "git reset --soft"                 flow-guard.sh "$(bash_json '' 'git reset --soft HEAD~1')"
-expect_deny  "git pull"                         flow-guard.sh "$(bash_json '' 'git pull --rebase')"
+expect_deny  "git pull --rebase"                flow-guard.sh "$(bash_json '' 'git pull --rebase')"
+assert "deny offers --no-rebase and --ff-only" 'case $err in *"--no-rebase"*"--ff-only"*) true;; *) false;; esac'
+expect_deny  "git pull -r"                      flow-guard.sh "$(bash_json '' 'git pull -r origin main')"
+expect_allow "main session: git pull"           flow-guard.sh "$(bash_json '' 'git pull')"
+expect_allow "main session: git pull --ff-only" flow-guard.sh "$(bash_json '' 'git pull --ff-only origin main')"
+expect_allow "main session: git pull --no-rebase --autostash" flow-guard.sh "$(bash_json '' 'git pull --no-rebase --autostash')"
+expect_deny  "subagent: git pull"               flow-guard.sh "$(bash_json dev-flow:dev-fixer 'git pull --ff-only')"
+git config pull.rebase true
+expect_deny  "pull.rebase=true: plain git pull would rebase" flow-guard.sh "$(bash_json '' 'git pull')"
+assert "deny names the config" 'case $err in *"pull.rebase is true"*) true;; *) false;; esac'
+expect_allow "pull.rebase=true: git pull --no-rebase"        flow-guard.sh "$(bash_json '' 'git pull --no-rebase')"
+git config --unset pull.rebase
+expect_allow "main session: git merge origin/main" flow-guard.sh "$(bash_json '' 'git fetch origin && git merge origin/main')"
+expect_allow "main session: git merge --abort"  flow-guard.sh "$(bash_json '' 'git merge --abort')"
+expect_deny  "subagent: git merge"              flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git merge origin/main')"
+expect_allow "main session: git revert <commit>" flow-guard.sh "$(bash_json '' 'git revert --no-edit abc123')"
+expect_allow "main session: git cherry-pick"    flow-guard.sh "$(bash_json '' 'git cherry-pick abc123')"
+expect_deny  "subagent: git revert"             flow-guard.sh "$(bash_json dev-flow:dev-fixer 'git revert abc123')"
+expect_deny  "git rebase (everyone)"            flow-guard.sh "$(bash_json '' 'git rebase origin/main')"
+assert "the deny does not send the user to clear the flow to get past it" 'case $err in *"Do not clear the flow"*) true;; *) false;; esac'
 expect_deny  "git reset --hard"                 flow-guard.sh "$(bash_json '' 'git reset --hard HEAD~1')"
 expect_deny  "git checkout -- ."                flow-guard.sh "$(bash_json '' 'git checkout -- .')"
 expect_deny  "git restore ."                    flow-guard.sh "$(bash_json '' 'git restore .')"
-expect_deny  "git stash"                        flow-guard.sh "$(bash_json '' 'git stash')"
+expect_deny  "git restore :/"                   flow-guard.sh "$(bash_json '' 'git restore :/')"
+expect_deny  "git restore (no path)"            flow-guard.sh "$(bash_json '' 'git restore')"
+expect_allow "main session: git restore <path> (on request)" flow-guard.sh "$(bash_json '' 'git restore src/foo/alpha.txt src/bar/beta.txt')"
+expect_allow "main session: git restore --staged . (unstage)" flow-guard.sh "$(bash_json '' 'git restore --staged .')"
+expect_deny  "git restore --staged --worktree . (discards)"  flow-guard.sh "$(bash_json '' 'git restore --staged --worktree .')"
+expect_deny  "git restore -S (ambiguous short form)"         flow-guard.sh "$(bash_json '' 'git restore -S src/foo/alpha.txt')"
+expect_allow "main session: git restore --source=HEAD~1 <path>" flow-guard.sh "$(bash_json '' 'git restore --source=HEAD~1 src/foo/alpha.txt')"
+expect_deny  "git restore -s HEAD~1 . (whole tree)"          flow-guard.sh "$(bash_json '' 'git restore -s HEAD~1 .')"
+expect_deny  "subagent: git restore <path>"     flow-guard.sh "$(bash_json dev-flow:dev-reviewer 'git restore src/foo/alpha.txt')"
+expect_allow "main session: git checkout -- <path>" flow-guard.sh "$(bash_json '' 'git checkout -- src/foo/alpha.txt')"
+expect_deny  "git checkout <branch> (a switch)" flow-guard.sh "$(bash_json '' 'git checkout main')"
+assert "deny points at switch -c and restore" 'case $err in *"git switch -c <name>"*"git restore <paths>"*) true;; *) false;; esac'
+expect_deny  "git checkout <file> without -- (read as a switch)" flow-guard.sh "$(bash_json '' 'git checkout src/foo/alpha.txt')"
+expect_allow "main session: git checkout -b <new>"  flow-guard.sh "$(bash_json '' 'git checkout -b feature/x')"
+expect_allow "main session: git checkout -b <new> origin/main" flow-guard.sh "$(bash_json '' 'git checkout -b feature/x origin/main')"
+expect_deny  "git checkout -B (resets a branch)" flow-guard.sh "$(bash_json '' 'git checkout -B feature/x')"
+expect_deny  "git checkout --orphan"            flow-guard.sh "$(bash_json '' 'git checkout --orphan x')"
+expect_deny  "git checkout -f"                  flow-guard.sh "$(bash_json '' 'git checkout -f main')"
+expect_deny  "subagent: git checkout -b"        flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git checkout -b x')"
+expect_allow "main session: git switch -c <new>" flow-guard.sh "$(bash_json '' 'git switch -c feature/x')"
+expect_allow "main session: git switch --create <new> origin/main" flow-guard.sh "$(bash_json '' 'git switch --create feature/x origin/main')"
+expect_deny  "git switch <branch>"              flow-guard.sh "$(bash_json '' 'git switch main')"
+expect_deny  "git switch -C (resets a branch)"  flow-guard.sh "$(bash_json '' 'git switch -C feature/x')"
+expect_deny  "git switch --discard-changes"     flow-guard.sh "$(bash_json '' 'git switch --discard-changes -c x')"
+expect_deny  "subagent: git switch -c"          flow-guard.sh "$(bash_json dev-flow:dev-fixer 'git switch -c x')"
+expect_allow "main session: git stash"          flow-guard.sh "$(bash_json '' 'git stash')"
+expect_allow "main session: git stash push -m wip" flow-guard.sh "$(bash_json '' 'git stash push -m wip -- src/foo')"
+expect_allow "main session: git stash pop"      flow-guard.sh "$(bash_json '' 'git stash pop')"
+expect_deny  "git stash drop"                   flow-guard.sh "$(bash_json '' 'git stash drop')"
+expect_deny  "git stash clear"                  flow-guard.sh "$(bash_json '' 'git stash clear')"
+expect_deny  "subagent: git stash"              flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git stash')"
+expect_allow "subagent: git stash list"         flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git stash list')"
 expect_deny  "git clean -fdx"                   flow-guard.sh "$(bash_json '' 'git clean -fdx')"
 expect_deny  "git branch -D"                    flow-guard.sh "$(bash_json '' 'git branch -D feature')"
-expect_deny  "chained: npm test && git push"    flow-guard.sh "$(bash_json '' 'npm test && git push')"
-expect_deny  "subshell: \$(git push)"           flow-guard.sh "$(bash_json '' 'echo $(git push)')"
-expect_deny  "line continuation: git \\<newline> push" flow-guard.sh "$(bash_json '' 'git \\\n push origin')"
-expect_deny  "wrapper: sudo env X=1 git push"   flow-guard.sh "$(bash_json '' 'sudo env X=1 git push')"
-expect_deny  "wrapper: timeout 10 git push"     flow-guard.sh "$(bash_json '' 'timeout -k 5 10 git push')"
-expect_deny  "launcher: bash -c \"git push\""   flow-guard.sh "$(bash_json '' 'bash -c \"cd x && git push\"')"
-expect_deny  "launcher: cmd /c \"git push\""    flow-guard.sh "$(bash_json '' 'cmd /c \"git push\"')"
-expect_deny  "launcher: wsl git push"           flow-guard.sh "$(bash_json '' 'wsl git push')"
-expect_deny  "quoted git path (Windows)"        flow-guard.sh "$(bash_json '' '\"C:\\\\Program Files\\\\Git\\\\bin\\\\git.exe\" push')"
-expect_deny  "PowerShell tool: git push"        flow-guard.sh "$(bash_json '' '& git.exe push' '' PowerShell)"
-expect_deny  "PowerShell: Git Push (case)"      flow-guard.sh "$(bash_json '' 'Git Push origin' '' PowerShell)"
+expect_deny  "git branch -M"                    flow-guard.sh "$(bash_json '' 'git branch -M main')"
+expect_deny  "git branch -df (cluster)"         flow-guard.sh "$(bash_json '' 'git branch -df feature')"
+expect_deny  "git branch --delete --force"      flow-guard.sh "$(bash_json '' 'git branch --delete --force feature')"
+expect_allow "main session: git branch -d (merged)" flow-guard.sh "$(bash_json '' 'git branch -d feature')"
+expect_allow "main session: git branch -m (rename)" flow-guard.sh "$(bash_json '' 'git branch -m feature/better-name')"
+expect_allow "main session: git branch --move"  flow-guard.sh "$(bash_json '' 'git branch --move a b')"
+expect_deny  "subagent: git branch -d"          flow-guard.sh "$(bash_json dev-flow:dev-fixer 'git branch -d feature')"
+expect_deny  "subagent: git branch -m"          flow-guard.sh "$(bash_json dev-flow:dev-fixer 'git branch -m x')"
+expect_allow "git branch --format (a read)"     flow-guard.sh "$(bash_json '' 'git branch --format=%(refname) --list')"
+expect_allow "git branch -u origin/x"           flow-guard.sh "$(bash_json '' 'git branch -u origin/x')"
+expect_deny  "chained: npm test && git push -f" flow-guard.sh "$(bash_json '' 'npm test && git push -f')"
+expect_allow "chained: npm test && git push"    flow-guard.sh "$(bash_json '' 'npm test && git push')"
+expect_deny  "subshell: \$(git push -f)"        flow-guard.sh "$(bash_json '' 'echo $(git push -f)')"
+expect_deny  "line continuation: git \\<newline> push --force" flow-guard.sh "$(bash_json '' 'git \\\n push --force origin')"
+expect_deny  "wrapper: sudo env X=1 git push -f" flow-guard.sh "$(bash_json '' 'sudo env X=1 git push -f')"
+expect_deny  "wrapper: timeout 10 git push -f"  flow-guard.sh "$(bash_json '' 'timeout -k 5 10 git push -f')"
+expect_deny  "launcher: bash -c \"git push -f\"" flow-guard.sh "$(bash_json '' 'bash -c \"cd x && git push -f\"')"
+expect_deny  "launcher: cmd /c \"git push -f\"" flow-guard.sh "$(bash_json '' 'cmd /c \"git push -f\"')"
+expect_deny  "launcher: wsl git push -f"        flow-guard.sh "$(bash_json '' 'wsl git push -f')"
+expect_deny  "subagent, launcher: bash -c \"git push\"" flow-guard.sh "$(bash_json dev-flow:dev-fixer 'bash -c \"git push\"')"
+expect_deny  "quoted git path (Windows)"        flow-guard.sh "$(bash_json '' '\"C:\\\\Program Files\\\\Git\\\\bin\\\\git.exe\" push --force')"
+expect_deny  "PowerShell tool: git push -f"     flow-guard.sh "$(bash_json '' '& git.exe push -f' '' PowerShell)"
+expect_deny  "PowerShell: Git Push --force (command names in any case)" flow-guard.sh "$(bash_json '' 'Git Push --force origin' '' PowerShell)"
+expect_allow "PowerShell: Git Push --Force (git itself refuses an option in the wrong case)" flow-guard.sh "$(bash_json '' 'Git Push --Force origin' '' PowerShell)"
+expect_deny  "GH PR Comment (case)"             flow-guard.sh "$(bash_json '' 'GH PR Comment 5 -b hi' '' PowerShell)"
+expect_deny  "Dotnet NuGet Push (case)"         flow-guard.sh "$(bash_json '' 'Dotnet NuGet Push x.nupkg' '' PowerShell)"
+expect_allow "PowerShell tool: git push"        flow-guard.sh "$(bash_json '' '& git.exe push' '' PowerShell)"
 expect_allow "git status && git diff"           flow-guard.sh "$(bash_json '' 'git status && git diff')"
 expect_allow "git stash list"                   flow-guard.sh "$(bash_json '' 'git stash list')"
 expect_allow "git reset (unstage)"              flow-guard.sh "$(bash_json '' 'git reset src/foo/alpha.txt')"
@@ -164,16 +263,39 @@ expect_allow "git push as a literal word arg"   flow-guard.sh "$(bash_json '' 'r
 
 echo "== guard: hosting platforms and publishing"
 expect_deny  "gh pr comment"      flow-guard.sh "$(bash_json '' 'gh pr comment 5 -b hi')"
-expect_deny  "gh pr create"       flow-guard.sh "$(bash_json '' 'gh pr create --fill')"
+expect_allow "main session: gh pr create" flow-guard.sh "$(bash_json '' 'gh pr create --fill')"
+expect_allow "main session: git push -u origin HEAD && gh pr create" flow-guard.sh "$(bash_json '' 'git push -u origin HEAD && gh pr create --title x --body-file t.md')"
+expect_deny  "subagent: gh pr create" flow-guard.sh "$(bash_json dev-flow:dev-review-triager 'gh pr create --fill')"
+assert "deny says the main session opens the PR" 'case $err in *"main session opens the PR"*) true;; *) false;; esac'
+expect_deny  "gh pr edit"         flow-guard.sh "$(bash_json '' 'gh pr edit 5 --body x')"
 expect_deny  "gh pr merge"        flow-guard.sh "$(bash_json '' 'gh pr merge 5')"
 expect_deny  "gh api POST"        flow-guard.sh "$(bash_json '' 'gh api -X POST repos/o/r/issues -f title=x')"
 expect_allow "gh api GET"         flow-guard.sh "$(bash_json '' 'gh api repos/o/r/pulls/5/comments')"
+expect_allow "gh api GET with --jq and -H"      flow-guard.sh "$(bash_json '' 'gh api -H \"Accept: application/vnd.github+json\" --jq .[].body repos/o/r/pulls/5/comments')"
+expect_allow "gh api graphql read query (unresolved threads)" flow-guard.sh "$(bash_json '' 'gh api graphql -f query='"'"'query { repository(owner:\"o\",name:\"r\") { pullRequest(number:5) { reviewThreads(first:50){ nodes { isResolved } } } } }'"'"'')"
+expect_allow "gh api graphql -F variables"      flow-guard.sh "$(bash_json '' 'gh api graphql --paginate -F owner=o -F name=r -f query=\"query(\$owner:String!){ repository(owner:\$owner,name:\\\"r\\\"){ id } }\"')"
+expect_allow "gh api graphql -X POST explicit"  flow-guard.sh "$(bash_json '' 'gh api graphql -X POST -f query=\"{ viewer { login } }\"')"
+expect_deny  "gh api graphql mutation"          flow-guard.sh "$(bash_json '' 'gh api graphql -f query='"'"'mutation { resolveReviewThread(input:{threadId:\"x\"}) { thread { id } } }'"'"'')"
+expect_deny  "gh api graphql Mutation (case)"   flow-guard.sh "$(bash_json '' 'gh api graphql -f query=\"Mutation { addComment(input:{}) { clientMutationId } }\"')"
+expect_deny  "gh api graphql --input (unreadable)" flow-guard.sh "$(bash_json '' 'gh api graphql --input q.json')"
+expect_deny  "gh api graphql -X PUT"            flow-guard.sh "$(bash_json '' 'gh api graphql -X PUT -f query=x')"
+expect_deny  "subagent: gh api graphql mutation" flow-guard.sh "$(bash_json dev-flow:dev-review-triager 'gh api graphql -f query=\"mutation { x }\"')"
+expect_allow "subagent: gh api graphql read query" flow-guard.sh "$(bash_json dev-flow:dev-review-triager 'gh api graphql -f query=\"query { x }\"')"
+expect_allow "glab api graphql read query"      flow-guard.sh "$(bash_json '' 'glab api graphql -f query=\"query { project(fullPath:\\\"g/p\\\") { id } }\"')"
+expect_deny  "glab api graphql mutation"        flow-guard.sh "$(bash_json '' 'glab api graphql -f query=\"mutation { x }\"')"
 expect_allow "gh pr view/diff"    flow-guard.sh "$(bash_json '' 'gh pr view 5 && gh pr diff 5')"
-expect_deny  "az repos pr create" flow-guard.sh "$(bash_json '' 'az repos pr create --title x')"
+expect_allow "main session: az repos pr create" flow-guard.sh "$(bash_json '' 'az repos pr create --title x')"
+expect_deny  "az repos pr create --auto-complete (merges on policy)" flow-guard.sh "$(bash_json '' 'az repos pr create --title x --auto-complete')"
+expect_deny  "az repos pr create --auto-complete true" flow-guard.sh "$(bash_json '' 'az repos pr create --auto-complete true --title x')"
+expect_allow "az repos pr create --auto-complete false" flow-guard.sh "$(bash_json '' 'az repos pr create --auto-complete false --title x')"
+expect_deny  "subagent: az repos pr create" flow-guard.sh "$(bash_json dev-flow:dev-fixer 'az repos pr create --title x')"
+expect_deny  "az repos pr update" flow-guard.sh "$(bash_json '' 'az repos pr update --id 1 --status completed')"
 expect_deny  "az boards wi update" flow-guard.sh "$(bash_json '' 'az boards work-item update --id 1 --state Done')"
 expect_allow "az boards wi show"  flow-guard.sh "$(bash_json '' 'az boards work-item show --id 1 --org https://dev.azure.com/o')"
 expect_allow "az repos pr list"   flow-guard.sh "$(bash_json '' 'az repos pr list')"
-expect_deny  "glab mr create"     flow-guard.sh "$(bash_json '' 'glab mr create --fill')"
+expect_allow "main session: glab mr create" flow-guard.sh "$(bash_json '' 'glab mr create --fill')"
+expect_deny  "subagent: glab mr create" flow-guard.sh "$(bash_json dev-flow:dev-reviewer 'glab mr create --fill')"
+expect_deny  "glab mr merge"      flow-guard.sh "$(bash_json '' 'glab mr merge 5')"
 expect_deny  "dotnet nuget push"  flow-guard.sh "$(bash_json '' 'dotnet nuget push x.nupkg -k key')"
 expect_deny  "npm publish"        flow-guard.sh "$(bash_json '' 'npm publish')"
 expect_deny  "docker push"        flow-guard.sh "$(bash_json '' 'docker push img:1')"
@@ -181,12 +303,28 @@ expect_allow "dotnet build/test"  flow-guard.sh "$(bash_json '' 'dotnet build sr
 expect_allow "npm test"           flow-guard.sh "$(bash_json '' 'npm test')"
 
 echo "== guard: MCP tools"
-expect_deny  "mcp github create_pull_request"     flow-guard.sh "$(mcp_json mcp__github__create_pull_request)"
+expect_allow "main session: mcp github create_pull_request" flow-guard.sh "$(mcp_json mcp__github__create_pull_request)"
+expect_allow "main session: mcp gitlab create_merge_request" flow-guard.sh "$(mcp_json mcp__gitlab__create_merge_request)"
+expect_allow "main session: mcp azure-devops repo_create_pull_request" flow-guard.sh "$(mcp_json mcp__azure-devops__repo_create_pull_request)"
+expect_deny  "subagent: mcp github create_pull_request" flow-guard.sh "$(printf '{"session_id":"%s","cwd":"%s","agent_type":"dev-flow:dev-review-triager","agent_id":"x","tool_name":"mcp__github__create_pull_request","tool_input":{"x":1}}' "$SID" "$CW")"
+expect_deny  "mcp github create_pull_request_with_copilot" flow-guard.sh "$(mcp_json mcp__github__create_pull_request_with_copilot)"
+expect_deny  "mcp github merge_pull_request"      flow-guard.sh "$(mcp_json mcp__github__merge_pull_request)"
+expect_deny  "mcp github update_pull_request"     flow-guard.sh "$(mcp_json mcp__github__update_pull_request)"
+expect_deny  "mcp github push_files"              flow-guard.sh "$(mcp_json mcp__github__push_files)"
+assert "the MCP deny does not send the user to clear the flow" 'case $err in *"Delete "*|*clear-flow*) false;; *) true;; esac'
 expect_deny  "mcp azure-devops wit_update_work_item" flow-guard.sh "$(mcp_json mcp__azure-devops__wit_update_work_item)"
 expect_deny  "mcp github add_issue_comment"       flow-guard.sh "$(mcp_json mcp__github__add_issue_comment)"
 expect_allow "mcp github get_pull_request"        flow-guard.sh "$(mcp_json mcp__github__get_pull_request)"
 expect_allow "mcp azure-devops wit_get_work_item" flow-guard.sh "$(mcp_json mcp__azure-devops__wit_get_work_item)"
 expect_allow "mcp search_code"                    flow-guard.sh "$(mcp_json mcp__github__search_code)"
+expect_allow "main session: local server (playwright browser_close)" flow-guard.sh "$(mcp_json mcp__playwright__browser_close)"
+expect_allow "main session: local server (filesystem write_file)"    flow-guard.sh "$(mcp_json mcp__filesystem__write_file)"
+expect_allow "main session: local server (plugin-prefixed desktop-commander)" flow-guard.sh "$(mcp_json mcp__plugin_desktop-commander_desktop-commander__write_file)"
+expect_deny  "subagent: local server write is still refused"         flow-guard.sh "$(printf '{"session_id":"%s","cwd":"%s","agent_type":"dev-flow:dev-reviewer","agent_id":"x","tool_name":"mcp__filesystem__write_file","tool_input":{"x":1}}' "$SID" "$CW")"
+expect_deny  "main session: a server not known as local"             flow-guard.sh "$(mcp_json mcp__mytool__write_file)"
+assert "deny names DEV_FLOW_LOCAL_MCP" 'case $err in *DEV_FLOW_LOCAL_MCP*) true;; *) false;; esac'
+out=$(printf '%s' "$(mcp_json mcp__mytool__write_file)" | DEV_FLOW_LOCAL_MCP="other MyTool" bash "$H/flow-guard.sh" 2>&1); rc=$?
+assert "DEV_FLOW_LOCAL_MCP exempts a server for the main session" '[ $rc -eq 0 ]'
 
 echo "== guard: spawning a stage agent needs that stage's status"
 expect_allow "implementing: spawn dev-implementer"              flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
@@ -241,7 +379,8 @@ expect_allow "reviewer writes task/review-1.md"          flow-guard.sh "$(write_
 expect_allow "reviewer writes task/review-1.md via Edit" flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/task/review-1.md" Edit)"
 expect_deny  "critic writes plan.md"                     flow-guard.sh "$(write_json dev-flow:dev-plan-critic "$T/task/plan.md")"
 expect_allow "critic writes plan-critique.md"            flow-guard.sh "$(write_json dev-flow:dev-plan-critic "$T/task/plan-critique.md")"
-expect_deny  "qa-impact writes qa-impact.md elsewhere"   flow-guard.sh "$(write_json dev-flow:dev-qa-impact "$T/other/qa-impact.md")"
+expect_allow "qa-impact writes qa-impact.md in another folder (standalone beside a parked task)" flow-guard.sh "$(write_json dev-flow:dev-qa-impact "$T/other/qa-impact.md")"
+expect_deny  "qa-impact writes another file elsewhere"   flow-guard.sh "$(write_json dev-flow:dev-qa-impact "$T/other/notes.md")"
 expect_allow "qa-impact writes task/qa-impact.md"        flow-guard.sh "$(write_json dev-flow:dev-qa-impact "$T/task/qa-impact.md")"
 expect_deny  "triager writes src"                        flow-guard.sh "$(write_json dev-flow:dev-review-triager "$T/src/foo/alpha.txt")"
 expect_allow "triager writes human-review.md"            flow-guard.sh "$(write_json dev-flow:dev-review-triager "$T/task/human-review.md")"
@@ -358,6 +497,18 @@ expect_block "implementer: file outside every Owns is reported" flow-verify-stop
 assert "only the stray file is named" 'case $out in *src/stray.txt*) case $out in *src/bar/beta.txt*) false;; *) true;; esac;; *) false;; esac'
 git checkout -q -- src; rm -f src/stray.txt task/violations.md task/notes.md
 
+echo "== dev-qa-impact standalone beside a parked task"
+plan human-review; ptr current "$T/task"; mkdir -p other
+expect_out  "qa start: the flow's task is named, the agent's own folder is its prompt's" flow-context.sh "$(start_json q1 dev-flow:dev-qa-impact)" "Your task folder is the one your prompt names"
+assert "and the flow's folder and status" 'case $out in *"for the task folder "*"/task (status: human-review)"*) true;; *) false;; esac'
+printf 'note\n' > other/qa-impact.md
+expect_pass  "qa stop: its qa-impact.md in another folder is not a violation" flow-verify-stop.sh "$(stop_json q1 dev-flow:dev-qa-impact)"
+assert "no violations.md" '[ ! -s task/violations.md ]'
+run flow-context.sh "$(start_json q2 dev-flow:dev-qa-impact)"
+printf 'x\n' > other/x.txt
+expect_block "qa stop: any other new file still is" flow-verify-stop.sh "$(stop_json q2 dev-flow:dev-qa-impact)"
+rm -rf other task/violations.md; plan implementing
+
 echo "== SubagentStart/Stop: a tree with thousands of untracked files"
 # An untracked, unignored cache (graphify-out and the like) once made the snapshot
 # spawn a process per file: over 600 s on Windows, and the agent stalled. Start and
@@ -468,7 +619,22 @@ assert "osascript gets the text as argv"          'grep -q "on run argv" "$T/osa
 echo "== SessionStart"
 plan reviewing
 expect_out "resume re-injects the task folder and status" flow-session.sh "$(session_json resume)" "status: reviewing"
-expect_out "startup names clear-flow as the way out"      flow-session.sh "$(session_json startup)" "/dev-flow:clear-flow"
+touch -t 202001010000 .claude/flow/current
+expect_out "an old pointer at an in-progress stage: may be abandoned" flow-session.sh "$(session_json resume)" "more than 2 days old"
+plan human-review
+expect_out "an old pointer at human review: waits on people, no warning" flow-session.sh "$(session_json resume)" "status: human-review"
+assert "no abandoned warning" 'case $out in *"abandoned"*) false;; *) true;; esac'
+plan blocked
+run flow-session.sh "$(session_json resume)"
+assert "nor at blocked" 'case $out in *"abandoned"*) false;; *) true;; esac'
+touch .claude/flow/current; plan reviewing
+expect_out "startup names clear-flow"                     flow-session.sh "$(session_json startup)" "/dev-flow:clear-flow"
+assert "as abandoning the run, never as the way to push or finish" 'case $out in *"abandons the run"*"never to push, open the PR or finish it"*) true;; *) false;; esac'
+assert "and says the main session may push and open the PR" 'case $out in *"may push and open the PR when the user asks"*) true;; *) false;; esac'
+plan human-review
+expect_out "human-review: push and open the PR here, QA impact finishes" flow-session.sh "$(session_json resume)" "push the branch and open the PR from this session"
+assert "and names stage 6 and the final report" 'case $out in *"stage 6 and the final report finish the run"*) true;; *) false;; esac'
+plan reviewing
 plan done
 expect_out "current at done: finished, not 'continue with dev-implement'" flow-session.sh "$(session_json resume)" "finished"
 assert "no resume hint at done" 'case $out in *"Continue with"*) false;; *) true;; esac'
@@ -494,7 +660,7 @@ wt_session() { printf '{"session_id":"s","cwd":"%s","hook_event_name":"SessionSt
 wt_bash()    { printf '{"session_id":"s","cwd":"%s","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"%s","description":"d"}}' "$WT" "$1"; }
 wt_agent()   { printf '{"session_id":"s","cwd":"%s","tool_name":"Agent","tool_input":{"subagent_type":"%s","prompt":"x","description":"d"}}' "$WT" "$1"; }
 expect_pass  "worktree session: no flow re-injected"        flow-session.sh "$(wt_session)"
-expect_allow "worktree session: git push is not guarded"    flow-guard.sh "$(wt_bash 'git push')"
+expect_allow "worktree session: git push --force is not guarded" flow-guard.sh "$(wt_bash 'git push --force')"
 expect_deny  "worktree session: stage agent needs its own pointer" flow-guard.sh "$(wt_agent dev-flow:dev-implementer)"
 expect_out   "main checkout still sees its flow"            flow-session.sh "$(session_json startup)" "status: implementing"
 # A flow started inside the worktree is found from there and only there.
@@ -510,10 +676,12 @@ echo "== planning pointer"
 ptr planning "$T/task"
 plan draft
 expect_deny  "main session edits src while planning"   flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
+assert "deny names the pointer, the way on and the way out" 'case $err in *"/dev-flow:dev-plan runs"*"status: draft"*"Continue with /dev-flow:dev-plan"*"/dev-flow:clear-flow"*"load-flow"*) true;; *) false;; esac'
 expect_allow "main session writes plan.md while planning" flow-guard.sh "$(write_json '' "$T/task/plan.md")"
 expect_allow "main session writes .claude/flow/planning"  flow-guard.sh "$(write_json '' "$T/.claude/flow/planning")"
 expect_allow "main session may commit while planning"  flow-guard.sh "$(bash_json '' 'git commit -m x')"
-expect_deny  "git push while planning"                 flow-guard.sh "$(bash_json '' 'git push')"
+expect_deny  "git push --force while planning"         flow-guard.sh "$(bash_json '' 'git push --force')"
+expect_allow "main session may push while planning"    flow-guard.sh "$(bash_json '' 'git push')"
 expect_deny  "critic writes src while planning"        flow-guard.sh "$(write_json dev-flow:dev-plan-critic "$T/src/foo/alpha.txt")"
 expect_deny  "spawn dev-implementer while planning"    flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 assert "deny says to finish dev-plan and run dev-implement" 'case $err in *dev-plan*dev-implement*) true;; *) false;; esac'
@@ -529,7 +697,9 @@ expect_deny  "no plan.md yet: spawn dev-implementer"   flow-guard.sh "$(agent_js
 assert "deny says no status yet" 'case $err in *"status: none yet"*) true;; *) false;; esac'
 printf -- '---\ntask: t\nsource: dev-debug\nstatus: diagnosing\n---\n' > task/plan.md
 expect_deny  "diagnosing: main session edits src"      flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
-expect_deny  "diagnosing: git push"                    flow-guard.sh "$(bash_json '' 'git push')"
+assert "deny names dev-debug as the way on" 'case $err in *"/dev-debug:dev-debug runs"*"Continue with /dev-debug:dev-debug "*"/dev-flow:clear-flow"*) true;; *) false;; esac'
+expect_deny  "diagnosing: git push --force"            flow-guard.sh "$(bash_json '' 'git push --force')"
+expect_deny  "diagnosing: debugger pushes"             flow-guard.sh "$(bash_json dev-debug:dev-debugger 'git push')"
 expect_deny  "diagnosing: debugger commits"            flow-guard.sh "$(bash_json dev-debug:dev-debugger 'git commit -m x')"
 expect_deny  "diagnosing: spawn dev-implementer"       flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 assert "deny names status diagnosing and dev-debug" 'case $err in *"status: diagnosing"*"/dev-debug:dev-debug"*) true;; *) false;; esac'
@@ -543,9 +713,15 @@ assert "Stop keeps a genuine planning pointer (draft)" '[ -f .claude/flow/planni
 # the lookup, the second task's genuine planning pointer still gates.
 plan human-review; ptr current "$T/task"
 mkdir -p task2; printf -- '---\ntask: t2\nstatus: draft\n---\n' > task2/plan.md; ptr planning "$T/task2"
-expect_deny  "planning beside current: spawn dev-fixer"   flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
-assert "deny is the dev-plan message with the second plan's status" 'case $err in *"planning exists"*"task2/plan.md has status: draft"*) true;; *) false;; esac'
-expect_deny  "planning beside current: spawn dev-review-triager" flow-guard.sh "$(agent_json dev-flow:dev-review-triager)"
+# The parked task goes on while the second is planned: its stage agents run.
+expect_allow "planning beside current: spawn dev-fixer for the parked task"   flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
+expect_allow "planning beside current: spawn dev-review-triager"            flow-guard.sh "$(agent_json dev-flow:dev-review-triager)"
+expect_deny  "planning beside current: dev-implementer still needs status implementing" flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
+assert "deny is the status message, not the planning one" 'case $err in *"status: human-review"*) case $err in *"still being planned"*) false;; *) true;; esac;; *) false;; esac'
+ptr planning "$T/task"; plan draft   # the same task planned again: its own planning gates it
+expect_deny  "planning names the current task: spawn dev-fixer"             flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
+assert "deny is the dev-plan message" 'case $err in *"still being planned"*) true;; *) false;; esac'
+ptr planning "$T/task2"; plan human-review
 # The second task's own agents belong to the planning pointer, not the parked current.
 expect_allow "planning beside current: planner writes task2/plan.md"           flow-guard.sh "$(write_json dev-flow:dev-planner "$T/task2/plan.md")"
 expect_deny  "planning beside current: planner writes the parked task's folder" flow-guard.sh "$(write_json dev-flow:dev-planner "$T/task/plan.md")"
@@ -562,7 +738,7 @@ expect_deny  "planning beside current: reviewer writes task2"                  f
 rm -f .claude/flow/notified
 expect_out   "planning beside current: Stop announces the planning task's gate"  flow-notify.sh "$(main_stop_json)" "b2: waiting for you (diagnosing)"
 expect_out   "planning beside current: SessionStart re-injects the planning task" flow-session.sh "$(session_json resume)" "/dev-debug:dev-debug"
-assert "and names the parked task with its status" 'case $out in *"parked"*"/task at status: human-review"*) true;; *) false;; esac'
+assert "and names the parked task with its status, resumable at any time" 'case $out in *"parked"*"/task at status: human-review"*"at any time"*) true;; *) false;; esac'
 printf -- '---\ntask: b2\nsource: dev-debug\nstatus: done\n---\n' > task2/plan.md
 expect_out   "stale planning beside current: SessionStart re-injects the current task" flow-session.sh "$(session_json resume)" "status: human-review"
 expect_allow "stale planning beside current: debugger falls back to current"    flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task/diagnosis.md")"
@@ -578,9 +754,9 @@ rm -f .claude/flow/current .claude/flow/stale-notified .claude/flow/notified
 plan implementing
 expect_allow "stale (implementing): main session edits src"   flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
 assert "notice names the pointer, the status and rm" 'case $out in *"systemMessage"*"stale pointer"*"/.claude/flow/planning"*"status: implementing"*"rm "*"additionalContext"*"/dev-flow:dev-implement"*) true;; *) false;; esac'
-expect_allow "stale (implementing): git push passes"          flow-guard.sh "$(bash_json '' 'git push')"
+expect_allow "stale (implementing): git push --force passes"  flow-guard.sh "$(bash_json '' 'git push --force')"
 assert "the notice is given once per session" '[ -z "$out" ]'
-expect_allow "stale (implementing): mcp create_pull_request"  flow-guard.sh "$(mcp_json mcp__github__create_pull_request)"
+expect_allow "stale (implementing): mcp merge_pull_request"   flow-guard.sh "$(mcp_json mcp__github__merge_pull_request)"
 expect_deny  "stale (implementing): dev-implementer still needs current" flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 assert "deny names the stale pointer, its status and dev-implement" 'case $err in *"stale pointer"*"status: implementing"*"/dev-flow:dev-implement"*) true;; *) false;; esac'
 ptr current "$T/task"
@@ -618,9 +794,9 @@ echo "== session scoping: a flow guards only the session that owns it"
 rm -f .claude/flow/planning .claude/flow/current .claude/flow/notified .claude/flow/stale-notified
 plan human-review; ptr current "$T/task"
 SID=o
-expect_allow "another session: git push passes"                      flow-guard.sh "$(bash_json '' 'git push origin main')"
+expect_allow "another session: git push --force passes"              flow-guard.sh "$(bash_json '' 'git push --force origin main')"
 expect_allow "another session: git commit --amend passes"            flow-guard.sh "$(bash_json '' 'git commit --amend --no-edit')"
-expect_allow "another session: mcp create_pull_request passes"       flow-guard.sh "$(mcp_json mcp__github__create_pull_request)"
+expect_allow "another session: mcp merge_pull_request passes"        flow-guard.sh "$(mcp_json mcp__github__merge_pull_request)"
 expect_allow "another session: a subagent of its own commits"        flow-guard.sh "$(bash_json general-purpose 'git commit -m x')"
 expect_allow "another session: its reviewer-typed agent writes src"  flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/src/foo/alpha.txt")"
 expect_allow "another session: main session edits src"               flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
@@ -636,7 +812,9 @@ expect_out   "another session: SessionStart names the owner, the task and how to
 assert "it names the task folder, the status, dev-implement and rm" 'case $out in *"/task, status: human-review"*"/dev-flow:dev-implement "*"/task/plan.md"*"rm "*) true;; *) false;; esac'
 assert "and does not describe the flow as this session's" 'case $out in *"flow of this session"*) false;; *) true;; esac'
 SID=s
-expect_deny  "owner session: git push is still refused"              flow-guard.sh "$(bash_json '' 'git push')"
+expect_deny  "owner session: git push --force is still refused"      flow-guard.sh "$(bash_json '' 'git push --force')"
+expect_allow "owner session at human-review: git push and open the PR" flow-guard.sh "$(bash_json '' 'git push -u origin HEAD && gh pr create --fill')"
+expect_allow "owner session at human-review: mcp create_pull_request" flow-guard.sh "$(mcp_json mcp__github__create_pull_request)"
 expect_deny  "owner session: its reviewer may not write src"         flow-guard.sh "$(write_json dev-flow:dev-reviewer "$T/src/foo/alpha.txt")"
 expect_allow "owner session: spawn dev-fixer at human-review"        flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
 expect_out   "owner session: Stop notifies"                          flow-notify.sh "$(main_stop_json)" "(human-review)"
@@ -645,11 +823,11 @@ assert "and says the guards hold in this session only" 'case $out in *"this sess
 rm -f .claude/flow/notified
 # A hook input without a session id (an older harness) cannot tell sessions
 # apart: every pointer counts, as before 2.5.0.
-expect_deny  "no session id in the input: the pointer still guards"  flow-guard.sh "$(printf '{"cwd":"%s","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git push"}}' "$CW")"
+expect_deny  "no session id in the input: the pointer still guards"  flow-guard.sh "$(printf '{"cwd":"%s","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git push --force"}}' "$CW")"
 
 echo "== session scoping: an unclaimed pointer, and the claim right after the tool call that wrote it"
 hp "$T/task" > .claude/flow/current          # as the skill writes it: no session line yet
-expect_allow "unclaimed pointer: git push passes (no session owns it)"   flow-guard.sh "$(bash_json '' 'git push')"
+expect_allow "unclaimed pointer: git push --force passes (no session owns it)" flow-guard.sh "$(bash_json '' 'git push --force')"
 expect_deny  "unclaimed pointer: a stage agent is refused"              flow-guard.sh "$(agent_json dev-flow:dev-fixer)"
 assert "deny says no session owns it" 'case $err in *"no session owns it yet"*) true;; *) false;; esac'
 expect_out   "unclaimed pointer: SessionStart says so"                  flow-session.sh "$(session_json startup)" "no session owns it yet"
@@ -660,11 +838,11 @@ assert "pointer still unclaimed after the subagent" '! grep -q "^session:" .clau
 expect_out   "claim: the main session's command that wrote the pointer claims it" flow-claim.sh "$(post_json '' Bash 'mkdir -p .claude/flow && echo /x > .claude/flow/current')" "now owns"
 assert "pointer carries the task folder and the session line" '[ "$(head -n 1 .claude/flow/current)" = "$(hp "$T/task")" ] && grep -q -x "session: s" .claude/flow/current && [ "$(wc -l < .claude/flow/current)" -eq 2 ]'
 assert "the context names the pointer and says other sessions are unaffected" 'case $out in *"additionalContext"*".claude/flow/current"*"not affected"*) true;; *) false;; esac'
-expect_deny  "after the claim: git push is refused in the owner session" flow-guard.sh "$(bash_json '' 'git push')"
+expect_deny  "after the claim: git push --force is refused in the owner session" flow-guard.sh "$(bash_json '' 'git push --force')"
 SID=o
 expect_pass  "claim: another session's command leaves an owned pointer alone" flow-claim.sh "$(post_json '' Bash 'cat .claude/flow/current')"
 assert "owner unchanged" 'grep -q -x "session: s" .claude/flow/current'
-expect_allow "and that session is still not guarded by it"              flow-guard.sh "$(bash_json '' 'git push')"
+expect_allow "and that session is still not guarded by it"              flow-guard.sh "$(bash_json '' 'git push --force')"
 SID=s
 hp "$T/task2" > .claude/flow/planning
 expect_out   "claim: the Write tool on a pointer path claims it"        flow-claim.sh "$(post_json '' Write "$(jp "$T/.claude/flow/planning")")" "planning"
@@ -686,7 +864,7 @@ assert "and names the other task as another session's, not as parked" 'case $out
 SID=o
 expect_deny  "o: its own planning limits its main session to the task folder" flow-guard.sh "$(write_json '' "$T/src/foo/alpha.txt")"
 expect_allow "o: main session writes task2/plan.md"                          flow-guard.sh "$(write_json '' "$T/task2/plan.md")"
-expect_deny  "o: git push while planning"                                    flow-guard.sh "$(bash_json '' 'git push')"
+expect_deny  "o: git push --force while planning"                            flow-guard.sh "$(bash_json '' 'git push --force')"
 expect_deny  "o: no stage agent while its own plan is a draft"               flow-guard.sh "$(agent_json dev-flow:dev-implementer)"
 assert "deny says the plan is still being planned" 'case $err in *"still being planned"*"task2/plan.md has status: draft"*) true;; *) false;; esac'
 expect_out   "o: its planner start gets task2"                               flow-context.sh "$(start_json p7 dev-flow:dev-planner)" "task2. "
@@ -745,7 +923,7 @@ sleep 1.1; printf '$ make\nok\n' >> task/verify.log; printf 'done\n' > task/note
 expect_pass  "o's running implementer: stops cleanly once the evidence is in" flow-verify-stop.sh "$(stop_json i8 dev-flow:dev-implementer)"
 expect_allow "o's implementer after its stop: no longer guarded (markers gone)" flow-guard.sh "$(bash_json dev-flow:dev-implementer 'git push')"
 AID=x
-expect_allow "o's main session itself is no longer guarded"                 flow-guard.sh "$(bash_json '' 'git push')"
+expect_allow "o's main session itself is no longer guarded"                 flow-guard.sh "$(bash_json '' 'git push --force')"
 SID=s; rm -f task/notes.md .claude/flow/current .claude/flow/cross-notified
 
 echo "== Stop: an unclaimed pointer is named once per session, with load-flow"
@@ -763,7 +941,7 @@ rm -f .claude/flow/current .claude/flow/unclaimed-notified .claude/flow/notified
 
 echo "== guard: a branch switch or discard beside another session's flow is warned about once, never blocked"
 plan implementing; ptr current "$T/task" o
-expect_allow "git push: allowed, no warning (sessions push as they like)" flow-guard.sh "$(bash_json '' 'git push')"
+expect_allow "git push --force: allowed, no warning (sessions push as they like)" flow-guard.sh "$(bash_json '' 'git push --force')"
 assert "silent" '[ -z "$out" ]'
 expect_allow "git checkout: allowed, with a warning"              flow-guard.sh "$(bash_json '' 'git checkout -- src')"
 assert "a terminal line and context, no decision" 'case $out in *"systemMessage"*"belongs to another Claude Code session (o)"*"uncommitted work"*"additionalContext"*) case $out in *"decision"*) false;; *) true;; esac;; *) false;; esac'
@@ -777,7 +955,7 @@ assert "silent" '[ -z "$out" ]'
 expect_allow "git reset --hard: warned"                           flow-guard.sh "$(bash_json '' 'git reset --hard HEAD~1')"
 assert "warned" 'case $out in *"uncommitted work"*) true;; *) false;; esac'
 SID=o
-expect_deny  "the owner session: git checkout is still refused"   flow-guard.sh "$(bash_json '' 'git checkout -- src')"
+expect_deny  "the owner session: git checkout <branch> is still refused" flow-guard.sh "$(bash_json '' 'git checkout main')"
 SID=s
 rm -f .claude/flow/current .claude/flow/cross-notified
 
