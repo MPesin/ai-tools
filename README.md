@@ -122,13 +122,13 @@ Skills for any project, in any language, on Linux, macOS and Windows
   critical `dev-orchestrator` subagent ruling at every point where the skills
   would stop for you. It reads the code as it is and the change under way,
   judges against the specs and acceptance criteria only, keeps a
-  requirement-by-requirement conformance matrix, and scores every option a
-  gate opens on fixed criteria (spec fit, acceptance criteria, evidence,
-  reversibility, scope and budget), each score with its reason, so the log
-  explains every choice. When no option is clearly best, when the specs are
-  silent, when something is irreversible or a budget is spent, it asks you,
-  with the options scored and its recommendation. It never pushes or opens
-  the PR unless you said so at the start.
+  requirement-by-requirement conformance matrix, and scores every decision
+  on fixed criteria (spec fit, acceptance criteria, evidence, reversibility,
+  scope and cost), each score with its reason, so the log explains every
+  choice. When no option is clearly best, when the specs are silent, when
+  something is irreversible or a budget is spent, it asks you, with the
+  options scored and its recommendation. It never pushes or opens the PR
+  unless you said so at the start.
 - `/dev-flow:load-flow` picks an existing task up in this session (it lists
   the plans folder with each task's status and which session holds it, then
   hands your choice to the skill its status needs); `/dev-flow:clear-flow`

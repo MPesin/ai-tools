@@ -627,7 +627,10 @@ expect_out  "human-review: systemMessage"        flow-notify.sh "$(main_stop_jso
 expect_pass "human-review again: deduplicated"   flow-notify.sh "$(main_stop_json)"
 printf 'disputed\n' > task/needs-decision.md
 expect_out  "needs-decision changes the state"   flow-notify.sh "$(main_stop_json)" "(human-review+needs-decision)"
-assert "four desktop notifications sent (diagnosing, confirm-cause, human-review, +needs-decision)" '[ "$(grep -c NOTIFY "$T/notify.log")" = 4 ]'
+expect_pass "same item again: deduplicated"      flow-notify.sh "$(main_stop_json)"
+printf -- '- 2026-01-01T00:00:00Z I4: which option?; orchestrator recommends: 1; see orchestration.md\n' >> task/needs-decision.md
+expect_out  "a second item at the same status notifies again (an orchestrated run asking twice at one gate)" flow-notify.sh "$(main_stop_json)" "(human-review+needs-decision)"
+assert "five desktop notifications sent (diagnosing, confirm-cause, human-review, +needs-decision, second item)" '[ "$(grep -c NOTIFY "$T/notify.log")" = 5 ]'
 rm -f task/needs-decision.md
 mv .claude/flow/current .claude/flow/finished; touch .claude/flow/start-zz .claude/flow/snap-zz
 expect_out  "finished pointer notifies done"     flow-notify.sh "$(main_stop_json)" "(done)"
