@@ -56,6 +56,11 @@ elif [ "$status" = human-review ]; then
 else
   next="Continue with /dev-flow:dev-implement $TASK_FOLDER/plan.md (it resumes from status and review_round)."
 fi
+# An orchestrated run (plan.md: orchestrate: on): the orchestrator agent rules at
+# the gates, so the run resumes with its skill; the stage's skill continues by hand.
+if [ "$(lower "$(frontmatter_value orchestrate)")" = on ] && [ "$status" != done ]; then
+  next="$next This run is orchestrated (plan.md has orchestrate: on): /dev-flow:orchestrate $TASK_FOLDER resumes it on autopilot, the dev-orchestrator agent ruling at the gates and needs-decision.md holding what it escalated to the user; the stage's own skill continues it by hand instead."
+fi
 msg="dev-flow: a flow of this session is active in this project. Task folder: $TASK_FOLDER. status: ${status:-unknown}. mode: $(frontmatter_value mode). review_round: $(frontmatter_value review_round). base: $(frontmatter_value base). $next While the pointer exists the plugin's hooks block pushes and new PRs from subagents, force and delete pushes, pulling, branch switches and discards, commits from subagents and --amend, commenting, merging and publishing, and limit what each agent may write; the main session commits each stage's files and may push and open the PR when the user asks. This holds in this session and its subagents only. /dev-flow:clear-flow abandons the run (it removes $POINTER; stage agents then cannot be spawned until Intake writes it again): suggest it only when the user wants to stop the run, never to push, open the PR or finish it."
 [ -s "$TASK_FOLDER/needs-decision.md" ] && msg="$msg needs-decision.md has items waiting for the user."
 [ -s "$TASK_FOLDER/violations.md" ] && msg="$msg violations.md lists files changed outside an agent's allowance."

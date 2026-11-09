@@ -25,12 +25,12 @@
     {
       "name": "dev-flow",
       "source": "./plugins/dev-flow",
-      "description": "Plan, implement, review and QA-impact flow run by subagents (/dev-flow:dev-plan, /dev-flow:dev-implement, /dev-flow:dev-qa-impact, /dev-flow:load-flow, /dev-flow:clear-flow; also implements dev-debug's fix plans) and guarded by cross-platform hooks: commits per package and fix round, pushes and opens the PR on request from the main session, no subagent pushes/PRs/commits, no force push/discard/comments/merges/publishing, per-agent and per-package write limits, build/test evidence required before an implementer may finish, working-tree change detection, gate notifications; the guards follow the session that runs the flow, so other sessions on the same checkout are not blocked"
+      "description": "Plan, implement, review and QA-impact flow run by subagents (/dev-flow:dev-plan, /dev-flow:dev-implement, /dev-flow:dev-qa-impact, /dev-flow:load-flow, /dev-flow:clear-flow; also implements dev-debug's fix plans), or the whole flow on autopilot with /dev-flow:orchestrate (a critical orchestrator subagent rules at every gate against the specs and acceptance criteria and escalates what they do not settle) and guarded by cross-platform hooks: commits per package and fix round, pushes and opens the PR on request from the main session, no subagent pushes/PRs/commits, no force push/discard/comments/merges/publishing, per-agent and per-package write limits, build/test evidence required before an implementer may finish, working-tree change detection, gate notifications; the guards follow the session that runs the flow, so other sessions on the same checkout are not blocked"
     },
     {
       "name": "dev-debug",
       "source": "./plugins/dev-debug",
-      "description": "Diagnose a bug before anyone changes code (/dev-debug:dev-debug): a clean-slate, read-only debugger subagent reproduces the failure, tests hypotheses against the code and git history, and writes diagnosis.md with evidence, blast radius and confidence; you confirm the cause (or ask for an independent second opinion) and the diagnosis becomes a regression-test-first fix plan for dev-flow"
+      "description": "Diagnose a bug before anyone changes code (/dev-debug:dev-debug): a clean-slate, read-only debugger subagent reproduces the failure, tests hypotheses against the code and git history, and writes diagnosis.md with evidence, blast radius and confidence; you confirm the cause (or ask for an independent second opinion) and the diagnosis becomes a regression-test-first fix plan for dev-flow; under /dev-flow:orchestrate the orchestrator agent takes the gate for you"
     },
     {
       "name": "dev-flow-panel",

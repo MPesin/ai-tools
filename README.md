@@ -101,7 +101,7 @@ a paper or a memo gets the same treatment as a plan or a review.
 
 ### dev-flow — plan, implement, review and QA-impact, run by subagents
 
-Three skills for any project, in any language, on Linux, macOS and Windows
+Skills for any project, in any language, on Linux, macOS and Windows
 (Git Bash):
 
 - `/dev-flow:dev-plan` writes a plan (interactively with you, or drafted by
@@ -117,6 +117,14 @@ Three skills for any project, in any language, on Linux, macOS and Windows
 - `/dev-flow:dev-qa-impact` writes a fixed-template note for QA engineers who
   do not read code: what changed for users, which regression tests to run,
   and what was built differently from the requirements.
+- `/dev-flow:orchestrate` runs the whole flow on autopilot: `dev-plan` (or
+  `dev-debug` for a bug) and then `dev-implement`, in one turn, with a
+  critical `dev-orchestrator` subagent ruling at every point where the skills
+  would stop for you. It judges against the specs and acceptance criteria
+  only (every ruling cites a spec line, a decision of yours or a verified
+  fact), keeps a requirement-by-requirement conformance matrix, and escalates
+  to you what the specs do not settle, anything irreversible, and a spent
+  budget. It never pushes or opens the PR unless you said so at the start.
 - `/dev-flow:load-flow` picks an existing task up in this session (it lists
   the plans folder with each task's status and which session holds it, then
   hands your choice to the skill its status needs); `/dev-flow:clear-flow`
@@ -176,7 +184,7 @@ shows the stage too.
 plugins/repo-mapper/               # 2 commands, skill + references, 3 agents, hook
 plugins/design-critic/             # the reviewer agent
 plugins/lean-talk/                 # 2 skills: lean-talk (write lean), lean-edit (rewrite existing text)
-plugins/dev-flow/                  # 5 skills, 7 agents, 6 bash hooks + 2 scripts + tests
+plugins/dev-flow/                  # 6 skills, 8 agents, 6 bash hooks + 2 scripts + tests
 plugins/dev-flow-panel/            # the band (hooks module)
 ```
 

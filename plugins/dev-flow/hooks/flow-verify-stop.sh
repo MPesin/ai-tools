@@ -36,6 +36,12 @@ else
   # A standalone QA note lands in a folder that is not the task folder (which
   # the snapshot leaves out), so its own file is not a violation.
   [ "$AGENT_TYPE" = dev-qa-impact ] && changed=$(printf '%s\n' "$changed" | grep -v -E '(^|/)qa-impact\.md$')
+  # The orchestrator's two files, in a task folder (one holding plan.md) that
+  # is not the pointer's: not a violation either. Anywhere else they are.
+  [ "$AGENT_TYPE" = dev-orchestrator ] && changed=$(printf '%s\n' "$changed" | while IFS= read -r f; do
+    case $f in */orchestration.md|*/conformance.md) [ -f "$GIT_ROOT/${f%/*}/plan.md" ] && continue ;; esac
+    printf '%s\n' "$f"
+  done)
   if [ -n "$changed" ]; then
     if is_readonly_agent "$AGENT_TYPE"; then
       violation=$changed

@@ -36,4 +36,6 @@ Read `status` from the chosen task's `plan.md` and invoke the skill, with the ta
 | `done` | nothing to resume: say so, and offer `/dev-flow:dev-qa-impact <task folder>` when `qa-impact.md` is missing |
 | none or unknown | show the frontmatter and ask; a `plan.md` that does not follow the plan format is validated by `dev-implement` Intake |
 
+When `plan.md` has `orchestrate: on` (an orchestrated run), offer both ways and ask which: `dev-flow:orchestrate <task folder>` resumes the run on autopilot (the orchestrator agent rules at the gates; `needs-decision.md` holds what it escalated to the user, and the answer goes with the call), or the skill from the table continues it by hand.
+
 Never write a pointer, edit `plan.md`, spawn a stage agent, commit, push or post from this skill.
