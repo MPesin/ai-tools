@@ -120,11 +120,15 @@ Skills for any project, in any language, on Linux, macOS and Windows
 - `/dev-flow:orchestrate` runs the whole flow on autopilot: `dev-plan` (or
   `dev-debug` for a bug) and then `dev-implement`, in one turn, with a
   critical `dev-orchestrator` subagent ruling at every point where the skills
-  would stop for you. It judges against the specs and acceptance criteria
-  only (every ruling cites a spec line, a decision of yours or a verified
-  fact), keeps a requirement-by-requirement conformance matrix, and escalates
-  to you what the specs do not settle, anything irreversible, and a spent
-  budget. It never pushes or opens the PR unless you said so at the start.
+  would stop for you. It reads the code as it is and the change under way,
+  judges against the specs and acceptance criteria only, keeps a
+  requirement-by-requirement conformance matrix, and scores every option a
+  gate opens on fixed criteria (spec fit, acceptance criteria, evidence,
+  reversibility, scope and budget), each score with its reason, so the log
+  explains every choice. When no option is clearly best, when the specs are
+  silent, when something is irreversible or a budget is spent, it asks you,
+  with the options scored and its recommendation. It never pushes or opens
+  the PR unless you said so at the start.
 - `/dev-flow:load-flow` picks an existing task up in this session (it lists
   the plans folder with each task's status and which session holds it, then
   hands your choice to the skill its status needs); `/dev-flow:clear-flow`

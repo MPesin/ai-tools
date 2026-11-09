@@ -8,7 +8,10 @@ These hold at every gate.
 
 - **The specs decide.** A ruling rests on a citation: a line of a file under `specs/` (the PRD/HLD excerpts, the work item, the bug report, `specs/decisions.md` with the user's own rulings), the project's guidance, or a fact verified in the code (`file:line`, command output). A ruling with no citation is a guess; the orchestrator does not guess, it escalates. The user's rulings in `specs/decisions.md` outrank the other specs: they are the user, answering.
 - **Specs are excerpts.** A requirement the provided text does not mention is "Not covered by provided specs", never Missing and never invented. The orchestrator never adds a requirement the specs do not state, never drops or weakens one they do, and never edits anything under `specs/`.
+- **Know the code and the change.** Before it scores anything, the orchestrator reads the code the gate is about, as it is today and as it is being changed: the files the plan or the diagnosis names, in full, with their callers, tests, contracts, schemas and persisted data; then `git diff <base>...HEAD` and the uncommitted changes, and which plan steps they realise. Its entry records this as `Code context`, so every ruling can be read against what the code does now and what the change does to it. At a planning gate nothing is built yet: the code context then says what the code does today where the plan would change it.
 - **Claims are not evidence.** A `- [x]` in the plan, an agent's summary, a "fixed" line in `notes.md`: each is checked in the code, the tests and `verify.log` before it counts.
+- **Every choice is scored.** The options a gate opens are scored on the five criteria under Scoring, each score with its reason and citation, and the ruling is the top score. That table is how the orchestrator explains every choice it made: a reader of `orchestration.md` sees why each option won or lost without re-reading the code.
+- **Unsure means ask.** When no option is clearly best (the thresholds under Scoring), the orchestrator asks the user, with the options scored, what would settle it and its recommendation, instead of taking the likeliest one.
 - **Internal and reversible, or the user's.** A choice the specs leave open is the orchestrator's only when it is internal and reversible: it changes no public contract (API, CLI, file format, schema, persisted data), no user-visible behaviour and no acceptance criterion. Anything else the specs leave open is escalated with the options and a recommendation.
 - **Nothing outward, nothing destructive.** The orchestrator never rules to push, open a PR, merge, post, publish, update a work item, revert, discard or delete. The main session pushes and opens the PR only when `specs/decisions.md` records that the user asked for it at kickoff.
 - **Bounded.** Every loop has a budget (below); a spent budget escalates.
@@ -84,9 +87,31 @@ Defaults; the user changes them at kickoff in plain words ("allow five fix round
 
 Escalations are not budgeted: each one stops the run for the user.
 
-## Escalation
+## Scoring
 
-The orchestrator rules `escalate` with the question in one line, the options, its recommendation and the evidence. The skill then appends the item to `needs-decision.md` (the Stop hook notifies the user), leaves `status` where the underlying skill waits at that gate, prints the item and ends the turn. The user's answer is saved verbatim and dated under `specs/decisions.md`, listed in `specs:`; `/dev-flow:orchestrate <task folder>` then continues from the gate with that answer as the ruling. The user can also take over by hand with the stage's own skill.
+Every ruling is a choice among the options the gate opens (the table above). The orchestrator scores each on five criteria, 0 to 3, with these anchors, and records the table and the reason for every score in its entry. `ask` is always open and is not scored: it is what the orchestrator does when no option may be ruled.
+
+| Criterion | 3 | 2 | 1 | 0 |
+|---|---|---|---|---|
+| **S, spec fit** | a cited spec line or user decision requires it | consistent with the specs; no line requires it | the specs are silent on it | contradicts a spec line or a user decision |
+| **C, criteria**: the acceptance criteria the option affects | every one met, with evidence in the code, the tests and `verify.log` | every one covered by a plan step with a verification, not built yet | one or more unverified | one or more would be unmet or broken |
+| **E, evidence**: how well the option's premise was checked | verified in the code and in a run's output (`file:line`, command output) | verified in the code by reading; nothing run | plausible from reading, not verified | unknown |
+| **R, reversibility** | internal and reversible: no public contract, schema, persisted data or user-visible behaviour changes | reversible, and user-visible behaviour changes | changes a contract, a schema or persisted data in a way that can still be undone | irreversible or outward: push, PR, merge, post, publish, migration, deletion, a revert of someone's work |
+| **B, scope and budget** | within the plan's scope and the budget, no extra round | within scope; costs one more stage round inside the budget | spends the last of a budget | beyond the budget, or adds scope the specs do not ask for |
+
+Hard rules, applied before the totals:
+
+- An option with S = 0 or R = 0 is out: the orchestrator never rules it (an R = 0 option is the user's; it may recommend one when it asks).
+- An option with S = 1 (the specs are silent) may be ruled only with R = 3 (the standing rule: internal and reversible, or the user's).
+- At I6 `done` and I7 `accept` need C = 3; at P3 `approve` needs C of at least 2 for every row of the conformance matrix.
+
+The ruling is the highest total of 15, when the orchestrator is sure: a total of 11 or more, a margin of at least 2 over the runner-up (with one option left after the hard rules there is no runner-up, and the margin rule does not apply), and E of at least 2. Confidence is recorded with it: High when the total is 13 or more and the margin 3 or more, otherwise Medium. Anything less is not a ruling: the orchestrator asks.
+
+## Asking the user (escalation)
+
+An escalation is a question. The orchestrator asks instead of ruling when: no option passes the hard rules; the top option is not sure (a total under 11, a margin under 2, or E under 2); the gate's "Escalates when" column applies; or a budget is spent. The question is written so the user can answer it in one line: the question itself; each option with its total and one line on why it scored so; what would settle it (the spec line, fact or test result the orchestrator lacks); and the recommendation, which may be an R = 0 option the orchestrator could not rule itself.
+
+The skill then appends the item to `needs-decision.md` (the Stop hook notifies the user), leaves `status` where the underlying skill waits at that gate, shows the question as the orchestrator wrote it, and ends the turn. The user's answer is saved verbatim and dated under `specs/decisions.md`, listed in `specs:`; `/dev-flow:orchestrate <task folder>` then continues from the gate with that answer as the ruling. The user can also take over by hand with the stage's own skill.
 
 ## Files
 
@@ -96,12 +121,36 @@ The orchestrator rules `escalate` with the question in one line, the options, it
 ## <gate id> <gate name> - <YYYY-MM-DDTHH:MM:SSZ>
 Inputs read: <paths>
 Question: <what the skill would have asked, in one line>
+Code context:
+- Today: <what the affected code does now, file:line>
+- Change under way: <commits since base and uncommitted changes, and the plan steps they realise; or "none yet, the plan proposes ...">
+- Touches: <callers, tests, contracts, schemas, persisted data the change reaches; or "none found">
 Checked against: <spec file:line, conformance rows, decisions.md entries>
 Findings:
 - <finding, with file:line or command output>
-Ruling: <one of the gate's rulings, with its detail>
-Why: <the reasons, a few lines>
-Escalate: no | yes - <what the user must decide, the options, the recommendation>
+Options:
+| # | Option | S | C | E | R | B | Total | Out |
+|---|---|---|---|---|---|---|---|---|
+| 1 | <option as the gate names it> | 3 | 2 | 3 | 3 | 3 | 14 | |
+| 2 | <option> | 1 | 2 | 2 | 2 | 3 | 10 | S1 needs R3 |
+Scoring notes:
+- 1: S3 <spec file:line requires it>; C2 <which rows, why not yet 3>; E3 <what was verified, how>; R3 <why internal>; B3
+- 2: S1 <the specs are silent on ...>; ...
+Ruling: option 1, <keyword with its detail> (14/15, margin 4, confidence High)
+Why: <the reasons, a few lines, read off the scores>
+Escalate: no
+```
+
+When it asks instead, the entry ends with:
+
+```
+Ruling: ask
+Question for the user: <one line the user can answer>
+- Option 1 (<total>/15): <why it scored so>
+- Option 2 (<total>/15): <why it scored so>
+What would settle it: <the spec line, fact or test result the orchestrator lacks>
+Recommendation: <option, and why>
+Escalate: yes
 ```
 
 ### conformance.md (rewritten at every check; the current state)

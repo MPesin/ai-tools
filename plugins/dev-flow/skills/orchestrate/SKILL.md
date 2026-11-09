@@ -5,7 +5,7 @@ description: Use when the user wants a task or bug taken through the whole dev-f
 
 # Orchestrate
 
-The same flow as `/dev-flow:dev-plan` or `/dev-debug:dev-debug` followed by `/dev-flow:dev-implement`, with the same agents, files, commits and hooks, run end to end in one turn. What changes is who answers at the gates, the man-in-the-middle steps where those skills stop for the user: here `dev-flow:dev-orchestrator`, a clean-context agent that compares the artifact of each gate with the specs and the acceptance criteria, rules in the user's place, and escalates what the specs do not settle. The gates, the rulings open at each, the checks, the budget and the files are defined in `${CLAUDE_PLUGIN_ROOT}/skills/orchestrate/gates.md`; read it first, with `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-format.md`.
+The same flow as `/dev-flow:dev-plan` or `/dev-debug:dev-debug` followed by `/dev-flow:dev-implement`, with the same agents, files, commits and hooks, run end to end in one turn. What changes is who answers at the gates, the man-in-the-middle steps where those skills stop for the user: here `dev-flow:dev-orchestrator`, a clean-context agent that reads the code as it is and the change under way, compares the artifact of each gate with the specs and the acceptance criteria, scores every option the gate opens on fixed criteria, rules in the user's place when one option is clearly best, and asks the user when it is not sure or when the specs do not settle the choice. The gates, the rulings open at each, the checks, the budget and the files are defined in `${CLAUDE_PLUGIN_ROOT}/skills/orchestrate/gates.md`; read it first, with `${CLAUDE_PLUGIN_ROOT}/skills/dev-implement/plan-format.md`.
 
 ## Hard rules
 
@@ -56,7 +56,7 @@ When a gate rules `escalate`, a budget is spent, or a point is reached that `gat
 
 1. Append one line to `needs-decision.md` in the task folder: `- <date> <gate id>: <the question>; orchestrator recommends: <ruling>; see orchestration.md`. The Stop hook notifies the user on it.
 2. Leave `status` where the underlying skill waits at that gate (`draft`, `diagnosing`, `implementing` or `reviewing` with the item, `blocked`, `human-review`); the pointer stays; nothing the question concerns is committed.
-3. Tell the user: the question, the evidence, the orchestrator's recommendation, the replies that settle it, and that `/dev-flow:orchestrate <task folder>` resumes the run once they have answered (the stage's own skill continues it by hand instead).
+3. Show the user the orchestrator's `Question for the user` block as it wrote it (the question, each option with its score and why, what would settle it, the recommendation), the code context in two lines, the replies that settle it, and that `/dev-flow:orchestrate <task folder>` resumes the run once they have answered (the stage's own skill continues it by hand instead). When the stop comes from a rule of this skill rather than a ruling (a spent budget, a detached HEAD, another task's pointer), write the question in the same shape yourself.
 4. End the turn.
 
 ## Resuming
@@ -69,4 +69,4 @@ When a gate rules `escalate`, a budget is spent, or a point is reached that `gat
 
 ## Final report
 
-`dev-implement`'s final report (`status: done`, `orchestrate: on`, the pointer renamed to `finished`), plus: the rulings per gate from `orchestration.md`, one line each; `conformance.md`'s status column (every row Met or Not covered by provided specs, or the run would not have reached here); the escalations the user settled; the checklist additions proposed for the user to confirm; and whether the branch was pushed and the PR opened, or both wait for the user.
+`dev-implement`'s final report (`status: done`, `orchestrate: on`, the pointer renamed to `finished`), plus: the rulings per gate from `orchestration.md`, one line each with the winning option's total, its margin and the confidence (so every choice of the run can be traced to its scores); `conformance.md`'s status column (every row Met or Not covered by provided specs, or the run would not have reached here); the escalations the user settled; the checklist additions proposed for the user to confirm; and whether the branch was pushed and the PR opened, or both wait for the user.

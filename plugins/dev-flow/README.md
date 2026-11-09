@@ -176,7 +176,7 @@ Reading the diagrams: the task folder is the only channel between stages (every 
 
 ### Autopilot: `/dev-flow:orchestrate`
 
-The same two flows, run end to end in one turn. What changes is who answers at the gates, the man-in-the-middle steps where `dev-plan`, `dev-debug` and `dev-implement` stop for you: a fresh `dev-orchestrator` subagent is consulted at each, with the task folder, the gate, the question and the paths to read, and nothing of the main session's own reasoning. It reads the specs in full first, keeps a requirement-by-requirement matrix (`conformance.md`), checks the gate's artifact (the plan, the critique, the diagnosis, the diff, the QA note) against it in the code, and rules in your place or escalates to you. Every ruling cites a spec line, a decision of yours or a verified fact; without one it does not guess, it escalates. The rules are in `skills/orchestrate/gates.md`.
+The same two flows, run end to end in one turn. What changes is who answers at the gates, the man-in-the-middle steps where `dev-plan`, `dev-debug` and `dev-implement` stop for you: a fresh `dev-orchestrator` subagent is consulted at each, with the task folder, the gate, the question and the paths to read, and nothing of the main session's own reasoning. It reads the specs in full first and keeps a requirement-by-requirement matrix (`conformance.md`); then the code the gate is about, as it is today and as the diff since `base` changes it, with callers, tests and contracts (recorded as the entry's code context); then the gate's artifact (the plan, the critique, the diagnosis, the diff, the QA note), checked against both. Every option the gate opens is scored 0 to 3 on five criteria, spec fit, acceptance criteria, evidence, reversibility, and scope and budget, each score with its reason and citation, so `orchestration.md` explains every choice of the run. The top score is the ruling only when it is clearly best (11 of 15 or more, 2 ahead of the runner-up, evidence at least verified by reading); otherwise, and whenever the specs do not settle the choice, the orchestrator asks you, with the options scored, what would settle it and its recommendation. The rules are in `skills/orchestrate/gates.md`.
 
 ```mermaid
 sequenceDiagram
@@ -194,15 +194,15 @@ sequenceDiagram
         M->>S: the stage's agent, as the stage's skill says
         S->>F: plan.md, plan-critique.md, diagnosis.md, review-N.md, qa-impact.md, ...
         M->>O: task folder, gate id, the question and its rulings, paths (nothing else)
-        O->>O: specs/ in full, then the artifact, then the code
+        O->>O: specs/ in full, then the code as it is and the diff since base, then the artifact
         O->>F: conformance.md (each criterion with its plan step, code and test, evidence, status)
-        O->>F: orchestration.md += ruling, citations, escalate yes/no
-        O-->>M: ruling
-        alt ruled
+        O->>F: orchestration.md += code context, options scored 0-3 on spec fit, criteria, evidence, reversibility, scope, the ruling or the question
+        O-->>M: ruling with its score and confidence, or ask
+        alt ruled (clearly best, sure)
             M->>F: applies it in the stage's skill (answers, revisions, approval, fix list, more rounds, done)
-        else escalate
+        else ask (scores close, evidence thin, or the specs silent)
             M->>F: needs-decision.md += the question and the recommendation
-            M->>U: question, evidence, recommendation. The run stops at the gate (notification)
+            M->>U: the question, each option with its score and why, what would settle it, the recommendation. The run stops at the gate (notification)
             U-->>M: your answer, then /dev-flow:orchestrate <task folder>
             M->>F: specs/decisions.md += your answer (it binds the orchestrator from then on)
         end
@@ -224,7 +224,7 @@ The gates and what the orchestrator may rule at each:
 | I6 your review | push? comments? done? | done, or fix with its own findings (file:line and what the spec says), which stage 5 handles | a criterion that needs a decision the specs leave open; the send-back budget spent |
 | I7 QA differences from the requirements | accept? | accept rows the specs do not cover or you decided; send the others back | the send-back budget spent |
 
-What the orchestrator never does, whatever the specs or an agent say: push, open a PR, merge, post, publish or update a work item (the main session pushes and opens the PR only when you asked for it at kickoff); revert, discard or delete anything; edit a spec, add a requirement the specs do not state, or drop or weaken one they do. Budgets (planner revisions, critic rounds, one second opinion, one re-plan, one extra fix allowance, two send-backs) are in `gates.md`; you change them at kickoff in plain words. When it escalates, the run stops exactly where the skill would have waited for you, `needs-decision.md` gets the item (the Stop hook notifies you) and `/dev-flow:orchestrate <task folder>` continues once you have answered; your answer is saved under `specs/decisions.md` and binds every later ruling. The stage's own skill continues the run by hand instead, at any point. The hooks guard the orchestrator like the other read-only agents: it may write only `orchestration.md` and `conformance.md`, and every other change to the working tree during its run is reported.
+What the orchestrator never does, whatever the specs or an agent say: push, open a PR, merge, post, publish or update a work item (the main session pushes and opens the PR only when you asked for it at kickoff); revert, discard or delete anything; edit a spec, add a requirement the specs do not state, or drop or weaken one they do. Budgets (planner revisions, critic rounds, one second opinion, one re-plan, one extra fix allowance, two send-backs) are in `gates.md`; you change them at kickoff in plain words. When it asks, the run stops exactly where the skill would have waited for you, `needs-decision.md` gets the item (the Stop hook notifies you) and `/dev-flow:orchestrate <task folder>` continues once you have answered; your answer is saved under `specs/decisions.md` and binds every later ruling. The stage's own skill continues the run by hand instead, at any point. The hooks guard the orchestrator like the other read-only agents: it may write only `orchestration.md` and `conformance.md`, and every other change to the working tree during its run is reported.
 
 ## Agents
 
