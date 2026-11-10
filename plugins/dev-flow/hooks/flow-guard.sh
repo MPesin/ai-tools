@@ -35,8 +35,9 @@ stage_gate() {
     # Not gated: dev-planner and dev-plan-critic run under the planning pointer or
     # before Intake (harden mode); dev-debugger (the dev-debug plugin) runs under the
     # planning pointer (status diagnosing) or standalone for a diagnosis without a fix; dev-qa-impact
-    # also runs standalone, with no plan or with another task's pointer in place.
-    # All four are read-only (write guard above).
+    # also runs standalone, with no plan or with another task's pointer in place;
+    # dev-orchestrator (the orchestrate skill) is consulted at every status, during
+    # planning and implementing alike. All five are read-only (write guard above).
     *) return 0 ;;
   esac
   POINTER_NAMES="current planning"
@@ -174,6 +175,15 @@ case $AGENT_TYPE in
     [ "$base" = qa-impact.md ] && exit 0
     deny "dev-qa-impact may only write a file named qa-impact.md, in the task folder its prompt names (attempted: $target)." ;;
   dev-review-triager) only_file 'human-review.md' ;;
+  dev-orchestrator)
+    # Its two files, in the task folder its prompt names (one holding a plan.md):
+    # like dev-qa-impact it may be consulted about a task that is not the one the
+    # pointer names (a second task planned beside a parked one). It rules; the
+    # main session applies the ruling to plan.md and the rest.
+    case $base in
+      orchestration.md|conformance.md) [ -f "${target%/*}/plan.md" ] && exit 0 ;;
+    esac
+    deny "dev-orchestrator may only write orchestration.md and conformance.md in a task folder (one holding plan.md; attempted: $target). It rules; the main session acts on the ruling." ;;
   dev-debugger)
     # diagnosis.md (or diagnosis-2.md for a second opinion) plus reproduction
     # scripts and captured output under debug/; never the source tree.

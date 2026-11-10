@@ -14,13 +14,13 @@
     ],
     "SubagentStart": [
       {
-        "matcher": "(^|:)dev-(planner|plan-critic|implementer|reviewer|fixer|review-triager|qa-impact|debugger)$",
+        "matcher": "(^|:)dev-(planner|plan-critic|implementer|reviewer|fixer|review-triager|qa-impact|debugger|orchestrator)$",
         "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/flow-context.sh\"", "timeout": 120 }]
       }
     ],
     "SubagentStop": [
       {
-        "matcher": "(^|:)dev-(planner|plan-critic|implementer|reviewer|fixer|review-triager|qa-impact|debugger)$",
+        "matcher": "(^|:)dev-(planner|plan-critic|implementer|reviewer|fixer|review-triager|qa-impact|debugger|orchestrator)$",
         "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/flow-verify-stop.sh\"", "timeout": 120 }]
       }
     ],

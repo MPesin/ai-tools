@@ -30,9 +30,11 @@ human-review.md    # triaged human comments, draft replies, proposed checklist a
 diagnosis.md       # dev-debugger output (dev-debug plugin, skills/dev-debug/diagnosis-format.md); diagnosis-2.md for a second opinion
 debug/             # the debugger's reproduction scripts and captured output; never source
 qa-impact.md       # QA impact note from the fixed template (skills/dev-qa-impact/qa-impact-template.md)
-needs-decision.md  # disputed findings awaiting the user (written by dev-implement; triggers a notification)
+needs-decision.md  # disputed findings and orchestrator escalations awaiting the user (written by dev-implement and orchestrate; triggers a notification)
 violations.md      # files an agent changed outside its allowance (written by the hooks; triggers a notification)
-specs/             # PRD/HLD excerpts and work-item text, saved as markdown
+orchestration.md   # dev-orchestrator's rulings at the gates of an orchestrated run, appended per gate (skills/orchestrate/gates.md)
+conformance.md     # dev-orchestrator's requirement-by-requirement matrix, rewritten at each check
+specs/             # PRD/HLD excerpts and work-item text, saved as markdown; specs/decisions.md holds the user's rulings in an orchestrated run
 ```
 
 Only `plan.md` is required to start. The flow creates the rest. The hooks add `.claude/flow/` (and `.claude/plans/` when the task folder is there) to `.git/info/exclude`, so none of this shows up in `git status`.
@@ -52,6 +54,7 @@ specs:            # files in the task folder's specs/ dir (see Specs intake)
   - specs/work-item-12345.md
 base: <base branch or commit for diffs>
 commits: on | off   # set at Intake; on: the main session commits after each stage
+orchestrate: on | off   # set by /dev-flow:orchestrate; on: the dev-orchestrator agent rules at the gates, and the run resumes with that skill
 ---
 ```
 
@@ -76,6 +79,7 @@ Every spec ends up as a markdown file in the task folder's `specs/`, in one of t
 1. **Pasted text.** Save it verbatim as `specs/prd.md`, `specs/hld.md` or `specs/<name>.md`, with a header line: `Source: <doc name/section as the user named it>, pasted <date>, excerpt`. Do not paraphrase or clean up the text.
 2. **A work item or ticket reference** (an ID or URL in the project's tracker). Fetch it with the read-only tool the project's guidance names (an MCP tool or a CLI the session has); otherwise ask the user to paste it. Save title, type, state, description, acceptance criteria, repro steps (bugs), and linked parent/child items with titles to `specs/work-item-<id>.md`. Convert rich text to markdown and record `Source: <tracker> #<id>, fetched <date>`. Never update the work item (the hooks block the writing commands and tools they know; project rules cover the rest).
 3. **A document file path** given instead of pasted text. Convert it to markdown with a converter the session has, if any, and save it; otherwise ask the user to paste the relevant sections.
+4. **The user's rulings in an orchestrated run** (`/dev-flow:orchestrate`): the kickoff parameters and the answers to what the orchestrator escalated, saved verbatim and dated in `specs/decisions.md` by that skill (format in `skills/orchestrate/gates.md`). They bind the orchestrator like a spec and outrank the other specs where they differ: they are the user, answering.
 
 Excerpts are partial. Every agent that checks conformance states that its check covers only the provided text, and never marks a requirement Missing just because the excerpt does not mention it: it lists what it would need to see ("Not covered by provided specs").
 

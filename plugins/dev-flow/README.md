@@ -11,12 +11,13 @@ Plan, implement, review, and QA-impact flow for any project, run by subagents an
 - `/dev-flow:dev-plan` - produce an approved plan (interactive with you, or drafted by a planner subagent), reviewed by a plan critic. Never implements.
 - `/dev-flow:dev-implement <plan path>` - implement an approved plan (committing each package and each fix round as it goes; it pushes and opens the PR when you ask), run the Claude review/fix loop, stop for human review, fix human findings, then produce the QA impact note. State lives as files in the task folder; a run resumes from `status` and `review_round`.
 - `/dev-flow:dev-qa-impact` - a fixed-template note for QA engineers who do not read code: what changed for users, which regression tests to run, what was built differently from the requirements. Works from a branch, diff, or PR; no plan needed.
+- `/dev-flow:orchestrate <task | bug | task folder>` - the whole flow on autopilot: `dev-plan` (or `dev-debug` for a bug) and then `dev-implement`, in one turn, with a critical `dev-orchestrator` subagent ruling at every point where those skills would stop for you, always against the specs and the acceptance criteria. It escalates what the specs do not settle, anything irreversible and a spent budget, and never pushes or opens the PR unless you said so at the start. `/dev-flow:orchestrate <task folder>` resumes a run after you answered an escalation. See [Autopilot](#autopilot-dev-floworchestrate).
 - `/dev-flow:load-flow [task folder]` - pick up an existing task in this session: lists the task folders under the plans location with their status and which session holds them, and hands the one you choose to the skill its status needs (`dev-plan` for a draft, `dev-debug` for a diagnosis, `dev-implement` from approved on).
 - `/dev-flow:clear-flow [all]` - switch this session's flow off: removes its pointer files and the hooks' marker files, nothing else (the task folder and `plan.md` stay, so `load-flow` brings the task back). `all` also removes another session's leftover pointer.
 
 Plans are designed as work packages (disjoint file ownership, explicit dependencies, parallel-safe builds) so `/dev-flow:dev-implement` can run independent packages in parallel subagents, wave by wave.
 
-Plan structure, task folder layout, work packages, pointer files and specs intake are in `skills/dev-implement/plan-format.md`. The QA note template is `skills/dev-qa-impact/qa-impact-template.md`.
+Plan structure, task folder layout, work packages, pointer files and specs intake are in `skills/dev-implement/plan-format.md`. The QA note template is `skills/dev-qa-impact/qa-impact-template.md`. The gates of an orchestrated run, the rulings open at each, the checks and the budget are in `skills/orchestrate/gates.md`.
 
 The companion plugin `dev-debug` (same marketplace) diagnoses bugs and hands this flow an approved fix plan; `dev-flow-panel` adds a band above the prompt with buttons for both plugins' skills and a coloured view of the current stage.
 
@@ -173,9 +174,61 @@ sequenceDiagram
 
 Reading the diagrams: the task folder is the only channel between stages (every subagent prompt carries paths, not content, so the reviewer never sees the implementer's account); the dashed arrows from Hooks are the guards the harness runs, not instructions in the skill text; the `planning` and `current` pointer files switch all of them on and off (except the stage gate, which then refuses the stage agents until Intake writes `current` again; see [Guards](#guards)); and only two places wait for you, the approval and the human-review gate, plus anything `needs-decision.md` or `violations.md` raises.
 
+### Autopilot: `/dev-flow:orchestrate`
+
+The same two flows, run end to end in one turn. What changes is who answers at the gates, the man-in-the-middle steps where `dev-plan`, `dev-debug` and `dev-implement` stop for you: a fresh `dev-orchestrator` subagent is consulted at each, with the task folder, the gate, the question and the paths to read, and nothing of the main session's own reasoning. It reads the specs in full first and keeps a requirement-by-requirement matrix (`conformance.md`); then the code the gate is about, as it is today and as the diff since `base` changes it, with callers, tests and contracts (recorded as the entry's code context, the diff before any agent's account of it); then the gate's artifact (the plan, the critique, the diagnosis, the diff, the QA note), checked against both. It decides in one of three ways, and `orchestration.md` records why in every case: a procedural action (a second opinion, a re-plan, extra fix rounds) is taken by rule when its trigger holds and the budget allows; a per-item gate (open questions, critique items, disputed findings, QA rows) is ruled item by item, each with its spec-fit and evidence scores and citation; a decision (approve or revise, fix or already fixed, continue, done or send back) is scored 0 to 3 on five criteria, spec fit, acceptance criteria, evidence, reversibility, and scope and cost, each score with its reason. A scored decision is the ruling only when it is clearly best (11 of 15 or more, 2 ahead of the runner-up, evidence at least verified by reading); otherwise, and whenever the specs do not settle the choice, the orchestrator asks you, with the options scored, what would settle it and its recommendation. The rules are in `skills/orchestrate/gates.md`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as You
+    participant M as Main session (orchestrate skill)
+    participant S as Stage agents (planner, critic, debugger, implementers, reviewer, fixer, triager, QA)
+    participant O as dev-orchestrator (fresh at each gate)
+    participant F as Task folder
+
+    U->>M: /dev-flow:orchestrate "task" + PRD/HLD or work item (or a bug report)
+    M->>F: specs/*.md and specs/decisions.md (kickoff parameters such as push and PR at the end, budget, constraints)
+    Note over M: runs dev-plan (draft mode) or dev-debug, then dev-implement, as written
+    loop each gate where those skills would wait for you
+        M->>S: the stage's agent, as the stage's skill says
+        S->>F: plan.md, plan-critique.md, diagnosis.md, review-N.md, qa-impact.md, ...
+        M->>O: task folder, gate id, the question and its rulings, paths (nothing else)
+        O->>O: specs/ in full, then the code as it is and the diff since base, then the artifact
+        O->>F: conformance.md (each criterion with its plan step, code and test, evidence, status)
+        O->>F: orchestration.md += code context, the ruling by rule, per item or by score (0-3 on spec fit, criteria, evidence, reversibility, scope), or the question
+        O-->>M: ruling with its score and confidence, or ask
+        alt ruled (clearly best, sure)
+            M->>F: applies it in the stage's skill (answers, revisions, approval, fix list, more rounds, done)
+        else ask (scores close, evidence thin, or the specs silent)
+            M->>F: needs-decision.md += the question and the recommendation
+            M->>U: the question, each option with its score and why, what would settle it, the recommendation. The run stops at the gate (notification)
+            U-->>M: your answer, then /dev-flow:orchestrate <task folder>
+            M->>F: specs/decisions.md += your answer (it binds the orchestrator from then on)
+        end
+    end
+    M->>U: final report with the commits, the rulings per gate, conformance.md and what waits for you (push, PR, checklist additions)
+```
+
+The gates and what the orchestrator may rule at each:
+
+| Gate | The skill would ask | It may rule | It asks you |
+|---|---|---|---|
+| P1 planner's open questions | which option? | per question, an answer with its citation; the planner's recommendation only for an internal, reversible choice | a question the specs leave open that changes a contract, a schema, persisted data or user-visible behaviour |
+| P2 plan critique | what to change? | per item: revise the ones that are right, reject the ones that are wrong or would move the plan off the specs | a Blocking item still right after two critic rounds; a conflict between specs |
+| P3 approval (plan, fix plan, close-out) | approved? | approve (scored) when every criterion is covered by a step with a verification and nothing contradicts or exceeds the specs; otherwise revise | the planner revisions are spent with a criterion uncovered; neither option is clearly best |
+| D1 diagnosis gate | fix, more facts, second opinion, diagnosis only, already fixed? | a second opinion by rule when confidence is below High or the bug did not reproduce; then fix (scored: reproduced, cause explains every observation, the regression test asserts the reported scenario, every blast-radius site covered) or already fixed when proven | Low confidence or two causes that disagree after the second opinion; facts only you have |
+| I1 an agent's report or `violations.md` | keep or revert? go on? | a re-plan by rule, once, for a step impossible as written; continue (scored) when the change is explained and in scope | a regression test that passed before the fix (always); an unexplained or out-of-scope change; never a revert |
+| I2 a disputed finding | who is right? | per finding: uphold or dismiss, from the code | a dispute about what the product should do that the specs do not settle |
+| I3 `blocked` | more rounds? | one extra allowance by rule when the rounds converge and nothing Critical is open | otherwise |
+| I4 your review | push? comments? done? | done (scored; every criterion met with evidence, scope clean) or fix with its own findings (file:line and what the spec says), which stage 5 handles | a criterion that needs a decision the specs leave open; the send-back budget spent |
+| I5 QA differences from the requirements | accept? | per row: accept what the specs do not cover or you decided; send the rest back | the send-back budget spent |
+
+What the orchestrator never does, whatever the specs or an agent say: push, open a PR, merge, post, publish or update a work item (the main session pushes and opens the PR once, at the end of the run, only when you asked for it at kickoff); revert, discard or delete anything; edit a spec, add a requirement the specs do not state, or drop or weaken one they do. Budgets (planner revisions, critic rounds, one second opinion, one re-plan, one extra fix allowance, two send-backs) are in `gates.md`; you change them at kickoff in plain words. Every stop of the run, a question of the orchestrator's, a spent budget or a stop the underlying skill prescribes, goes the same way: the run stops exactly where the skill would have waited for you, `needs-decision.md` gets the item (the Stop hook notifies you, once per item) and `/dev-flow:orchestrate <task folder>` continues once you have answered; your answer is saved under `specs/decisions.md` and binds every later ruling. The stage's own skill continues the run by hand instead, at any point. The hooks guard the orchestrator like the other read-only agents: it may write only `orchestration.md` and `conformance.md`, and every other change to the working tree during its run is reported.
+
 ## Agents
 
-`dev-planner`, `dev-plan-critic`, `dev-implementer`, `dev-reviewer`, `dev-fixer`, `dev-review-triager`, `dev-qa-impact`. They carry the flow's hard rules; skills pass only task data and paths.
+`dev-planner`, `dev-plan-critic`, `dev-implementer`, `dev-reviewer`, `dev-fixer`, `dev-review-triager`, `dev-qa-impact`, and `dev-orchestrator` for an orchestrated run. They carry the flow's hard rules; skills pass only task data and paths.
 
 ## Bug fixes from `dev-debug`
 
@@ -287,6 +340,7 @@ Each agent may write only what its stage produces. "Task folder" is the folder t
 | `dev-reviewer` | `review-*.md` | never fixes what it reviews |
 | `dev-review-triager` | `human-review.md` | |
 | `dev-qa-impact` | `qa-impact.md` | |
+| `dev-orchestrator` | `orchestration.md` and `conformance.md`, in a task folder (one holding `plan.md`) | it rules; the main session acts on the ruling |
 | `dev-debugger` | `diagnosis*.md` and files under `debug/` | never source, not even to instrument it |
 | `dev-implementer`, plan without packages | anything except other stages' files (below) | ticks `plan.md` itself |
 | `dev-implementer`, plan with packages | its package's `Owns` paths, plus the task folder (claim `all`: anything) | must first write its package id (`P2`, or `all`) to the claim file it is given; never edits `plan.md` (the main session ticks it); appends to `notes.md` with `>>`, so parallel appends cannot overwrite each other |
@@ -312,7 +366,7 @@ They are also refused:
 - while a genuine `planning` pointer names this task, or there is no `current` beside it (the refusal names the plan's status and the skill to finish first; a plan at `diagnosing` points at `/dev-debug:dev-debug`); a `planning` pointer for another task does not gate the task `current` names;
 - when `current` names a missing folder or a folder without `plan.md`.
 
-`dev-planner`, `dev-plan-critic`, `dev-debugger` and `dev-qa-impact` are not gated. They run during planning, standalone, or under another task's pointer, and their writes are limited by guard 3.
+`dev-planner`, `dev-plan-critic`, `dev-debugger`, `dev-qa-impact` and `dev-orchestrator` are not gated. They run during planning, standalone, at any status of an orchestrated run, or under another task's pointer, and their writes are limited by guard 3.
 
 ### 5. Working-tree check (agent start and stop)
 
@@ -320,7 +374,7 @@ When a dev-flow agent starts, the hooks take a snapshot of the working tree: eve
 
 | Agent | A changed file is a violation when |
 |---|---|
-| read-only agents (planner, critic, reviewer, triager, QA, debugger) | any file outside the task folder and `.claude/flow/` changed |
+| read-only agents (planner, critic, reviewer, triager, QA, debugger, orchestrator) | any file outside the task folder and `.claude/flow/` changed |
 | `dev-implementer` in a package | it is outside **every** package's `Owns` (a parallel package's file is not a violation) |
 | single `dev-implementer`, `dev-fixer` | never (they may change any source file) |
 
@@ -344,7 +398,7 @@ An implementer or fixer cannot finish without proof that it built and tested its
 These do not refuse anything; they keep you and a restarted session informed.
 
 - **Stop.** When the flow waits for you, you get a terminal line and one desktop notification per state. That covers the diagnosis (`diagnosing`, then `confirm-cause`), plan approval (`draft`), `human-review`, `blocked`, `done`, and whenever `needs-decision.md` or `violations.md` has entries. Notifications use a PowerShell toast on Windows and WSL, `osascript` on macOS and `notify-send` on Linux. Set `DEV_FLOW_NOTIFY_CMD="<program>"` to use your own; it is called with the title and message. The Stop hook also removes a stale `planning` pointer and finishes a `finished` (or `done`) run, removing its marker files; it sweeps another session's finished run the same way, silently. A pointer no session has claimed (written by hand, or by dev-flow before 2.5.0) guards nothing anywhere, so the Stop hook says so once per session, with the `/dev-flow:load-flow` call that claims it.
-- **SessionStart** (startup, resume, clear, compact). It puts this session's active task folder, status, mode, review round and base back into context with how to continue, and names a parked second task. It warns when the pointer is more than two days old at an in-progress stage (the flow may be abandoned; a task waiting at human review or blocked waits on people, for as long as a review takes, and is not warned about) and when `needs-decision.md` or `violations.md` have items. A pointer of another session, or one no session has claimed, is named instead, with `/dev-flow:load-flow` to run that flow from this session and `/dev-flow:clear-flow all` to clear a leftover.
+- **SessionStart** (startup, resume, clear, compact). It puts this session's active task folder, status, mode, review round and base back into context with how to continue (for an orchestrated run, `plan.md` has `orchestrate: on`, with `/dev-flow:orchestrate <task folder>` to resume on autopilot), and names a parked second task. It warns when the pointer is more than two days old at an in-progress stage (the flow may be abandoned; a task waiting at human review or blocked waits on people, for as long as a review takes, and is not warned about) and when `needs-decision.md` or `violations.md` have items. A pointer of another session, or one no session has claimed, is named instead, with `/dev-flow:load-flow` to run that flow from this session and `/dev-flow:clear-flow all` to clear a leftover.
 - **PostToolUse** (Bash, PowerShell, Write, Edit, NotebookEdit; main session only). After a tool call that can have written a pointer (the Write or Edit tool on a pointer's path; a shell command that names the flow directory and writes there: a redirect to `current`, `planning` or `finished`, `tee`, `cp`, `mv`, `Set-Content` and the like), a pointer without a session line gets this session's: that is the moment a flow becomes this session's, right after the skill writes the pointer. A read (`cat`, `ls`) claims nothing, and a pointer that already names a session is left alone.
 - **SubagentStart.** It gives each dev-flow agent the task folder, project root, branch and plan status, and tells it its own allowance (the claim file for a package implementer, `verify.log` for writing agents). It also adds `.claude/flow/` and `.claude/plans/` to `.git/info/exclude`, so the flow's own files stay out of `git status` and out of commits.
 
@@ -352,7 +406,7 @@ These do not refuse anything; they keep you and a restarted session informed.
 
 - **Scripts are not read.** `./release.sh` that runs `git push` inside is not refused; only the command line itself (and the git aliases it uses) is read.
 - **A shell reached through an MCP server is not read.** Desktop Commander's `start_process`, or any MCP tool that runs a command, is checked by its tool name only, not by the command it runs.
-- **The main session is not write-limited while implementing.** It is the orchestrator; only its commands are checked.
+- **The main session is not write-limited while implementing.** It is the orchestrator; only its commands are checked. In an orchestrated run (`/dev-flow:orchestrate`) the promises the skill makes for the main session, a push only when asked at kickoff, no revert, a ruling before every status change, are the skill's, not the hooks': the hooks cannot tell an orchestrated run's main session from any other.
 - **A single implementer and the fixer may change any source file.** Package implementers are held to their `Owns`.
 - **Shell writes are detected, not prevented.** A read-only agent that writes with a shell command is reported when it stops, not stopped when it writes.
 - **No pointer, no guards** (except the stage gate). `/dev-flow:clear-flow`, or deleting the pointer, abandons the run: the deliberate way out when you want the run stopped, not a step for pushing or finishing.

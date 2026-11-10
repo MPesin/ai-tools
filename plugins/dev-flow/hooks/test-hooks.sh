@@ -91,6 +91,7 @@ assert "deny names dev-implement"  'case $err in *"/dev-flow:dev-implement"*) tr
 expect_allow "no pointer: dev-qa-impact runs standalone"            flow-guard.sh "$(agent_json dev-flow:dev-qa-impact)"
 expect_allow "no pointer: dev-planner (harden before Intake)"       flow-guard.sh "$(agent_json dev-flow:dev-planner)"
 expect_allow "no pointer: dev-debugger (diagnosis without a fix)"  flow-guard.sh "$(agent_json dev-debug:dev-debugger)"
+expect_allow "no pointer: dev-orchestrator (not gated)"            flow-guard.sh "$(agent_json dev-flow:dev-orchestrator)"
 expect_allow "no pointer: general-purpose agent"                    flow-guard.sh "$(agent_json general-purpose)"
 expect_allow "no pointer: Agent call without subagent_type"         flow-guard.sh "$(agent_json_untyped)"
 
@@ -368,6 +369,7 @@ assert "deny at blocked names reviewing" 'case $err in *"status: blocked"*review
 expect_allow "any status: dev-planner"                          flow-guard.sh "$(agent_json dev-flow:dev-planner)"
 expect_allow "any status: dev-plan-critic"                      flow-guard.sh "$(agent_json dev-flow:dev-plan-critic)"
 expect_allow "any status: dev-debugger"                         flow-guard.sh "$(agent_json dev-debug:dev-debugger)"
+expect_allow "any status: dev-orchestrator"                     flow-guard.sh "$(agent_json dev-flow:dev-orchestrator)"
 expect_allow "any status: Explore"                              flow-guard.sh "$(agent_json Explore)"
 plan implementing
 
@@ -395,6 +397,20 @@ expect_deny  "debugger writes src/debug/x.sh"            flow-guard.sh "$(write_
 expect_deny  "debugger writes plan.md"                   flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task/plan.md")"
 expect_deny  "debugger writes notes.md"                  flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/task/notes.md")"
 expect_deny  "debugger writes diagnosis.md elsewhere"    flow-guard.sh "$(write_json dev-debug:dev-debugger "$T/src/diagnosis.md")"
+mkdir -p other; printf -- '---\ntask: o\nstatus: draft\n---\n' > other/plan.md
+expect_allow "orchestrator writes task/orchestration.md"       flow-guard.sh "$(write_json dev-flow:dev-orchestrator "$T/task/orchestration.md")"
+expect_allow "orchestrator edits task/conformance.md"          flow-guard.sh "$(write_json dev-flow:dev-orchestrator "$T/task/conformance.md" Edit)"
+expect_allow "orchestrator writes in another task folder (a second task planned beside a parked one)" flow-guard.sh "$(write_json dev-flow:dev-orchestrator "$T/other/orchestration.md")"
+expect_deny  "orchestrator writes orchestration.md where no plan.md is" flow-guard.sh "$(write_json dev-flow:dev-orchestrator "$T/src/orchestration.md")"
+expect_deny  "orchestrator edits plan.md"                      flow-guard.sh "$(write_json dev-flow:dev-orchestrator "$T/task/plan.md" Edit)"
+assert "deny says it rules, the main session acts" 'case $err in *"main session acts"*) true;; *) false;; esac'
+expect_deny  "orchestrator writes a spec"                      flow-guard.sh "$(write_json dev-flow:dev-orchestrator "$T/task/specs/decisions.md")"
+expect_deny  "orchestrator writes needs-decision.md"           flow-guard.sh "$(write_json dev-flow:dev-orchestrator "$T/task/needs-decision.md")"
+expect_deny  "orchestrator writes src"                         flow-guard.sh "$(write_json dev-flow:dev-orchestrator "$T/src/foo/alpha.txt")"
+expect_deny  "orchestrator: git commit is refused like any subagent" flow-guard.sh "$(bash_json dev-flow:dev-orchestrator 'git commit -m x')"
+expect_deny  "orchestrator: git push is refused"               flow-guard.sh "$(bash_json dev-flow:dev-orchestrator 'git push')"
+expect_allow "orchestrator: git diff passes"                   flow-guard.sh "$(bash_json dev-flow:dev-orchestrator 'git diff main...HEAD')"
+rm -rf other
 expect_allow "bare agent name (user-level copy) still matched" flow-guard.sh "$(write_json dev-planner "$T/task/plan.md")"
 expect_deny  "fixer edits plan.md"                       flow-guard.sh "$(write_json dev-flow:dev-fixer "$T/task/plan.md")"
 expect_deny  "fixer edits verify.log"                    flow-guard.sh "$(write_json dev-flow:dev-fixer "$T/task/verify.log")"
@@ -437,6 +453,10 @@ assert ".git/info/exclude has .claude/flow/" 'grep -q -x -F ".claude/flow/" .git
 expect_out  "reviewer start says read-only"  flow-context.sh "$(start_json r1 dev-flow:dev-reviewer)" "read-only"
 expect_out  "debugger start names debug/"    flow-context.sh "$(start_json d1 dev-debug:dev-debugger)" "task/debug/"
 assert "debugger snapshot written"            '[ -f .claude/flow/snap-d1 ]'
+expect_out  "orchestrator start names its two files and says it rules" flow-context.sh "$(start_json o1 dev-flow:dev-orchestrator)" "orchestration.md (append, >>) and conformance.md"
+assert "orchestrator start names the prompt's folder as its own" 'case $out in *"Your task folder is the one your prompt names"*) true;; *) false;; esac'
+assert "orchestrator snapshot written"        '[ -f .claude/flow/snap-o1 ]'
+rm -f .claude/flow/snap-o1
 expect_pass "Explore start is silent"        flow-context.sh "$(start_json e1 Explore)"
 
 echo "== SubagentStop: evidence and bookkeeping"
@@ -507,6 +527,22 @@ assert "no violations.md" '[ ! -s task/violations.md ]'
 run flow-context.sh "$(start_json q2 dev-flow:dev-qa-impact)"
 printf 'x\n' > other/x.txt
 expect_block "qa stop: any other new file still is" flow-verify-stop.sh "$(stop_json q2 dev-flow:dev-qa-impact)"
+# other/ is a second task folder (its plan.md exists before the agent starts).
+printf -- '---\ntask: o\nstatus: draft\n---\n' > other/plan.md; rm -f task/violations.md
+run flow-context.sh "$(start_json o2 dev-flow:dev-orchestrator)"
+printf 'ruling\n' >> task/orchestration.md; printf '| 1 | ... |\n' > task/conformance.md
+printf 'ruling\n' >> other/orchestration.md; printf '| 1 | ... |\n' > other/conformance.md
+expect_pass  "orchestrator stop: its two files, in its own or another task folder, are not a violation" flow-verify-stop.sh "$(stop_json o2 dev-flow:dev-orchestrator)"
+assert "no violations.md from the orchestrator" '[ ! -s task/violations.md ]'
+run flow-context.sh "$(start_json o3 dev-flow:dev-orchestrator)"
+mkdir -p notask; printf 'ruling\n' > notask/orchestration.md
+expect_block "orchestrator stop: orchestration.md outside a task folder is" flow-verify-stop.sh "$(stop_json o3 dev-flow:dev-orchestrator)"
+rm -rf notask
+run flow-context.sh "$(start_json o4 dev-flow:dev-orchestrator)"
+printf 'orchestrator edit\n' >> src/foo/alpha.txt
+expect_block "orchestrator stop: a source change is reported" flow-verify-stop.sh "$(stop_json o4 dev-flow:dev-orchestrator)"
+assert "violations.md names the orchestrator" 'grep -q "dev-orchestrator (o4)" task/violations.md'
+git checkout -q -- src; rm -rf other task/orchestration.md task/conformance.md task/violations.md
 rm -rf other task/violations.md; plan implementing
 
 echo "== SubagentStart/Stop: a tree with thousands of untracked files"
@@ -591,7 +627,10 @@ expect_out  "human-review: systemMessage"        flow-notify.sh "$(main_stop_jso
 expect_pass "human-review again: deduplicated"   flow-notify.sh "$(main_stop_json)"
 printf 'disputed\n' > task/needs-decision.md
 expect_out  "needs-decision changes the state"   flow-notify.sh "$(main_stop_json)" "(human-review+needs-decision)"
-assert "four desktop notifications sent (diagnosing, confirm-cause, human-review, +needs-decision)" '[ "$(grep -c NOTIFY "$T/notify.log")" = 4 ]'
+expect_pass "same item again: deduplicated"      flow-notify.sh "$(main_stop_json)"
+printf -- '- 2026-01-01T00:00:00Z I4: which option?; orchestrator recommends: 1; see orchestration.md\n' >> task/needs-decision.md
+expect_out  "a second item at the same status notifies again (an orchestrated run asking twice at one gate)" flow-notify.sh "$(main_stop_json)" "(human-review+needs-decision)"
+assert "five desktop notifications sent (diagnosing, confirm-cause, human-review, +needs-decision, second item)" '[ "$(grep -c NOTIFY "$T/notify.log")" = 5 ]'
 rm -f task/needs-decision.md
 mv .claude/flow/current .claude/flow/finished; touch .claude/flow/start-zz .claude/flow/snap-zz
 expect_out  "finished pointer notifies done"     flow-notify.sh "$(main_stop_json)" "(done)"
@@ -638,6 +677,12 @@ plan reviewing
 plan done
 expect_out "current at done: finished, not 'continue with dev-implement'" flow-session.sh "$(session_json resume)" "finished"
 assert "no resume hint at done" 'case $out in *"Continue with"*) false;; *) true;; esac'
+printf -- '---\ntask: t\nsource: dev-plan-draft\nmode: full\nstatus: reviewing\norchestrate: on\nreview_round: 1\nbase: main\n---\n## Steps\n- [ ] one\n' > task/plan.md
+expect_out "orchestrate: on resumes with the orchestrate skill" flow-session.sh "$(session_json resume)" "/dev-flow:orchestrate $(hp "$T/task")"
+assert "and still names dev-implement for the hand-driven way" 'case $out in *"/dev-flow:dev-implement"*"on autopilot"*"by hand"*) true;; *) false;; esac'
+plan reviewing
+run flow-session.sh "$(session_json resume)"
+assert "without the key nothing about autopilot" 'case $out in *"autopilot"*) false;; *) true;; esac'
 mv .claude/flow/current .claude/flow/planning
 printf -- '---\ntask: t\nsource: dev-debug\nstatus: diagnosing\n---\n' > task/plan.md
 expect_out "planning pointer with source dev-debug resumes dev-debug" flow-session.sh "$(session_json resume)" "/dev-debug:dev-debug"

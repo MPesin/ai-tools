@@ -90,7 +90,12 @@ else
 fi
 state="$state$flags"
 
-key="$TASK_FOLDER|$state"
+# A new item in needs-decision.md at an unchanged status (a second question of an
+# orchestrated run at the same gate) is a new wait: the line count joins the key,
+# so it notifies again while the message text stays the same.
+nd_lines=0
+[ -s "$TASK_FOLDER/needs-decision.md" ] && nd_lines=$(wc -l < "$TASK_FOLDER/needs-decision.md" | tr -d '[:space:]')
+key="$TASK_FOLDER|$state|$nd_lines"
 notified="$FLOW_DIR/notified"
 if [ "$(cat "$notified" 2>/dev/null)" = "$key" ]; then finish_cleanup; exit 0; fi
 printf '%s' "$key" > "$notified"

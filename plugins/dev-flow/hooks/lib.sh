@@ -532,7 +532,7 @@ now_utc() { date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date; }
 
 # Agent families (bare names). Read-only agents may change nothing in the tree.
 is_readonly_agent() {
-  case $1 in dev-planner|dev-plan-critic|dev-reviewer|dev-qa-impact|dev-review-triager|dev-debugger) return 0 ;; esac
+  case $1 in dev-planner|dev-plan-critic|dev-reviewer|dev-qa-impact|dev-review-triager|dev-debugger|dev-orchestrator) return 0 ;; esac
   return 1
 }
 is_writing_agent() {

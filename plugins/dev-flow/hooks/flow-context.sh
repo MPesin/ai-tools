@@ -28,6 +28,9 @@ elif [ "$AGENT_TYPE" = dev-debugger ]; then
 elif [ "$AGENT_TYPE" = dev-qa-impact ]; then
   # Also runs standalone, on another folder, while this session's task is parked.
   context="Dev-flow is active in this session for the task folder $TASK_FOLDER (status: $(frontmatter_value status)). Project root: $GIT_ROOT. Branch: $branch. Your task folder is the one your prompt names; when it is that folder, this is its QA impact stage (base: $(frontmatter_value base)). You are a read-only agent: write nothing but qa-impact.md in your task folder. The plugin compares the working tree before and after your run and reports every other changed file to the user."
+elif [ "$AGENT_TYPE" = dev-orchestrator ]; then
+  # Consulted at a gate of an orchestrated run, about the task its prompt names.
+  context="Dev-flow is active in this session for the task folder $TASK_FOLDER (status: $(frontmatter_value status), mode: $(frontmatter_value mode), review_round: $(frontmatter_value review_round), base: $(frontmatter_value base)). Project root: $GIT_ROOT. Branch: $branch. Your task folder is the one your prompt names. You are a read-only agent: write nothing but orchestration.md (append, >>) and conformance.md in your task folder; you rule, the main session acts. Never edit plan.md, a spec or source. The plugin compares the working tree before and after your run and reports every other changed file to the user."
 else
   context="$context You are a read-only agent: write nothing but your own output file. The plugin compares the working tree before and after your run and reports every other changed file to the user."
 fi
